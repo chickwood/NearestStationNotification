@@ -1,0 +1,16 @@
+ADDITIONAL NOTICE FOR BINARY DATA ASSETS AND DATA SOURCE
+
+The binary data assets (which contain station information) included in this repository are based on and derived from a third-party dataset.
+
+1. Data Source & Attribution:
+   - The underlying binary data assets are based on and derived from the original dataset provided by ekidata.jp.
+   - All intellectual property rights, copyrights, and trademarks regarding the original dataset belong to their respective owners/providers of ekidata.jp.
+   - This repository does not own the original dataset.
+
+2. Data Generation Tools:
+   - The data generation tools (parsing scripts) used to convert the original dataset (in CSV format) into the binary data assets are NOT included in this repository.
+   - The processing pipeline and parsing scripts are maintained in a separate, dedicated repository. (Please refer to README for the repository link).
+
+3. Disclaimer:
+   - The binary data assets (in this repository and/or bundled in application) are provided "AS-IS" for application functionality only.
+   - Users redistributing or commercially utilizing this repository must ensure compliance with the licensing terms, user agreements, and restrictions mandated by ekidata.jp.

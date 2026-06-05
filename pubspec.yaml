@@ -1,0 +1,39 @@
+name: nearest_station_notification
+description: "Locates the nearest station based on your current position."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  flutter_foreground_task: ^9.2.2
+  flutter_local_notifications: ^21.0.0
+  geolocator: ^14.0.2
+  # path_provider: ^2.1.5
+  shared_preferences: ^2.5.5
+  # url_launcher: ^6.3.2
+
+dev_dependencies:
+  flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.4
+
+flutter:
+  uses-material-design: true
+  assets:
+    - BINARY_DATA_NOTICE
+    - assets/station_data_xyz.bin
+    # - assets/ic_title.png
+
+flutter_launcher_icons:
+  ios: true
+  android: true
+  image_path: "assets/icon/icon.png" # icon_notification
+  # image_path: "assets/icon/icon_notification.png"
+  adaptive_icon_background: "#ffffff"
+  adaptive_icon_foreground: "assets/icon/icon_foreground.png" 
+  # adaptive_icon_foreground: "assets/icon/icon_notification.png"

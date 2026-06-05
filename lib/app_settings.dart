@@ -1,0 +1,82 @@
+import 'package:shared_preferences/shared_preferences.dart';
+
+import 'common.dart';
+
+// ── SharedPreferences キー ────────────────────────────────────────
+
+class _Keys {
+  static const stationCount = 'settings_station_count';
+  static const locationInterval = 'settings_location_interval';
+  // static const notificationMode = 'settings_notification_mode';
+}
+
+// ── AppSettings ───────────────────────────────────────────────────
+
+class AppSettings {
+  StationCount stationCount;
+  LocationInterval locationInterval;
+  // NotificationMode notificationMode;
+
+  AppSettings._({
+    this.stationCount = StationCount.max,
+    this.locationInterval = LocationInterval.s5,
+    // this.notificationMode = NotificationMode.location,
+  });
+
+  @override
+  String toString() {
+    return "station_count: ${stationCount.count}, location_interval: ${locationInterval.milliseconds}";
+  }
+
+  // 从 SharedPreferences 读取
+  static Future<AppSettings> load() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    return AppSettings.fromTransferable([
+      prefs.getInt(_Keys.stationCount) ?? StationCount.max.index,
+      prefs.getInt(_Keys.locationInterval) ?? LocationInterval.s5.index,
+      // prefs.getInt(_Keys.notificationMode) ?? NotificationMode.location.index,
+    ]);
+  }
+
+  // 写入 SharedPreferences
+  Future<void> save() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    await prefs.setInt(_Keys.stationCount, stationCount.index);
+    await prefs.setInt(_Keys.locationInterval, locationInterval.index);
+    // await prefs.setInt(_Keys.notificationMode, notificationMode.index);
+  }
+
+  // 复制（用于弹窗内的临时副本）
+  AppSettings copyWith({
+    StationCount? stationCount,
+    LocationInterval? locationInterval,
+    // NotificationMode? notificationMode,
+  }) {
+    return AppSettings.fromTransferable([
+      stationCount?.index ?? this.stationCount.index,
+      locationInterval?.index ?? this.locationInterval.index,
+      // notificationMode?.index ?? this.notificationMode.index,
+    ]);
+  }
+
+  // toTransferable
+  List<int> toTransferable() => [
+        stationCount.index,
+        locationInterval.index,
+        // notificationMode.index,
+      ];
+
+  // fromTransferable
+  factory AppSettings.fromTransferable(List data) => AppSettings._(
+        stationCount: StationCount.values.elementAtOrNull(data[0] as int) ??
+            StationCount.max,
+        locationInterval:
+            LocationInterval.values.elementAtOrNull(data[1] as int) ??
+                LocationInterval.s5,
+        // notificationMode:
+        //     NotificationMode.values.elementAtOrNull(data[2] as int) ??
+        //         NotificationMode.location,
+      );
+}
