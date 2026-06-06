@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'app_settings.dart';
 import 'common.dart';
 import 'l10n.dart';
-import 'license_dialogs.dart';
+import 'licenses_dialog.dart';
 
 // ── Settings Dialog ───────────────────────────────────────────────
 
