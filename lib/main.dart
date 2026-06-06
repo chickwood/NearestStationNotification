@@ -1,14 +1,34 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
+import 'common.dart';
 import 'home_page.dart';
 import 'l10n.dart';
 import 'notification_service.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   FlutterForegroundTask.initCommunicationPort();
+
+  Common.appName =
+      (await PackageInfo.fromPlatform()).packageName.split('.').last;
+
+  // // LICENSE（MIT License 本体）
+  // LicenseRegistry.addLicense(() async* {
+  //   final text = await rootBundle.loadString('LICENSE');
+  //   yield LicenseEntryWithLineBreaks([Common.appName], text);
+  // });
+
+  // ADDITIONAL_NOTICE（station_data_xyz.bin 免責）
+  LicenseRegistry.addLicense(() async* {
+    final text = await rootBundle.loadString('ADDITIONAL_NOTICE');
+    yield LicenseEntryWithLineBreaks([Common.appName], text);
+  });
+
   runApp(const NearestStationNotificationApp());
 }
 
@@ -21,8 +41,7 @@ class NearestStationNotificationApp extends StatefulWidget {
 }
 
 class _NearestStationNotificationAppState
-    extends State<NearestStationNotificationApp>
-    with WidgetsBindingObserver {
+    extends State<NearestStationNotificationApp> with WidgetsBindingObserver {
   NotificationService? _service;
 
   @override

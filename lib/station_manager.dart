@@ -7,7 +7,7 @@ import 'package:flutter/services.dart';
 
 import 'common.dart';
 
-/// 车站数据管理器
+/// 车站信息管理器
 /// 駅データ.jp CSV 解析 + BIN 文件读写
 class StationManager {
   late final Float64List _latitudes; // 纬度区

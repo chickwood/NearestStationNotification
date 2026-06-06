@@ -112,7 +112,7 @@ class AppLocalizations {
   String get infoTitle {
     if (_isJa) return '駅情報・ライセンス';
     if (_isZhHans) return '车站信息和许可证';
-    return 'Station Infomation and License';
+    return 'Station Information and License';
   }
 
   String get infoNoStationsLoaded {
@@ -128,34 +128,16 @@ class AppLocalizations {
     }
   }
 
-  String infoHasStationsLoaded(int count, int date, int size) {
-    final ts = date > 0 ? '$date' : '--';
-    final kb = size ~/ 1024;
-
+  String infoHasStationsLoaded(int count) {
     if (_isJa) {
       return '$count 駅を読み込みました。\n'
-          'バージョン: $ts\n'
-          'サイズ: $kb KB\n'
           'クリックして駅情報詳細・ライセンスを表示。';
-      // '駅情報は 駅データ.jp に基づきます。\n'
-      // 'ソースコードは MIT License で公開。\n'
-      // '駅情報は元プロバイダの利用規約に準拠します。';
     } else if (_isZhHans) {
       return '已读取 $count 个车站。\n'
-          '版本: $ts\n'
-          '大小: $kb KB\n'
           '点击以显示车站信息详情和许可证。';
-      // '车站信息基于 ekidata.jp。\n'
-      // '代码基于 MIT License 开源。\n'
-      // '车站信息衍生数据遵循其原始使用条款。';
     } else {
       return '$count station${count == 1 ? '' : 's'} loaded.\n'
-          'Version: $ts\n'
-          'Size: $kb KB\n'
-          'Click to view station infomation and license details.';
-      // 'Station infomation based on ekidata.jp.\n'
-      // 'Code licensed under the MIT License.\n'
-      // 'Station infomation binary assets comply with the original provider agreement.';
+          'Click to view station information and license details.';
     }
   }
 
@@ -295,6 +277,43 @@ class AppLocalizations {
     if (_isJa) return '$count 件ライセンス';
     if (_isZhHans) return '$count 份许可';
     return '$count license${count == 1 ? '' : 's'}';
+  }
+
+  String licenseCountWithAdditionalNotice(int count) {
+    if (_isJa) return '${licenseCount(count)} 及び 駅情報に関する説明';
+    if (_isZhHans) return '${licenseCount(count)} 以及 关于车站信息的说明';
+    return '${licenseCount(count)} & Notice for Station Information';
+  }
+
+  String get licensePublish {
+    if (_isJa) return 'ソースコードは MIT License で公開します。';
+    if (_isZhHans) return '代码基于 MIT License 开源。';
+    return 'Code published under the MIT License.';
+  }
+
+  String infoHasStationsLoadedDetail(int count, int date, int size) {
+    final ts = date > 0 ? '$date' : '--';
+    final kb = size ~/ 1024;
+
+    if (_isJa) {
+      return '駅情報詳細\n'
+          '$count 駅を読み込みました。\n'
+          'バージョン: $ts\n'
+          'サイズ: $kb KB\n'
+          '駅情報は 駅データ.jp のデータに基づき、加工・生成されたものです。';
+    } else if (_isZhHans) {
+      return '车站信息详情\n'
+          '已读取 $count 个车站。\n'
+          '版本: $ts\n'
+          '大小: $kb KB\n'
+          '车站信息衍生于 ekidata.jp 所公开的数据。';
+    } else {
+      return 'Detail of station information\n'
+          '$count station${count == 1 ? '' : 's'} loaded.\n'
+          'Version: $ts\n'
+          'Size: $kb KB\n'
+          'Station information based on and derived from the dataset published by ekidata.jp.';
+    }
   }
 }
 

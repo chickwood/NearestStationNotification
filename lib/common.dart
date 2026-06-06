@@ -1,6 +1,9 @@
 import 'dart:math';
 
 class Common {
+  // ── 动态包名常驻内存（由 main 在冷启动时注入） ───────────────────────
+  static late final String appName;
+
   // 駅情報
   static const binFileName = 'station_data_xyz.bin';
 

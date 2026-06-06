@@ -121,7 +121,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
                   //       setState(() => _draft = _draft.copyWith(notificationMode: v)),
                   // ),
                   // const SizedBox(height: 12),
-                  // ── 車站情報 ────────────────────────────────────────────
+                  // ── 駅情報 ────────────────────────────────────────────
                   _SectionLabel(label: l10n.infoTitle),
                   const SizedBox(height: 8),
                   Container(
@@ -135,17 +135,17 @@ class _SettingsDialogState extends State<SettingsDialog> {
                     child: TextButton.icon(
                       onPressed: () => showDialog<void>(
                         context: context,
-                        builder: (_) => const LicenseListDialog(),
+                        builder: (_) => LicenseListDialog(info: (
+                          count: widget.info.count,
+                          date: widget.info.date,
+                          size: widget.info.size,
+                        )),
                       ),
                       // onPressed: () => showLicensePage(context: context),
                       label: Text(
-                        widget.info.count == 0
-                            ? l10n.infoNoStationsLoaded
-                            : l10n.infoHasStationsLoaded(
-                                widget.info.count,
-                                widget.info.date,
-                                widget.info.size,
-                              ),
+                        widget.info.count > 0
+                            ? l10n.infoHasStationsLoaded(widget.info.count)
+                            : l10n.infoNoStationsLoaded,
                         style: TextStyle(
                           color: Colors.grey.shade600,
                           fontSize: 12,

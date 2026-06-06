@@ -1,12 +1,22 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import 'common.dart';
 import 'l10n.dart';
 
 // ── License list dialog ───────────────────────────────────────────
 
 class LicenseListDialog extends StatefulWidget {
-  const LicenseListDialog({super.key});
+  final ({
+    int count,
+    int date,
+    int size,
+  }) info;
+
+  const LicenseListDialog({
+    super.key,
+    required this.info,
+  });
 
   @override
   State<LicenseListDialog> createState() => _LicenseListDialogState();
@@ -37,11 +47,20 @@ class _LicenseListDialogState extends State<LicenseListDialog> {
       }
     }
 
-    final sorted = map.entries.toList()..sort((a, b) => a.key.compareTo(b.key));
+    final appLicenses = map.remove(Common.appName) ?? [];
+    final licenses =
+        (map.entries.toList()..sort((a, b) => a.key.compareTo(b.key)))
+            .map((entry) => (
+                  package: entry.key,
+                  licenses: entry.value,
+                ))
+            .toList()
+          ..add((
+            package: Common.appName,
+            licenses: appLicenses,
+          ));
 
-    return sorted
-        .map((e) => (package: e.key, licenses: e.value))
-        .toList(growable: false);
+    return licenses;
   }
 
   @override
@@ -57,7 +76,7 @@ class _LicenseListDialogState extends State<LicenseListDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ── タイトル行 ──────────────────────────────────────────
+            // ── タイトル行（固定）──────────────────────────────────
             Padding(
               padding: const EdgeInsets.all(4),
               child: Row(
@@ -85,8 +104,7 @@ class _LicenseListDialogState extends State<LicenseListDialog> {
                 ],
               ),
             ),
-            const SizedBox(height: 4),
-            // ── リスト ─────────────────────────────────────────────
+            // ── スクロール領域 ──────────────────────────────────────
             Expanded(
               child: FutureBuilder(
                 future: _licensesFuture,
@@ -95,19 +113,77 @@ class _LicenseListDialogState extends State<LicenseListDialog> {
                     return const Center(child: CircularProgressIndicator());
                   }
 
-                  final licenses = snapshot.data ?? [];
+                  final licenses = (snapshot.data ?? []).toList();
+                  final appLicenses = licenses.removeLast();
+                  final appLicensesLength = appLicenses.licenses.length - 1;
 
-                  return ListView.builder(
-                    itemCount: licenses.length,
-                    itemBuilder: (context, index) {
-                      final entry = licenses[index];
-                      final count = entry.licenses.length;
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 4,
+                  return ListView(
+                    padding: const EdgeInsets.fromLTRB(8, 0, 8, 12),
+                    children: [
+                      // ── アプリ固有のヘッダー ──────────────────────
+                      GestureDetector(
+                        onTap: () => showDialog<void>(
+                          context: context,
+                          builder: (_) => LicenseDetailDialog(
+                            package: l10n.appTitle,
+                            licenses: appLicenses.licenses,
+                          ),
                         ),
-                        child: GestureDetector(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              l10n.appTitle,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
+                            Text(
+                              'Powered by Flutter',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            if (widget.info.count > 0) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                l10n.infoHasStationsLoadedDetail(
+                                  widget.info.count,
+                                  widget.info.date,
+                                  widget.info.size,
+                                ),
+                                style: TextStyle(
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                            const SizedBox(height: 4),
+                            Text(
+                              l10n.licensePublish,
+                              style: TextStyle(
+                                fontSize: 12,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              widget.info.count > 0
+                                  ? l10n.licenseCountWithAdditionalNotice(
+                                      appLicensesLength,
+                                    )
+                                  : l10n.licenseCount(appLicensesLength),
+                              style: TextStyle(
+                                color: Colors.grey.shade600,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Divider(height: 8),
+                      // ── 通常のライセンス条目 ──────────────────────
+                      ...licenses.map(
+                        (entry) => GestureDetector(
                           onTap: () => showDialog<void>(
                             context: context,
                             builder: (_) => LicenseDetailDialog(
@@ -115,22 +191,25 @@ class _LicenseListDialogState extends State<LicenseListDialog> {
                               licenses: entry.licenses,
                             ),
                           ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(entry.package),
-                              Text(
-                                l10n.licenseCount(count),
-                                style: TextStyle(
-                                  color: Colors.grey.shade600,
-                                  fontSize: 12,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 4),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(entry.package),
+                                Text(
+                                  l10n.licenseCount(entry.licenses.length),
+                                  style: TextStyle(
+                                    color: Colors.grey.shade600,
+                                    fontSize: 12,
+                                  ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                         ),
-                      );
-                    },
+                      ),
+                    ],
                   );
                 },
               ),
@@ -190,11 +269,10 @@ class LicenseDetailDialog extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(height: 4),
             // ── テキスト ───────────────────────────────────────────
             Expanded(
               child: ListView(
-                padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+                padding: const EdgeInsets.fromLTRB(8, 0, 8, 16),
                 children: licenses
                     // 1. 【外层空防御】过滤掉完全没有内容的空许可证大块
                     .where((paragraphs) => paragraphs.isNotEmpty)
