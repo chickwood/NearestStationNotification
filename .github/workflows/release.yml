@@ -1,0 +1,57 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - 'v*' # 当本地脚本推送 v* 标签时物理触发
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    
+    # 物理赋予该流水线向 GitHub Releases 写入文件与创建发布条目的权限
+    permissions:
+      contents: write
+
+    steps:
+      # 1. 物理检出 GitHub 仓库源码
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # 2. 物理初始化 Java 环境（根据 build.gradle.kts 锁定 JDK 21）
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      # 3. 物理初始化 Flutter 环境（直接锁定稳定版）
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true # 开启依赖缓存
+
+      # 4. 获取项目依赖包
+      - name: Install Dependencies
+        run: flutter pub get
+
+      # 5. 执行物理编译（原样编译，Flutter 会自动读取 pubspec.yaml 里的版本号）
+      - name: Build Android APK
+        run: |
+          flutter build apk --release
+          flutter build apk --release --split-per-abi
+
+      # 6. 瞬间抓取产物并物理发布到 GitHub Releases
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          # 动态将 Release 的标题设置为对应的 Git Tag 名称（如 Release v1.0.0.20260528）
+          name: "Release ${{ github.ref_name }}"
+          # 显式指定抓取通用胖包以及所有切分后的架构包
+          files: |
+            build/app/outputs/flutter-apk/app-release.apk
+            build/app/outputs/flutter-apk/app-*.apk
+          generate_release_notes: true # 自动根据 commit 历史生成变更日志
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # 官方内置安全令牌
