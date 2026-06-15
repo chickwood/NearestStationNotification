@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# 1. 解析 pubspec.yaml 中 version 行 the 文本
+# 1. 解析 pubspec.yaml 中 version 行的文本
 VERSION_STR=$(grep '^version:' pubspec.yaml | awk '{print $2}')
 if [ -z "$VERSION_STR" ]; then
     echo "错误: 未在 pubspec.yaml 中找到 version 字段"
@@ -21,11 +21,13 @@ if [[ ! "$confirmation" =~ ^[yY]$ ]]; then
     exit 0
 fi
 
-# 4. 物理执行 Git 提交流程
+# 4. 执行 Git 提交流程
 git add pubspec.yaml
-git commit -m "chore: bump version to ${VERSION_STR}"
+COMMIT_MSG="chore: bump version to ${VERSION_STR}"
+git commit -m "${COMMIT_MSG}"
 git push origin main
 
-# 5. 物理创建本地 Tag 并推送到远端
-git tag "v${TAG_NAME}"
-git push origin "v${TAG_NAME}"
+# 5. 创建本地 Tag 并推送到远端
+TARGET_TAG="v${TAG_NAME}"
+git tag "${TARGET_TAG}"
+git push origin "${TARGET_TAG}"

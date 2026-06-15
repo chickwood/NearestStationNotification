@@ -1,4 +1,4 @@
-# 1. 物理读取并解析 pubspec.yaml 中的 version 字段
+﻿# 1. 读取并解析 pubspec.yaml 中的 version 字段
 $versionLine = Select-String -Path "pubspec.yaml" -Pattern "^version:" | Select-Object -First 1
 if (-not $versionLine) {
     Write-Error "未在 pubspec.yaml 中找到 version 字段"
@@ -20,11 +20,13 @@ if ($confirmation -notmatch "^[yY]$") {
     exit 0
 }
 
-# 4. 物理执行 Git 提交流程
+# 4. 执行 Git 提交流程
 git add pubspec.yaml
-git commit -m "chore: bump version to $versionStr"
+$commitMsg = "chore: bump version to $versionStr"
+git commit -m $commitMsg
 git push origin main
 
-# 5. 物理创建本地 Tag 并推送到远端
-git tag "v$tagName"
-git push origin "v$tagName"
+# 5. 创建本地 Tag 并推送到远端
+$targetTag = "v$tagName"
+git tag $targetTag
+git push origin $targetTag
