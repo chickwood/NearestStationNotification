@@ -1,21 +1,17 @@
 ADDITIONAL NOTICE FOR BINARY DATA ASSETS AND DATA SOURCE ATTRIBUTION
 
-The binary data assets (which contain station information) included in this repository are based on and derived from a third-party dataset.
-
 1. Data Source & Attribution:
 
-- The underlying station information originates from the dataset published by ekidata.jp (https://ekidata.jp/).
+- The binary data assets (which contain station information) included in this software are based on and derived from the dataset published by ekidata.jp (https://ekidata.jp/).
 
-- All intellectual property rights, copyrights, and trademarks regarding the original dataset belong to the respective owners or providers of ekidata.jp.
+- All intellectual property rights, copyrights, and trademarks regarding the original dataset belong to the respective owners or providers of ekidata.jp, and redistribution of the original dataset is restricted in accordance with the User Agreement mandated by them.
 
-- This repository does not own the original dataset.
+- This software does not own and, in accordance with the ekidata.jp User Agreement, does not provide or redistribute the original dataset.
 
 2. Data Generation Tools:
 
-- The processing pipeline and data generation tools (parsing scripts) used to convert the original dataset (in CSV format) into the binary data assets are NOT included in this repository, and are maintained in a separate, dedicated repository (please refer to the README for the repository link).
+- The processing pipeline and data generation tools (parsing scripts) used to convert the original dataset into the binary data assets are NOT included in this software, and are maintained in a separate, dedicated repository (please refer to the README for the repository link).
 
 3. Disclaimer:
 
-- The binary data assets contained in this repository and/or bundled in the application are provided "AS IS" without any warranties of any kind, either express or implied, including but not limited to warranties of accuracy, completeness, merchantability, or fitness for a particular purpose.
-
-- Users redistributing or commercially utilizing this repository must ensure compliance with the licensing terms, user agreements, and restrictions mandated by ekidata.jp.
+- The binary data assets included in this software are provided "AS IS" without any warranties of any kind, either express or implied, including but not limited to warranties of accuracy, completeness, merchantability, or fitness for a particular purpose.

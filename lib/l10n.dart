@@ -288,7 +288,7 @@ class AppLocalizations {
   String get licensePublish {
     if (_isJa) return 'ソースコードは MIT License で公開します。';
     if (_isZhHans) return '代码基于 MIT License 开源。';
-    return 'Code published under the MIT License.';
+    return 'Source code published under the MIT License.';
   }
 
   String infoHasStationsLoadedDetail(int count, int date, int size) {
