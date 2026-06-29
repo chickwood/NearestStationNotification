@@ -436,47 +436,49 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildServiceResultsExpanded(AppLocalizations l10n) {
-    if (_count == 0) {
-      return Align(
-        alignment: Alignment.topCenter,
-        child: Text(
-          l10n.infoNoStationsLoaded,
-          style: const TextStyle(color: Colors.grey),
-        ),
-      );
-    } else if (_runningStatus == RunningStatus.stopped) {
-      return Align(
-        alignment: Alignment.topCenter,
-        child: Text(
-          l10n.notStarted,
-          style: const TextStyle(color: Colors.grey),
-        ),
-      );
-    } else if (_runningStatus == RunningStatus.starting ||
-        _positionResult == null ||
-        (_stationResults?.isEmpty ?? true)) {
-      return Align(
-        alignment: Alignment.topCenter,
-        child: Text(
-          l10n.waitingForLocation,
-          style: const TextStyle(color: Colors.grey),
-        ),
-      );
-    } else {
-      return ListView.builder(
-        padding: const EdgeInsets.fromLTRB(6, 4, 6, 0),
-        itemCount: _stationResults!.length,
-        itemBuilder: (context, index) {
-          final stationResult = _stationResults![index];
+    if (_count > 0) {
+      if (_runningStatus == RunningStatus.stopped) {
+        return Align(
+          alignment: Alignment.topCenter,
+          child: Text(
+            l10n.notStarted,
+            style: const TextStyle(color: Colors.grey),
+          ),
+        );
+      } else if (_runningStatus == RunningStatus.starting ||
+          _positionResult == null ||
+          (_stationResults?.isEmpty ?? true)) {
+        return Align(
+          alignment: Alignment.topCenter,
+          child: Text(
+            l10n.waitingForLocation,
+            style: const TextStyle(color: Colors.grey),
+          ),
+        );
+      } else {
+        return ListView.builder(
+          padding: const EdgeInsets.fromLTRB(6, 4, 6, 0),
+          itemCount: _stationResults!.length,
+          itemBuilder: (context, index) {
+            final stationResult = _stationResults![index];
 
-          return _StationTile(
-            index: index,
-            name: stationResult.name,
-            distance: stationResult.distanceInUnit,
-            direction: l10n.direction(stationResult.bearingIndex),
-            part: _settings!.stationCount.part(index),
-          );
-        },
+            return _StationTile(
+              index: index,
+              name: stationResult.name,
+              distance: stationResult.distanceInUnit,
+              direction: l10n.direction(stationResult.bearingIndex),
+              part: _settings!.stationCount.part(index),
+            );
+          },
+        );
+      }
+    } else {
+      return Align(
+        alignment: Alignment.topCenter,
+        child: Text(
+          l10n.countStations(0),
+          style: const TextStyle(color: Colors.grey),
+        ),
       );
     }
   }

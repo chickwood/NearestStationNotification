@@ -145,10 +145,17 @@ class _LicenseListDialogState extends State<LicenseListDialog> {
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
+                            const SizedBox(height: 4),
+                            Text(
+                              l10n.licensePublish,
+                              style: TextStyle(
+                                fontSize: 12,
+                              ),
+                            ),
                             if (widget.info.count > 0) ...[
                               const SizedBox(height: 4),
                               Text(
-                                l10n.infoHasStationsLoadedDetail(
+                                l10n.licenseStationsDetails(
                                   widget.info.count,
                                   widget.info.date,
                                   widget.info.size,
@@ -158,13 +165,6 @@ class _LicenseListDialogState extends State<LicenseListDialog> {
                                 ),
                               ),
                             ],
-                            const SizedBox(height: 4),
-                            Text(
-                              l10n.licensePublish,
-                              style: TextStyle(
-                                fontSize: 12,
-                              ),
-                            ),
                             const SizedBox(height: 4),
                             Text(
                               widget.info.count > 0

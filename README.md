@@ -88,11 +88,12 @@ Task Isolate
 
 | 包 | 用途 |
 |----|------|
+| `flutter_localizations` | 多语言支持 |
 | `flutter_foreground_task` | 前台服务 + Task Isolate 通信 |
 | `flutter_local_notifications` | 业务通知显示 |
 | `geolocator` | GPS 定位流 |
+| `package_info_plus` | 包名及许可证详情获取 |
 | `shared_preferences` | 设置持久化 |
-| `flutter_localizations` | 多语言支持 |
 
 ## 多语言支持
 
@@ -102,7 +103,15 @@ Task Isolate
 | 日语 | `ja` |
 | 英语 | `en` |
 
-## License
+默认为系统当前语言
 
-本项目代码基于 [MIT License](LICENSE) 开源。  
-车站信息（`station_data_xyz.bin`）衍生自 [駅データ.jp](https://ekidata.jp/)，使用须遵循其原始[使用条款](https://ekidata.jp/agreement.php)。
+## 许可证及车站信息
+
+本项目代码基于 [MIT License](LICENSE) 开源。
+
+车站信息（`station_data_xyz.bin`）衍生于 [駅データ.jp](https://ekidata.jp/) 所公开的数据。  
+根据 駅データ.jp 的[使用条款](https://ekidata.jp/agreement.php)，本项目不包含原始数据集，如有需要请参考原网站。
+
+## 车站信息（`station_data_xyz.bin`）生成工具
+车站信息生成工具（脚本）在以下仓库公开：  
+[ConvertStationBin](https://github.com/chickwood/ConvertStationBin)

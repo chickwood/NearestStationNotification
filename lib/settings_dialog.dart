@@ -122,7 +122,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
                   // ),
                   // const SizedBox(height: 12),
                   // ── 駅情報 ────────────────────────────────────────────
-                  _SectionLabel(label: l10n.infoTitle),
+                  _SectionLabel(label: l10n.settingsInfoTitle),
                   const SizedBox(height: 8),
                   Container(
                     width: double.infinity,
@@ -143,9 +143,8 @@ class _SettingsDialogState extends State<SettingsDialog> {
                       ),
                       // onPressed: () => showLicensePage(context: context),
                       label: Text(
-                        widget.info.count > 0
-                            ? l10n.infoHasStationsLoaded(widget.info.count)
-                            : l10n.infoNoStationsLoaded,
+                        '${widget.info.count > 0 ? l10n.countStations(widget.info.count) : l10n.countStations(0)}\n'
+                        '${l10n.settingsLicense}',
                         style: TextStyle(
                           color: Colors.grey.shade600,
                           fontSize: 12,

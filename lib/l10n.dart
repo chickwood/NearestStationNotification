@@ -108,36 +108,13 @@ class AppLocalizations {
     return 'Nearby Stations';
   }
 
-  // ── Info Card ───────────────────────────────────────────────────
-  String get infoTitle {
-    if (_isJa) return '駅情報・ライセンス';
-    if (_isZhHans) return '车站信息和许可证';
-    return 'Station Information and License';
-  }
-
-  String get infoNoStationsLoaded {
+  String countStations(int count) {
     if (_isJa) {
-      return '0 駅を読み込みました。\n'
-          'クリックしてライセンスを表示。';
+      return '$count 駅を読み込みました。';
     } else if (_isZhHans) {
-      return '已读取 0 个车站。\n'
-          '点击以显示许可证。';
+      return '已读取 $count 个车站。';
     } else {
-      return 'No stations loaded.\n'
-          'Click to view license details.';
-    }
-  }
-
-  String infoHasStationsLoaded(int count) {
-    if (_isJa) {
-      return '$count 駅を読み込みました。\n'
-          'クリックして駅情報詳細・ライセンスを表示。';
-    } else if (_isZhHans) {
-      return '已读取 $count 个车站。\n'
-          '点击以显示车站信息详情和许可证。';
-    } else {
-      return '$count station${count == 1 ? '' : 's'} loaded.\n'
-          'Click to view station information and license details.';
+      return '${count > 0 ? '$count' : 'No'} station${count == 1 ? '' : 's'} loaded.';
     }
   }
 
@@ -258,6 +235,20 @@ class AppLocalizations {
     return '$seconds s';
   }
 
+  String get settingsInfoTitle {
+    if (_isJa) return 'ライセンス・駅情報';
+    if (_isZhHans) return '许可证及车站信息';
+    return 'License and Station Information';
+  }
+
+  String get settingsLicense {
+    if (_isJa) return 'ここをクリックして、ライセンス・駅情報詳細を表示。';
+    if (_isZhHans) return '点击此处以显示许可证及车站信息详情。';
+    return 'Tap here to view license and station information details.';
+  }
+
+  String settingsStations(int count) => countStations(count); // 定义别名区分使用位置
+
   String get settingsSave {
     if (_isJa || _isZhHans) return '保存';
     return 'Save';
@@ -271,7 +262,7 @@ class AppLocalizations {
 
   // ── License Dialog ───────────────────────────────────────────────────────────
 
-  String get licensesDialogTitle => infoTitle;
+  String get licensesDialogTitle => settingsInfoTitle;
 
   String licenseCount(int count) {
     if (_isJa) return '$count 件ライセンス';
@@ -291,25 +282,25 @@ class AppLocalizations {
     return 'Source code published under the MIT License.';
   }
 
-  String infoHasStationsLoadedDetail(int count, int date, int size) {
+  String licenseStationsDetails(int count, int date, int size) {
     final ts = date > 0 ? '$date' : '--';
     final kb = size ~/ 1024;
 
     if (_isJa) {
       return '駅情報詳細\n'
-          '$count 駅を読み込みました。\n'
+          '${countStations(count)}\n'
           'バージョン: $ts\n'
           'サイズ: $kb KB\n'
           '駅情報は 駅データ.jp のデータに基づき、加工・生成されたものです。';
     } else if (_isZhHans) {
       return '车站信息详情\n'
-          '已读取 $count 个车站。\n'
+          '${countStations(count)}\n'
           '版本: $ts\n'
           '大小: $kb KB\n'
           '车站信息衍生于 ekidata.jp 所公开的数据。';
     } else {
       return 'Detail of station information\n'
-          '$count station${count == 1 ? '' : 's'} loaded.\n'
+          '${countStations(count)}\n'
           'Version: $ts\n'
           'Size: $kb KB\n'
           'Station information based on and derived from the dataset published by ekidata.jp.';
