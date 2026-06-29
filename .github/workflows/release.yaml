@@ -36,17 +36,27 @@ jobs:
       - name: Install Dependencies
         run: flutter pub get
 
-      # 5. 执行物理编译（原样编译，Flutter 会自动读取 pubspec.yaml 里的版本号）
+      # 5. 从 GitHub Secrets 解密生产签名证书并释放到临时目录
+      - name: Decode Keystore
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > app-release-key.jks
+
+      # 6. 执行物理编译（注入环境变量，强制触发生产签名逻辑）
       - name: Build Android APK
         run: |
           flutter build apk --release
           flutter build apk --release --split-per-abi
+        env:
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          KEY_STORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD }}
+          KEYSTORE_PATH: ../../app-release-key.jks # 基于 android/app/ 目录的物理相对路径
 
-      # 6. 瞬间抓取产物并物理发布到 GitHub Releases
+      # 7. 瞬间抓取产物并物理发布到 GitHub Releases
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
         with:
-          # 动态将 Release 的标题设置为对应的 Git Tag 名称（如 Release v1.0.0.20260528）
+          # 动态将 Release 的标题设置为对应的 Git Tag 名称（如 Release v1.0.0）
           name: "Release ${{ github.ref_name }}"
           # 显式指定抓取通用胖包以及所有切分后的架构包
           files: |

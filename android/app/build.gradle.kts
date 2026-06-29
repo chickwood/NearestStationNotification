@@ -35,19 +35,30 @@ android {
 
     signingConfigs {
         create("release") {
-            keyAlias = keystoreProperties["keyAlias"] as String?
-            keyPassword = keystoreProperties["keyPassword"] as String?
-            storeFile = keystoreProperties["storeFile"]?.let { file(it) }
-            storePassword = keystoreProperties["storePassword"] as String?
+            if (keystorePropertiesFile.exists()) {
+                // 本地拥有配置文件时的读取逻辑
+                keyAlias = keystoreProperties["keyAlias"] as String?
+                keyPassword = keystoreProperties["keyPassword"] as String?
+                storeFile = keystoreProperties["storeFile"]?.let { file(it) }
+                storePassword = keystoreProperties["storePassword"] as String?
+            } else if (System.getenv("GITHUB_ACTIONS") == "true") {
+                // GitHub Actions 环境下的安全注入
+                keyAlias = System.getenv("KEY_ALIAS")
+                keyPassword = System.getenv("KEY_PASSWORD")
+                storePassword = System.getenv("KEY_STORE_PASSWORD")
+                storeFile = System.getenv("KEYSTORE_PATH")?.let { file(it) }
+            }
         }
     }
 
     buildTypes {
         release {
+            // 根据环境动态指定签名配置
             signingConfig =
-                if (keystorePropertiesFile.exists()) {
+                if (keystorePropertiesFile.exists() || System.getenv("GITHUB_ACTIONS") == "true") {
                     signingConfigs.getByName("release")
                 } else {
+                    // 其他成员本地没有 key.properties 时，打包 release 会使用 debug 签名，确保编译不报错
                     signingConfigs.getByName("debug")
                 }
 
