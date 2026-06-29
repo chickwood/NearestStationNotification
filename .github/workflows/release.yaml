@@ -47,9 +47,9 @@ jobs:
           flutter build apk --release
           flutter build apk --release --split-per-abi
         env:
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-          KEY_STORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          KEY_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
           KEYSTORE_PATH: ../../app-release-key.jks # 基于 android/app/ 目录的物理相对路径
 
       # 7. 瞬间抓取产物并物理发布到 GitHub Releases
