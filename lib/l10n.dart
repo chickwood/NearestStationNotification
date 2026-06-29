@@ -272,8 +272,8 @@ class AppLocalizations {
 
   String licenseCountWithAdditionalNotice(int count) {
     if (_isJa) return '${licenseCount(count)} 及び 駅情報に関する説明';
-    if (_isZhHans) return '${licenseCount(count)} 以及 关于车站信息的说明';
-    return '${licenseCount(count)} & Notice for Station Information';
+    if (_isZhHans) return '${licenseCount(count)} 及 关于车站信息的说明';
+    return '${licenseCount(count)} and Notice for Station Information';
   }
 
   String get licensePublish {

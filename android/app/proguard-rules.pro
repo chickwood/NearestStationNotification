@@ -2,7 +2,7 @@
 # 1. Keep Rules (Internal Alphabetical Order)
 # =========================================================
 
-# Flutter Core & Engine
+# Flutter Core and Engine
 -keep class io.flutter.embedding.engine.loader.FlutterLoader { *; }
 -keep class io.flutter.util.PathUtils { *; }
 
