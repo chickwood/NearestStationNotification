@@ -67,6 +67,7 @@ ios/Podfile.lock
 /*.doc
 /*.pdf
 /*.odt
+/*.geojson
 
 # 忽略根目录下的非 assets 图片
 /*.png
