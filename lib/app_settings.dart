@@ -18,8 +18,8 @@ class AppSettings {
   // NotificationMode notificationMode;
 
   AppSettings._({
-    this.stationCount = StationCount.max,
-    this.locationInterval = LocationInterval.s5,
+    this.stationCount = StationCount.game,
+    this.locationInterval = LocationInterval.s1,
     // this.notificationMode = NotificationMode.location,
   });
 
@@ -33,8 +33,8 @@ class AppSettings {
     final prefs = await SharedPreferences.getInstance();
 
     return AppSettings.fromTransferable([
-      prefs.getInt(_Keys.stationCount) ?? StationCount.max.index,
-      prefs.getInt(_Keys.locationInterval) ?? LocationInterval.s5.index,
+      prefs.getInt(_Keys.stationCount) ?? StationCount.game.index,
+      prefs.getInt(_Keys.locationInterval) ?? LocationInterval.s1.index,
       // prefs.getInt(_Keys.notificationMode) ?? NotificationMode.location.index,
     ]);
   }
@@ -71,10 +71,10 @@ class AppSettings {
   // fromTransferable
   factory AppSettings.fromTransferable(List data) => AppSettings._(
         stationCount: StationCount.values.elementAtOrNull(data[0] as int) ??
-            StationCount.max,
+            StationCount.game,
         locationInterval:
             LocationInterval.values.elementAtOrNull(data[1] as int) ??
-                LocationInterval.s5,
+                LocationInterval.s1,
         // notificationMode:
         //     NotificationMode.values.elementAtOrNull(data[2] as int) ??
         //         NotificationMode.location,

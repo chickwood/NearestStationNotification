@@ -121,7 +121,7 @@ class LocationTaskHandler extends TaskHandler {
         ? _positionQueue.last.samplingMode.filter
         : SamplingMode.staying.filter;
     final milliseconds = _settings?.locationInterval.milliseconds ??
-        LocationInterval.s5.milliseconds;
+        LocationInterval.s1.milliseconds;
     var locationSettings = switch (defaultTargetPlatform) {
       TargetPlatform.android => AndroidSettings(
           accuracy: LocationAccuracy.high,
