@@ -132,7 +132,7 @@ class _HomePageState extends State<HomePage> {
         ),
         body: SafeArea(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
             child: Column(
               children: [
                 if (_runningStatus == RunningStatus.running &&

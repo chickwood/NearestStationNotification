@@ -68,7 +68,7 @@ class _LicenseListDialogState extends State<LicenseListDialog> {
     final l10n = AppLocalizations.of(context);
     return Dialog(
       elevation: 2,
-      insetPadding: const EdgeInsets.fromLTRB(16, 72, 16, 8),
+      insetPadding: const EdgeInsets.fromLTRB(16, 72, 16, 4),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.all(8),
@@ -239,7 +239,7 @@ class LicenseDetailDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     return Dialog(
       elevation: 2,
-      insetPadding: const EdgeInsets.fromLTRB(16, 72, 16, 8),
+      insetPadding: const EdgeInsets.fromLTRB(16, 72, 16, 4),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.all(8),
