@@ -42,6 +42,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
     final l10n = AppLocalizations.of(context);
     return Dialog(
       elevation: 2,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 32),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.all(8),
@@ -135,6 +136,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
                     child: TextButton.icon(
                       onPressed: () => showDialog<void>(
                         context: context,
+                        barrierColor: Colors.transparent,
                         builder: (_) => LicenseListDialog(info: (
                           count: widget.info.count,
                           date: widget.info.date,

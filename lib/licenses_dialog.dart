@@ -68,7 +68,7 @@ class _LicenseListDialogState extends State<LicenseListDialog> {
     final l10n = AppLocalizations.of(context);
     return Dialog(
       elevation: 2,
-      insetPadding: const EdgeInsets.fromLTRB(16, 72, 16, 16),
+      insetPadding: const EdgeInsets.fromLTRB(16, 72, 16, 8),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.all(8),
@@ -124,6 +124,7 @@ class _LicenseListDialogState extends State<LicenseListDialog> {
                       GestureDetector(
                         onTap: () => showDialog<void>(
                           context: context,
+                          barrierColor: Colors.transparent,
                           builder: (_) => LicenseDetailDialog(
                             package: l10n.appTitle,
                             licenses: appLicenses.licenses,
@@ -186,6 +187,7 @@ class _LicenseListDialogState extends State<LicenseListDialog> {
                         (entry) => GestureDetector(
                           onTap: () => showDialog<void>(
                             context: context,
+                            barrierColor: Colors.transparent,
                             builder: (_) => LicenseDetailDialog(
                               package: entry.package,
                               licenses: entry.licenses,
@@ -237,7 +239,7 @@ class LicenseDetailDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     return Dialog(
       elevation: 2,
-      insetPadding: const EdgeInsets.fromLTRB(16, 72, 16, 16),
+      insetPadding: const EdgeInsets.fromLTRB(16, 72, 16, 8),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.all(8),

@@ -132,7 +132,7 @@ class _HomePageState extends State<HomePage> {
         ),
         body: SafeArea(
           child: Padding(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
             child: Column(
               children: [
                 if (_runningStatus == RunningStatus.running &&
@@ -257,7 +257,7 @@ class _HomePageState extends State<HomePage> {
   void _showSettingsDialog() {
     showDialog(
       context: context,
-      barrierDismissible: true, // 点击遮罩关闭（不保存）
+      barrierColor: Colors.white.withValues(alpha: 0.5),
       builder: (context) => SettingsDialog(
         info: (
           settings: _settings!,
