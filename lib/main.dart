@@ -1,7 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
@@ -12,7 +11,6 @@ import 'notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  FlutterForegroundTask.initCommunicationPort();
 
   Common.appName =
       (await PackageInfo.fromPlatform()).packageName.split('.').last;
@@ -64,7 +62,7 @@ class _NearestStationNotificationAppState
   }
 
   /// AppLifecycle 监听
-  /// paused  → UI 静默，Task Isolate 继续更新通知栏
+  /// paused  → UI 静默，Geolocator 前台服务继续更新通知栏
   /// resumed → 恢复 UI 推送
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {

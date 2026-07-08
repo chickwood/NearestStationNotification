@@ -1,22 +1,17 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:ui';
 
-import 'package:flutter/foundation.dart';
-import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:geolocator/geolocator.dart';
 
 import 'app_settings.dart';
 import 'common.dart';
 import 'l10n.dart';
-import 'location_task_handler.dart';
+import 'location_processor.dart';
+import 'search_engine.dart';
 
-/// 定位服务
-/// 主线程空壳
-/// FGT の起停・権限・UI コールバックの管理を担う
-/// 業務通知は FLN が担う
-/// GPS 計算は LocationTaskHandler (Task Isolate) が担う
+/// 通知・UI コールバック管理クラス
+/// LocationProcessor の結果を受けて FLN 業務通知を発行し UI を更新する
 class NotificationService {
   AppLocalizations _l10n;
 
@@ -32,7 +27,10 @@ class NotificationService {
   Function(RunningStatus)? _onRunningStatusChanged;
   // AppSettings? _settings;
 
-  // ── FLN ─────────────────────────────────────────────────────────
+  // ── GPS 流处理 ────────────────────────────────────────────────────
+  LocationProcessor? _locationProcessor;
+
+  // ── FLN ───────────────────────────────────────────────────────
   final _fln = FlutterLocalNotificationsPlugin();
 
   NotificationService(this._l10n);
@@ -41,34 +39,6 @@ class NotificationService {
 
   /// アプリ起動時に呼び出初期化処理
   Future<void> initService() async {
-    // FGT 初期化
-    // channelImportance を HIGH に設定して一回表示で非表示を促す
-    // ユーザーはシステム設定からこのチャンネルを非表示にすることができる
-    _fgt.init(
-      androidNotificationOptions: AndroidNotificationOptions(
-        channelId: Common.fgtChannelId,
-        channelName: _l10n.fgtChannelName,
-        channelDescription: _l10n.fgtChannelDescription,
-        channelImportance: NotificationChannelImportance.HIGH,
-        playSound: false,
-        showBadge: false,
-        onlyAlertOnce: true,
-      ),
-      iosNotificationOptions: const IOSNotificationOptions(
-        showNotification: false,
-        playSound: false,
-      ),
-      foregroundTaskOptions: ForegroundTaskOptions(
-        eventAction: ForegroundTaskEventAction.nothing(), // repeat(5000),
-        autoRunOnBoot: false,
-        autoRunOnMyPackageReplaced: false,
-        allowWakeLock: true,
-        allowWifiLock: false,
-        stopWithTask: false,
-      ),
-    );
-
-    // FLN 初期化
     await _fln.initialize(
       settings: InitializationSettings(
         android: AndroidInitializationSettings(
@@ -83,13 +53,6 @@ class NotificationService {
     );
 
     // 冷启动清理
-    // 若 FGT 服务仍在运行则停止
-    if (await _fgt.isRunningService) {
-      _fgt.removeTaskDataCallback(_onReceiveTaskData);
-      await _fgt.stopService();
-    }
-
-    // 冷启动清理
     // 取消可能残留的业务通知
     await _fln.cancelAll();
   }
@@ -102,8 +65,9 @@ class NotificationService {
     Function(PositionResult?, List<StationResult>?)? onLocated,
     Function(RunningStatus)? onRunningStatusChanged,
   }) async {
-    // 权限
     _onRunningStatusChanged = onRunningStatusChanged;
+
+    // 权限
     if (!await _requestLocationPermissions() ||
         !await _requestNotificationPermissions()) {
       _onRunningStatusChanged?.call(RunningStatus.stopped);
@@ -114,38 +78,21 @@ class NotificationService {
     _onLocated = onLocated;
     // _settings = settings;
 
-    if (await _fgt.isRunningService) {
-      await _fgt.restartService();
-    } else {
-      _fgt.addTaskDataCallback(_onReceiveTaskData);
+    final engine = await SearchEngine.load();
 
-      final payload = {
-        'settings': settings.toTransferable(),
-      };
-      await _fgt.saveData(
-        key: payload.keys.first,
-        value: jsonEncode(payload.values.first),
-      );
+    _locationProcessor = LocationProcessor(
+      foregroundNotificationTitle: _l10n.fgtNotificationTitle,
+      foregroundNotificationBody: _l10n.fgtNotificationBody,
+      onLocated: _onReceiveLocation,
+    );
+    await _locationProcessor!.start(settings, engine);
 
-      await _fgt.startService(
-        serviceId: Common.fgtNotificationId,
-        serviceTypes: [ForegroundServiceTypes.location],
-        notificationTitle: _l10n.fgtNotificationTitle,
-        notificationText: _l10n.fgtNotificationBody,
-        notificationIcon: const NotificationIcon(
-          metaDataName: Common.fgtNotificationIconMetaDataName,
-        ),
-        callback: startCallback,
-      );
-    }
-
-    // _onRunningStatusChanged?.call(RunningStatus.running);
+    _onRunningStatusChanged?.call(RunningStatus.running);
   }
 
-  // 停止定位
   Future<void> stopLocating() async {
-    _fgt.removeTaskDataCallback(_onReceiveTaskData);
-    await _fgt.stopService();
+    await _locationProcessor?.stop();
+    _locationProcessor = null;
 
     await _fln.cancelAll();
 
@@ -180,42 +127,28 @@ class NotificationService {
       if (_active) {
         _onLocated?.call(_positionResult, _serviceResults);
       }
-
-      if (await _fgt.isRunningService) {
-        final payload = {
-          'active': _active,
-        };
-        _fgt.sendDataToTask(payload);
-        // FGT.sendDataToMain 会引发 _updateNotification
-        // 不需要明示调用
-        // unawaited(_updateNotification());
-      }
     }
   }
 
-  // 系统语言更新
+  /// 系统语言更新
   void changeLocale(AppLocalizations l10n) {
     _l10n = l10n;
+
+    // 前台通知テキストを更新
+    if (_locationProcessor != null) {
+      _locationProcessor!.foregroundNotificationTitle =
+          _l10n.fgtNotificationTitle;
+      _locationProcessor!.foregroundNotificationBody =
+          _l10n.fgtNotificationBody;
+    }
 
     unawaited(_updateNotification(forceUpdate: true));
   }
 
+  /// 设置更改
   Future<void> changeSettings(AppSettings settings) async {
     // _settings = settings;
-
-    if (await _fgt.isRunningService) {
-      final payload = {
-        'settings': settings.toTransferable(),
-      };
-      await _fgt.saveData(
-        key: payload.keys.first,
-        value: jsonEncode(payload.values.first),
-      );
-      _fgt.sendDataToTask(payload);
-      // FGT.sendDataToMain 会引发 _updateNotification
-      // 不需要明示调用
-      // unawaited(_updateNotification());
-    }
+    await _locationProcessor?.changeSettings(settings);
   }
 
   // ── 権限 ────────────────────────────────────────────────────────
@@ -234,16 +167,29 @@ class NotificationService {
   }
 
   Future<bool> _requestNotificationPermissions() async {
-    // FGT 的通知权限
-    await _fgt.requestNotificationPermission();
-
-    // FLN 的通知权限
     await _fln
         .resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin>()
         ?.requestNotificationsPermission();
 
-    return true; // 留给以后对通知的详细判定
+    return true;
+  }
+
+  // ── LocationProcessor コールバック ────────────────────────────────
+
+  void _onReceiveLocation(
+    PositionResult positionResult,
+    List<StationResult> stationResults,
+  ) {
+    _positionResult = positionResult;
+    _serviceResults = stationResults;
+
+    unawaited(_updateNotification());
+
+    // UI 静默时不推送
+    if (_active) {
+      _onLocated?.call(_positionResult, _serviceResults);
+    }
   }
 
   // ── 業務通知（FLN）────────────────────────────────────────────────
@@ -303,48 +249,4 @@ class NotificationService {
       _isNotificationUpdating = false;
     }
   }
-
-  // ── Task Isolate → 主线程 データ受信 ────────────────────────────
-
-  void _onReceiveTaskData(Object data) {
-    if (data
-        case {
-          'ready': 'ready',
-        }) {
-      _onRunningStatusChanged?.call(RunningStatus.running);
-    } else if (data
-        case {
-          'position_result': final List positionResultData,
-          'station_results': final List serviceResultsData,
-        }) {
-      try {
-        _positionResult = PositionResult.fromTransferable(positionResultData);
-        _serviceResults = serviceResultsData
-            .map((result) => StationResult.fromTransferable(result as List))
-            .toList(growable: false);
-
-        // 更新业务通知
-        unawaited(_updateNotification());
-
-        // UI 静默时不推送
-        // 彻底消除后台 Widget 重绘
-        if (_active) {
-          _onLocated?.call(_positionResult, _serviceResults);
-        }
-      } catch (e, st) {
-        debugPrint('error: $e\n$st');
-      }
-    }
-  }
 }
-
-/// 顶级函数
-/// Task Isolate 入口
-/// 必须是顶级函数且必须加 @pragma('vm:entry-point')
-@pragma('vm:entry-point')
-void startCallback() {
-  _fgt.setTaskHandler(LocationTaskHandler());
-}
-
-// ignore: camel_case_types
-typedef _fgt = FlutterForegroundTask;

@@ -13,11 +13,6 @@ class Common {
   // // 駅データ.jp へのリンク
   // static final uriEkidata = Uri.parse('https://ekidata.jp/');
 
-  static const fgtChannelId = 'notification_fgt_channel';
-  static const fgtNotificationId = 1057;
-  static const fgtNotificationIconMetaDataName =
-      "name.w57.nearest_station_notification.ic_notification";
-
   static const flnChannelId = 'notification_fln_channel';
   static const flnNotificationId = 1058;
   static const flnNotificationIcon = "ic_notification";

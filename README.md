@@ -13,10 +13,10 @@ nearest_station_notification/
 │   ├── common.dart                 # 共用类、枚举与工具函数
 │   ├── home_page.dart              # UI 主页面
 │   ├── l10n.dart                   # 多语言（中/日/英）
-│   ├── license_dialogs.dart        # 许可证列表及详情对话框
-│   ├── location_task_handler.dart  # Task Isolate 处理器（GPS 流 + 搜索算法）
+│   ├── licenses_dialog.dart        # 许可证列表及详情对话框
+│   ├── location_processor.dart     # 位置处理（GPS 流 + 漂移过滤 + 搜索算法）
 │   ├── main.dart                   # App 入口
-│   ├── notification_service.dart   # 主线程服务（FGT/FLN 管理 + UI 回调）
+│   ├── notification_service.dart   # 通知及 UI 回调管理
 │   ├── search_engine.dart          # 最近车站搜索算法
 │   ├── settings_dialog.dart        # 设置对话框
 │   └── station_manager.dart        # 车站信息管理器（BIN 文件解析）
@@ -49,7 +49,7 @@ nearest_station_notification/
 - 内存连续，CPU 缓存友好
 - 约 1 万站点 ≈ 600 KB，完全适合内存
 
-## 自适应采样（location_task_handler.dart）
+## GPS 流处理（location_processor.dart）
 
 根据实时速度动态切换 GPS 采样策略，在精度与功耗之间取得平衡：
 
@@ -70,18 +70,14 @@ nearest_station_notification/
 ```
 主线程 (UI)
   └─ NotificationService
-       ├─ 启停 FlutterForegroundTask (FGT)
-       ├─ 管理 FlutterLocalNotifications (FLN) 业务通知
-       └─ 接收 Task Isolate 数据 → 更新通知栏 + 驱动 UI 重绘
-
-Task Isolate
-  └─ LocationTaskHandler
-       ├─ Geolocator GPS Stream（自适应采样）
-       ├─ GPS 漂移过滤（方形过滤 + 观察者模式）
-       └─ SearchEngine.locate() → sendDataToMain()
+       ├─ LocationProcessor（GPS 流 + 漂移过滤 + 搜索算法）
+       ｜  ├─ Geolocator GPS Stream（自适应采样）
+       ｜  ├─ GPS 漂移过滤（方形过滤 + 观察者模式）
+       ｜  └─ SearchEngine.locate()
+       └─ FlutterLocalNotifications（业务通知 + UI 回调）
 ```
 
-- **FGT 通知**：系统前台服务常驻通知（提示用户长按关闭）
+- **Geolocator 前台通知**：系统前台服务常驻通知
 - **FLN 通知**：最近车站变动时更新的业务通知（无声、无振动）
 
 ## 依赖
@@ -89,9 +85,8 @@ Task Isolate
 | 包 | 用途 |
 |----|------|
 | `flutter_localizations` | 多语言支持 |
-| `flutter_foreground_task` | 前台服务 + Task Isolate 通信 |
 | `flutter_local_notifications` | 业务通知显示 |
-| `geolocator` | GPS 定位流 |
+| `geolocator` | GPS 定位流 + 前台服务 |
 | `package_info_plus` | 包名及许可证详情获取 |
 | `shared_preferences` | 设置持久化 |
 

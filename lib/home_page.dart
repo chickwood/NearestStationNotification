@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 
 import 'app_settings.dart';
 import 'common.dart';
@@ -52,100 +51,98 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return WithForegroundTask(
-      child: Scaffold(
-        backgroundColor: Colors.grey.shade50,
-        appBar: AppBar(
-          title: Row(
-            children: [
-              // Image.asset(
-              //   'assets/ic_title.png',
-              //   color: Colors.white,
-              //   width: 32,
-              //   height: 32,
-              //   fit: BoxFit.contain,
-              // ),
-              // const SizedBox(width: 4),
-              Text(
-                l10n.appTitle,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w500,
-                ),
+    return Scaffold(
+      backgroundColor: Colors.grey.shade50,
+      appBar: AppBar(
+        title: Row(
+          children: [
+            // Image.asset(
+            //   'assets/ic_title.png',
+            //   color: Colors.white,
+            //   width: 32,
+            //   height: 32,
+            //   fit: BoxFit.contain,
+            // ),
+            // const SizedBox(width: 4),
+            Text(
+              l10n.appTitle,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.w500,
               ),
-            ],
-          ),
-          backgroundColor: const Color(0xFF4080FF),
-          actions: [
-            // 定位详细显示切换
-            if (_runningStatus == RunningStatus.running &&
-                _positionResult != null)
-              Padding(
-                padding: const EdgeInsets.only(right: 10),
-                child: GestureDetector(
-                  onTap: _switchPositionVisibility,
-                  child: Icon(
-                    _positionVisibility == 0
-                        ? Icons.visibility_off
-                        : Icons.visibility,
-                    color: _positionVisibility == 1
-                        ? const Color(0xFFA0C0FF)
-                        : Colors.white,
-                    size: 32,
-                  ),
-                ),
-              ),
-            // 开始/停止
+            ),
+          ],
+        ),
+        backgroundColor: const Color(0xFF4080FF),
+        actions: [
+          // 定位详细显示切换
+          if (_runningStatus == RunningStatus.running &&
+              _positionResult != null)
             Padding(
-              padding: const EdgeInsets.only(right: 8),
+              padding: const EdgeInsets.only(right: 10),
               child: GestureDetector(
-                onTap: switch (_runningStatus) {
-                  RunningStatus.stopped => _start,
-                  RunningStatus.running => _stop,
-                  _ => null, // starting
-                },
+                onTap: _switchPositionVisibility,
                 child: Icon(
-                  _runningStatus == RunningStatus.running
-                      ? Icons.stop_circle
-                      : Icons.play_circle_filled, // starting/stopped
-                  color: _runningStatus == RunningStatus.starting
+                  _positionVisibility == 0
+                      ? Icons.visibility_off
+                      : Icons.visibility,
+                  color: _positionVisibility == 1
                       ? const Color(0xFFA0C0FF)
                       : Colors.white,
                   size: 32,
                 ),
               ),
             ),
-            // 设置
-            Padding(
-              padding: const EdgeInsets.only(right: 12),
-              child: GestureDetector(
-                onTap: _showSettingsDialog,
-                child: const Icon(
-                  Icons.settings,
-                  color: Colors.white,
-                  size: 32,
-                ),
+          // 开始/停止
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: GestureDetector(
+              onTap: switch (_runningStatus) {
+                RunningStatus.stopped => _start,
+                RunningStatus.running => _stop,
+                _ => null, // starting
+              },
+              child: Icon(
+                _runningStatus == RunningStatus.running
+                    ? Icons.stop_circle
+                    : Icons.play_circle_filled, // starting/stopped
+                color: _runningStatus == RunningStatus.starting
+                    ? const Color(0xFFA0C0FF)
+                    : Colors.white,
+                size: 32,
               ),
             ),
-          ],
-        ),
-        body: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-            child: Column(
-              children: [
-                if (_runningStatus == RunningStatus.running &&
-                    _positionResult != null &&
-                    _positionVisibility > 0) ...[
-                  _buildPositionCard(l10n), // 上部可隐藏: 位置信息
-                  const SizedBox(height: 4),
-                ],
-                Expanded(
-                  child: _buildServiceResultsCard(l10n), // 中部可滚动: 车站列表
-                ),
-              ],
+          ),
+          // 设置
+          Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: GestureDetector(
+              onTap: _showSettingsDialog,
+              child: const Icon(
+                Icons.settings,
+                color: Colors.white,
+                size: 32,
+              ),
             ),
+          ),
+        ],
+      ),
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+          child: Column(
+            children: [
+              if (_runningStatus == RunningStatus.running &&
+                  _positionResult != null &&
+                  _positionVisibility > 0) ...[
+                _buildPositionCard(l10n), // 上部可隐藏: 位置信息
+                const SizedBox(height: 4),
+              ],
+              Expanded(
+                child: _buildServiceResultsCard(l10n), // 中部可滚动: 车站列表
+              ),
+            ],
           ),
         ),
       ),
