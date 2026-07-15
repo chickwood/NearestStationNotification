@@ -9,8 +9,12 @@ class SearchEngine {
 
   SearchEngine._load(this._manager);
 
+  factory SearchEngine.fromManager(StationManager manager) {
+    return SearchEngine._load(manager);
+  }
+
   /// 搜索最近的 K 个节点
-  /// 返回包含索引和弦长平方
+  /// 返回包含索引、距离（弦长平方）、方位角的 StationResult
   List<StationResult> locate(
       double userLatitude, double userLongitude, int count, bool active) {
     if (!_manager.isLoaded || // 数据未加载完成时返回空列表
@@ -145,14 +149,14 @@ class SearchEngine {
         : bestNodes.take(take).map((result) => transferNode(result));
 
     return transferNodes.map((result) {
-      final (gcd, name) = _manager.getStationName(result.index);
       final distance = inside
           ? Common.equirectangular(result.score)
           : Common.haversine(result.score);
 
       return StationResult(
-        gcd: gcd,
-        name: name,
+        index: result.index,
+        gcd: 0,
+        name: '',
         distance: distance,
         bearing: Common.bearing(
           userCosLatRad,
@@ -164,9 +168,5 @@ class SearchEngine {
         ),
       );
     }).toList(growable: false);
-  }
-
-  static Future<SearchEngine> load() async {
-    return SearchEngine._load(await StationManager.load());
   }
 }

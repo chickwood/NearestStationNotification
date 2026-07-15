@@ -13,6 +13,11 @@ class Common {
   // // 駅データ.jp へのリンク
   // static final uriEkidata = Uri.parse('https://ekidata.jp/');
 
+  static const fgtChannelId = 'notification_fgt_channel';
+  static const fgtNotificationId = 1057;
+  static const fgtNotificationIconMetaDataName =
+      "name.w57.nearest_station_notification.ic_notification";
+
   static const flnChannelId = 'notification_fln_channel';
   static const flnNotificationId = 1058;
   static const flnNotificationIcon = "ic_notification";
@@ -231,12 +236,14 @@ class Common {
 }
 
 class StationResult {
+  final int index;
   final int gcd;
   final String name;
   final double distance;
   final double bearing;
 
   StationResult({
+    required this.index,
     required this.gcd,
     required this.name,
     required this.distance,
@@ -245,7 +252,7 @@ class StationResult {
 
   @override
   String toString() {
-    return '{gcd: $gcd, name: $name, distance: $distance}';
+    return '{index: $index, gcd: $gcd, name: $name, distance: $distance}';
   }
 
   String get distanceInUnit => distance < 1000.0
@@ -254,15 +261,16 @@ class StationResult {
   Direction get bearingIndex => Common.direction(bearing);
 
   // 序列化
-  List<dynamic> toTransferable() => [gcd, name, distance, bearing];
+  List<dynamic> toTransferable() => [index, gcd, name, distance, bearing];
 
   // 反序列化
   // 添加显式强制转换
   factory StationResult.fromTransferable(List<dynamic> data) => StationResult(
-        gcd: data[0] as int,
-        name: data[1] as String,
-        distance: (data[2] as num).toDouble(),
-        bearing: (data[3] as num).toDouble(),
+        index: data[0] as int,
+        gcd: data[1] as int,
+        name: data[2] as String,
+        distance: (data[3] as num).toDouble(),
+        bearing: (data[4] as num).toDouble(),
       );
 }
 
@@ -440,7 +448,7 @@ enum StationCount {
     }
   }
 
-  // 显示标签，例如 "12"、"12+4"、"12+4+2"
+  // 显示标签，例如 "12"、"12 + 4"、"12 + 4 + 2"
   String get label {
     return '$friend${(event > 0 && Common.event() ? ' + $event' : '')}'
         '${(radar > 0 ? ' + $radar' : '')}${(natsume > 0 ? ' + $natsume' : '')}';

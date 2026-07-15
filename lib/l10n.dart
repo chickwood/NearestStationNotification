@@ -4,13 +4,12 @@ import 'common.dart';
 
 /// Supported locales for this app.
 /// Falls back to English for anything not listed here.
-class AppLocalizations {
+class L10n {
   final Locale locale;
-  const AppLocalizations(this.locale);
+  const L10n(this.locale);
 
-  static AppLocalizations of(BuildContext context) {
-    return Localizations.of<AppLocalizations>(context, AppLocalizations) ??
-        const AppLocalizations(Locale('en'));
+  static L10n of(BuildContext context) {
+    return Localizations.of<L10n>(context, L10n) ?? const L10n(Locale('en'));
   }
 
   static const delegate = _AppLocalizationsDelegate();
@@ -310,20 +309,19 @@ class AppLocalizations {
 
 // ── Delegate ──────────────────────────────────────────────────────────────────
 
-class _AppLocalizationsDelegate
-    extends LocalizationsDelegate<AppLocalizations> {
+class _AppLocalizationsDelegate extends LocalizationsDelegate<L10n> {
   const _AppLocalizationsDelegate();
 
   @override
   bool isSupported(Locale locale) {
-    final AppLocalizations loc = AppLocalizations(locale);
+    final L10n loc = L10n(locale);
     return loc._isEn || loc._isJa || loc._isZhHans;
   }
 
   @override
-  Future<AppLocalizations> load(Locale locale) async {
-    final AppLocalizations loc = AppLocalizations(locale);
-    if (!isSupported(locale)) return AppLocalizations(const Locale('en'));
+  Future<L10n> load(Locale locale) async {
+    final L10n loc = L10n(locale);
+    if (!isSupported(locale)) return L10n(const Locale('en'));
     return loc;
   }
 

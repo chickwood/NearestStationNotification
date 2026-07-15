@@ -1,44 +1,27 @@
 import 'dart:async';
-import 'dart:ui';
 
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:geolocator/geolocator.dart';
 
-import 'app_settings.dart';
 import 'common.dart';
 import 'l10n.dart';
-import 'location_processor.dart';
-import 'search_engine.dart';
 
-/// 通知・UI コールバック管理クラス
-/// LocationProcessor の結果を受けて FLN 業務通知を発行し UI を更新する
+/// 業務通知専用サービス（純粋な FLN ラッパー）
+/// 状態を持たず、呼び出し側（AppCoordinator）から渡されたデータで通知を表示する
 class NotificationService {
-  AppLocalizations _l10n;
+  L10n _l10n;
 
-  bool _active = true; // 前台=true，后台(paused)=false
   bool _isNotificationUpdating = false;
-
-  PositionResult? _positionResult;
-  List<StationResult>? _serviceResults;
   StationResult? _lastNearestResult; // 最近车站切换检测用
+  List<StationResult>? _stationResults;
 
-  // UI コールバック
-  Function(PositionResult?, List<StationResult>?)? _onLocated;
-  Function(RunningStatus)? _onRunningStatusChanged;
-  // AppSettings? _settings;
-
-  // ── GPS 流处理 ────────────────────────────────────────────────────
-  LocationProcessor? _locationProcessor;
-
-  // ── FLN ───────────────────────────────────────────────────────
   final _fln = FlutterLocalNotificationsPlugin();
 
   NotificationService(this._l10n);
 
   // ── 初期化 ──────────────────────────────────────────────────────
 
-  /// アプリ起動時に呼び出初期化処理
-  Future<void> initService() async {
+  Future<void> init() async {
+    // FLN 初期化
     await _fln.initialize(
       settings: InitializationSettings(
         android: AndroidInitializationSettings(
@@ -53,153 +36,65 @@ class NotificationService {
     );
 
     // 冷启动清理
-    // 取消可能残留的业务通知
-    await _fln.cancelAll();
+    await cancelAll();
   }
 
-  // ── タスク制御 ────────────────────────────────────────────────────
+  Future<void> cancelAll() async {
+    await _fln.cancelAll();
 
-  /// 开始定位
-  Future<void> startLocating(
-    AppSettings settings, {
-    Function(PositionResult?, List<StationResult>?)? onLocated,
-    Function(RunningStatus)? onRunningStatusChanged,
-  }) async {
-    _onRunningStatusChanged = onRunningStatusChanged;
+    _isNotificationUpdating = false;
+    _lastNearestResult = null;
+    _stationResults = null;
+  }
 
-    // 权限
-    if (!await _requestLocationPermissions() ||
-        !await _requestNotificationPermissions()) {
-      _onRunningStatusChanged?.call(RunningStatus.stopped);
-      _onRunningStatusChanged = null;
+  // ── 定位結果イベント ──────────────────────────────────────────────
+
+  void onLocated(
+    PositionResult? positionResult,
+    List<StationResult>? stationResults,
+  ) {
+    _stationResults = stationResults;
+
+    if (stationResults == null) {
+      unawaited(cancelAll());
       return;
     }
 
-    _onLocated = onLocated;
-    // _settings = settings;
-
-    final engine = await SearchEngine.load();
-
-    _locationProcessor = LocationProcessor(
-      foregroundNotificationTitle: _l10n.fgtNotificationTitle,
-      foregroundNotificationBody: _l10n.fgtNotificationBody,
-      onLocated: _onReceiveLocation,
-    );
-    await _locationProcessor!.start(settings, engine);
-
-    _onRunningStatusChanged?.call(RunningStatus.running);
+    unawaited(show(stationResults));
   }
 
-  Future<void> stopLocating() async {
-    await _locationProcessor?.stop();
-    _locationProcessor = null;
-
-    await _fln.cancelAll();
-
-    _positionResult = null;
-    _serviceResults = null;
-    _lastNearestResult = null;
-
-    _onRunningStatusChanged?.call(RunningStatus.stopped);
-    _onRunningStatusChanged = null;
-
-    _onLocated?.call(null, null);
-    _onLocated = null;
-
-    // _settings = null;
-  }
-
-  /// UI 进入后台
-  /// 停止向 UI 推送数据
-  Future<void> changeAppLifecycleState(AppLifecycleState state) async {
-    final active = switch (state) {
-      AppLifecycleState.paused => false,
-      AppLifecycleState.resumed => true,
-      _ => _active,
-    };
-
-    if (active != _active) {
-      _active = active;
-
-      // 恢复显示时立刻更新列表
-      // 避免长期拿不到GPS更新时显示旧数据
-      // 即便此时缓存中应该只有通知栏当前 1 条数据
-      if (_active) {
-        _onLocated?.call(_positionResult, _serviceResults);
-      }
-    }
-  }
+  // ── Locale 更新 ──────────────────────────────────────────────────
 
   /// 系统语言更新
-  void changeLocale(AppLocalizations l10n) {
+  void changeLocale(L10n l10n) {
     _l10n = l10n;
 
-    // 前台通知テキストを更新
-    if (_locationProcessor != null) {
-      _locationProcessor!.foregroundNotificationTitle =
-          _l10n.fgtNotificationTitle;
-      _locationProcessor!.foregroundNotificationBody =
-          _l10n.fgtNotificationBody;
+    if (_stationResults != null) {
+      unawaited(show(_stationResults!, forceUpdate: true));
     }
-
-    unawaited(_updateNotification(forceUpdate: true));
-  }
-
-  /// 设置更改
-  Future<void> changeSettings(AppSettings settings) async {
-    // _settings = settings;
-    await _locationProcessor?.changeSettings(settings);
   }
 
   // ── 権限 ────────────────────────────────────────────────────────
 
-  Future<bool> _requestLocationPermissions() async {
-    if (!await Geolocator.isLocationServiceEnabled()) {
-      return false;
-    }
-    LocationPermission perm = await Geolocator.checkPermission();
-    if (perm == LocationPermission.denied) {
-      perm = await Geolocator.requestPermission();
-    }
-    // 仅接受 whileInUse，严禁引导开启 always
-    return perm == LocationPermission.whileInUse ||
-        perm == LocationPermission.always;
-  }
-
-  Future<bool> _requestNotificationPermissions() async {
+  Future<bool> requestPermissions() async {
     await _fln
         .resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin>()
         ?.requestNotificationsPermission();
-
-    return true;
+    return true; // 留给以后对通知的详细判定
   }
 
-  // ── LocationProcessor コールバック ────────────────────────────────
+  // ── 通知表示（FLN） ────────────────────────────────────────────────
 
-  void _onReceiveLocation(
-    PositionResult positionResult,
-    List<StationResult> stationResults,
-  ) {
-    _positionResult = positionResult;
-    _serviceResults = stationResults;
-
-    unawaited(_updateNotification());
-
-    // UI 静默时不推送
-    if (_active) {
-      _onLocated?.call(_positionResult, _serviceResults);
-    }
-  }
-
-  // ── 業務通知（FLN）────────────────────────────────────────────────
-
-  Future<void> _updateNotification({bool forceUpdate = false}) async {
+  Future<void> show(
+    List<StationResult> stationResults, {
+    bool forceUpdate = false,
+  }) async {
     if (_isNotificationUpdating) return;
 
     _isNotificationUpdating = true;
     try {
-      if (_serviceResults case [final first, ...]) {
+      if (stationResults case [final first, ...]) {
         final isStationChanged = _lastNearestResult?.gcd != first.gcd;
         _lastNearestResult = first;
 

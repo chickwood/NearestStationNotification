@@ -55,13 +55,12 @@ class StationManager {
     required this.size,
   });
 
-  StationManager._info({
-    this.root = Common.intMaxValue,
-    this.mcount = 0,
-    this.count = 0,
-    this.date = 0,
-    this.size = 0,
-  });
+  StationManager._info()
+      : root = Common.intMaxValue,
+        mcount = 0,
+        count = 0,
+        date = 0,
+        size = 0;
 
   // ── BIN 文件读写 ────────────────────────────────────────────────
 
@@ -111,31 +110,31 @@ class StationManager {
     return StationManager._info();
   }
 
-  static Future<StationManager> loadInfo() async {
-    final data = await _loadStationBin();
+  // static Future<StationManager> loadInfo() async {
+  //   final data = await _loadStationBin();
 
-    // 数据完整性校验
-    // 总长度应大于尾部长度 (车站数(4) + 日期戳(4))
-    final size = data.lengthInBytes;
-    if (size > 16) {
-      // 提取车站数和日期戳
-      final root = data.getUint32(size - 16, Endian.little);
-      final mcount = data.getUint32(size - 12, Endian.little);
-      final count = data.getUint32(size - 8, Endian.little);
-      final date = data.getUint32(size - 4, Endian.little);
+  //   // 数据完整性校验
+  //   // 总长度应大于尾部长度 (车站数(4) + 日期戳(4))
+  //   final size = data.lengthInBytes;
+  //   if (size > 16) {
+  //     // 提取车站数和日期戳
+  //     final root = data.getUint32(size - 16, Endian.little);
+  //     final mcount = data.getUint32(size - 12, Endian.little);
+  //     final count = data.getUint32(size - 8, Endian.little);
+  //     final date = data.getUint32(size - 4, Endian.little);
 
-      // 提取车站数和日期戳
-      return StationManager._info(
-        root: root,
-        mcount: mcount,
-        count: count,
-        date: date,
-        size: size,
-      );
-    }
+  //     // 提取车站数和日期戳
+  //     return StationManager._info(
+  //       root: root,
+  //       mcount: mcount,
+  //       count: count,
+  //       date: date,
+  //       size: size,
+  //     );
+  //   }
 
-    return StationManager._info();
-  }
+  //   return StationManager._info();
+  // }
 
   static Future<ByteData> _loadStationBin() async {
     ByteData? data;

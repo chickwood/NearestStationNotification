@@ -3,14 +3,17 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 
-import 'app_settings.dart';
+import 'settings.dart';
 import 'common.dart';
+import 'l10n.dart';
 import 'search_engine.dart';
 
 /// 位置処理クラス
 /// GPS Stream の購読・漂移フィルタ・SearchEngine 呼び出しを担う
+/// 結果は onLocated コールバックで AppCoordinator へ渡す
 class LocationProcessor {
-  AppSettings? _settings;
+  L10n? _l10n;
+  Settings? _settings;
   SearchEngine? _engine;
 
   StreamSubscription<Position>? _positionSubscription;
@@ -18,31 +21,32 @@ class LocationProcessor {
   // 漂移フィルタ用キュー
   static const _queueSize = 3;
   final List<PositionResult> _positionQueue = [];
+  // PositionResult? get _lastPosition =>
+  //     _positionQueue.isEmpty ? null : _positionQueue.last;
 
-  // 結果コールバック（NotificationService が登録）
+  // UI 活動状態（AppController.changeLifecycleState から更新）
+  // active=false の場合、engine は最近駅 1 件のみ返す（通知用最小データ）
+  bool active;
+
+  // 結果コールバック（AppCoordinator が登録）
   final void Function(PositionResult, List<StationResult>) onLocated;
-
-  // 前台通知テキスト（NotificationService から注入）
-  String foregroundNotificationTitle;
-  String foregroundNotificationBody;
 
   LocationProcessor({
     required this.onLocated,
-    required this.foregroundNotificationTitle,
-    required this.foregroundNotificationBody,
+    required this.active,
   });
 
   // ── 起動・停止 ────────────────────────────────────────────────────
 
-  Future<void> start(AppSettings settings, SearchEngine engine) async {
+  Future<void> start(Settings settings, SearchEngine engine) async {
     _settings = settings;
     _engine = engine;
+
     _startStream();
   }
 
   Future<void> stop() async {
-    await _positionSubscription?.cancel();
-    _positionSubscription = null;
+    _stopStream();
 
     _positionQueue.clear();
     _settings = null;
@@ -51,7 +55,7 @@ class LocationProcessor {
 
   // ── 設定更新 ──────────────────────────────────────────────────────
 
-  Future<void> changeSettings(AppSettings settings) async {
+  Future<void> changeSettings(Settings settings) async {
     final changeInterval = _settings?.locationInterval.milliseconds !=
         settings.locationInterval.milliseconds;
     final changeCount =
@@ -68,6 +72,21 @@ class LocationProcessor {
     }
   }
 
+  /// UI 活動状態の変更
+  /// active が false → true になった場合は count 分の再検索が必要
+  void changeActive(bool value) {
+    final changed = active != value;
+    active = value;
+
+    if (changed && active) {
+      Geolocator.getCurrentPosition().then(
+        (position) => _handlePositionUpdate(position, forceUpdate: true),
+      );
+    }
+  }
+
+  void changeLocale(L10n l10n) {}
+
   // ── GPS Stream ───────────────────────────────────────────────────
 
   void _startStream() {
@@ -83,8 +102,9 @@ class LocationProcessor {
           distanceFilter: distanceFilter,
           intervalDuration: Duration(milliseconds: milliseconds),
           foregroundNotificationConfig: ForegroundNotificationConfig(
-            notificationTitle: foregroundNotificationTitle,
-            notificationText: foregroundNotificationBody,
+            notificationChannelName: Common.fgtChannelId,
+            notificationTitle: _l10n?.fgtNotificationTitle ?? '',
+            notificationText: _l10n?.fgtNotificationBody ?? '',
             notificationIcon: const AndroidResource(
               name: Common.flnNotificationIcon,
               defType: 'drawable',
@@ -110,15 +130,24 @@ class LocationProcessor {
             .listen((position) => _handlePositionUpdate(position));
   }
 
-  // ── 位置更新処理 ──────────────────────────────────────────────────
+  void _stopStream() {
+    _positionSubscription?.cancel();
+    _positionSubscription = null;
+  }
+
+  // ── 位置更新処理（GPS Stream）────────────────────────────
 
   void _handlePositionUpdate(Position position, {bool forceUpdate = false}) {
+    // 基础数据
     final userLatitude = position.latitude;
     final userLongitude = position.longitude;
     final userHeading = position.heading;
     final userSpeed = position.speed < 0 ? 0.0 : position.speed;
     var userMode = Common.sampling(userSpeed);
 
+    // 重启流时需要队列里的最后一个采样点
+    // 为保证 forceUpdate = true 时处理一致
+    // 无论是否可信都先加入
     _positionQueue.add(PositionResult(
       latitude: userLatitude,
       longitude: userLongitude,
@@ -129,47 +158,65 @@ class LocationProcessor {
     ));
 
     if (!forceUpdate) {
+      // 采样点已有 2 个以上（亦即添加最新的采样点之前已有 1 个以上）
       if (_positionQueue.length > 1) {
         final prevPosition = _positionQueue[_positionQueue.length - 2];
 
         // 方形过滤
+        // 认为是 GPS 漂移
         if (Common.near(
           userLatitude,
           userLongitude,
           prevPosition.latitude,
           prevPosition.longitude,
         )) {
+          // 删除最后进入队列的不可信采样点
           _positionQueue.removeLast();
           return;
         }
 
-        // 観察者モード検出
+        // 仅当定位频率为 1s 时
+        // 采样点已有 3 个（亦即添加最新的采样点之前已有 2 个）
+        // 触发观察者模式检测
         final prevMode = Common.sampling(prevPosition.speed);
         var isObserving = _positionQueue.length > 2 &&
             prevMode == SamplingMode.transit &&
             Common.sampling(_positionQueue[_positionQueue.length - 3].speed) !=
                 SamplingMode.transit;
         if (_settings?.locationInterval == LocationInterval.s1 && isObserving) {
+          // 下一次定位又变为低速或静止
+          // 认为是 GPS 漂移
           if (userMode != SamplingMode.transit) {
+            // 删除最后进入队列的不可信采样点
             _positionQueue.removeLast();
+            // 删除前一个 GPS 漂移的不可信采样点
             _positionQueue.removeLast();
             return;
           }
 
+          // 方向突变判断
           final prevHeading = prevPosition.heading;
           final dHeading = userHeading - prevHeading;
+          // 两次采样转向超过 45 度
+          // 认为是 GPS 漂移
           if ((dHeading > 45 && dHeading < 315) ||
               (dHeading < -45 && dHeading > -315)) {
+            // 删除最后进入队列的不可信采样点
             _positionQueue.removeLast();
+            // 删除前一个 GPS 漂移的不可信采样点
             _positionQueue.removeLast();
             return;
           }
         }
 
         if (userMode != SamplingMode.transit) {
-          if (prevMode == SamplingMode.transit) _startStream();
+          // 最后进入队列的可信采样点是低速
+          // 前一个可信采样点是高速
+          if (prevMode == SamplingMode.transit) _startStream(); // 重启流
         } else {
-          if (isObserving) _startStream();
+          // 最后进入队列的可信采样点是高速
+          // 触发并通过观察者模式检测
+          if (isObserving) _startStream(); // 重启流
         }
       }
     }
@@ -177,14 +224,15 @@ class LocationProcessor {
     while (_positionQueue.length > _queueSize) {
       _positionQueue.removeAt(0);
     }
-
     final positionResult = _positionQueue.last;
+    // 取得车站数全部在 engine 内进行分歧判断
+    // 取得最小车站数后再填入其他属性返回最小数据集
     final stationResults = _engine!
         .locate(
           userLatitude,
           userLongitude,
           _settings?.stationCount.count ?? 0,
-          true,
+          active,
         )
         .toList(growable: false);
 

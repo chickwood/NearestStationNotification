@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:nearest_station_notification/station_manager.dart';
 
-import 'app_settings.dart';
+import 'settings.dart';
 import 'common.dart';
 import 'l10n.dart';
 import 'licenses_dialog.dart';
@@ -8,17 +9,14 @@ import 'licenses_dialog.dart';
 // ── Settings Dialog ───────────────────────────────────────────────
 
 class SettingsDialog extends StatefulWidget {
-  final ({
-    AppSettings settings,
-    int count,
-    int date,
-    int size,
-  }) info;
-  final Future<void> Function(AppSettings) onSave;
+  final Settings _settings;
+  final StationManager _manager;
+  final Future<void> Function(Settings) onSave;
 
-  const SettingsDialog({
+  const SettingsDialog(
+    this._settings,
+    this._manager, {
     super.key,
-    required this.info,
     required this.onSave,
   });
 
@@ -27,19 +25,19 @@ class SettingsDialog extends StatefulWidget {
 }
 
 class _SettingsDialogState extends State<SettingsDialog> {
-  late AppSettings _draft;
+  late Settings _draft;
 
   @override
   void initState() {
     super.initState();
 
     // 弹窗内操作的临时副本，取消则丢弃
-    _draft = widget.info.settings.copyWith();
+    _draft = widget._settings.copyWith();
   }
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
+    final l10n = L10n.of(context);
     return Dialog(
       elevation: 2,
       insetPadding: const EdgeInsets.symmetric(horizontal: 30),
@@ -137,15 +135,11 @@ class _SettingsDialogState extends State<SettingsDialog> {
                       onPressed: () => showDialog<void>(
                         context: context,
                         barrierColor: Colors.transparent,
-                        builder: (_) => LicenseListDialog(info: (
-                          count: widget.info.count,
-                          date: widget.info.date,
-                          size: widget.info.size,
-                        )),
+                        builder: (_) => LicenseListDialog(widget._manager),
                       ),
                       // onPressed: () => showLicensePage(context: context),
                       label: Text(
-                        '${widget.info.count > 0 ? l10n.countStations(widget.info.count) : l10n.countStations(0)}\n'
+                        '${widget._manager.count > 0 ? l10n.countStations(widget._manager.count) : l10n.countStations(0)}\n'
                         '${l10n.settingsLicense}',
                         style: TextStyle(
                           color: Colors.grey.shade600,

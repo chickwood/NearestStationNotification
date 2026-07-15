@@ -12,12 +12,12 @@ class _Keys {
 
 // ── AppSettings ───────────────────────────────────────────────────
 
-class AppSettings {
+class Settings {
   StationCount stationCount;
   LocationInterval locationInterval;
   // NotificationMode notificationMode;
 
-  AppSettings._({
+  Settings._({
     this.stationCount = StationCount.game,
     this.locationInterval = LocationInterval.s1,
     // this.notificationMode = NotificationMode.location,
@@ -29,10 +29,10 @@ class AppSettings {
   }
 
   // 从 SharedPreferences 读取
-  static Future<AppSettings> load() async {
+  static Future<Settings> load() async {
     final prefs = await SharedPreferences.getInstance();
 
-    return AppSettings.fromTransferable([
+    return Settings.fromTransferable([
       prefs.getInt(_Keys.stationCount) ?? StationCount.game.index,
       prefs.getInt(_Keys.locationInterval) ?? LocationInterval.s1.index,
       // prefs.getInt(_Keys.notificationMode) ?? NotificationMode.location.index,
@@ -49,12 +49,12 @@ class AppSettings {
   }
 
   // 复制（用于弹窗内的临时副本）
-  AppSettings copyWith({
+  Settings copyWith({
     StationCount? stationCount,
     LocationInterval? locationInterval,
     // NotificationMode? notificationMode,
   }) {
-    return AppSettings.fromTransferable([
+    return Settings.fromTransferable([
       stationCount?.index ?? this.stationCount.index,
       locationInterval?.index ?? this.locationInterval.index,
       // notificationMode?.index ?? this.notificationMode.index,
@@ -69,7 +69,7 @@ class AppSettings {
       ];
 
   // fromTransferable
-  factory AppSettings.fromTransferable(List data) => AppSettings._(
+  factory Settings.fromTransferable(List data) => Settings._(
         stationCount: StationCount.values.elementAtOrNull(data[0] as int) ??
             StationCount.game,
         locationInterval:

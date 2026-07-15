@@ -1,41 +1,36 @@
 import 'package:flutter/material.dart';
 
-import 'app_settings.dart';
+import 'coordinator.dart';
+import 'settings.dart';
 import 'common.dart';
 import 'l10n.dart';
-import 'notification_service.dart';
 import 'settings_dialog.dart';
 import 'station_manager.dart';
 
 class HomePage extends StatefulWidget {
-  final NotificationService service;
-
-  const HomePage({
-    super.key,
-    required this.service,
-  });
+  const HomePage({super.key});
 
   @override
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
-  AppSettings? _settings;
+class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
+  late final Coordinator _coordinator;
+
+  Settings? _settings;
+  StationManager? _manager;
   // StatusCard 用
   // BIN ファイル情報
-  int _count = 0; // 駅数
-  int _date = 0; // タイムスタンプ
-  int _size = 0; // データサイズ
+  // int _count = 0; // 駅数
+  // int _date = 0; // タイムスタンプ
+  // int _size = 0; // データサイズ
   int _positionVisibility = 0; // 坐标显示/关闭
-  RunningStatus _runningStatus = RunningStatus.stopped; // 開始フラグ
-
-  List<StationResult>? _stationResults;
-  PositionResult? _positionResult;
 
   @override
   void initState() {
     super.initState();
 
+    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _initialize();
     });
@@ -43,14 +38,34 @@ class _HomePageState extends State<HomePage> {
 
   @override
   void dispose() {
-    widget.service.stopLocating();
-
+    WidgetsBinding.instance.removeObserver(this);
+    _coordinator.removeLocatedListener(_handleLocated);
+    _coordinator.removeRunningStatusListener(_handleRunningStatusChanged);
+    _coordinator.stop();
     super.dispose();
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    _coordinator.changeLifecycleState(state);
+  }
+
+  @override
+  void didChangeLocales(List<Locale>? locales) {
+    super.didChangeLocales(locales);
+
+    final l10n = L10n(switch (locales) {
+      [final first, ...] => first,
+      _ => const Locale('en'),
+    });
+
+    _coordinator.changeLocale(l10n);
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
+    final l10n = L10n.of(context);
     return Scaffold(
       backgroundColor: Colors.grey.shade50,
       appBar: AppBar(
@@ -77,8 +92,8 @@ class _HomePageState extends State<HomePage> {
         backgroundColor: const Color(0xFF4080FF),
         actions: [
           // 定位详细显示切换
-          if (_runningStatus == RunningStatus.running &&
-              _positionResult != null)
+          if (_coordinator.runningStatus == RunningStatus.running &&
+              _coordinator.positionResult != null)
             Padding(
               padding: const EdgeInsets.only(right: 10),
               child: GestureDetector(
@@ -98,16 +113,16 @@ class _HomePageState extends State<HomePage> {
           Padding(
             padding: const EdgeInsets.only(right: 8),
             child: GestureDetector(
-              onTap: switch (_runningStatus) {
+              onTap: switch (_coordinator.runningStatus) {
                 RunningStatus.stopped => _start,
                 RunningStatus.running => _stop,
                 _ => null, // starting
               },
               child: Icon(
-                _runningStatus == RunningStatus.running
+                _coordinator.runningStatus == RunningStatus.running
                     ? Icons.stop_circle
                     : Icons.play_circle_filled, // starting/stopped
-                color: _runningStatus == RunningStatus.starting
+                color: _coordinator.runningStatus == RunningStatus.starting
                     ? const Color(0xFFA0C0FF)
                     : Colors.white,
                 size: 32,
@@ -133,8 +148,8 @@ class _HomePageState extends State<HomePage> {
           padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
           child: Column(
             children: [
-              if (_runningStatus == RunningStatus.running &&
-                  _positionResult != null &&
+              if (_coordinator.runningStatus == RunningStatus.running &&
+                  _coordinator.positionResult != null &&
                   _positionVisibility > 0) ...[
                 _buildPositionCard(l10n), // 上部可隐藏: 位置信息
                 const SizedBox(height: 4),
@@ -149,22 +164,33 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  // ── 初期化 ──────────────────────────────────────────────────────
+
   /// アプリ起動時に呼び出初期化処理
   Future<void> _initialize() async {
-    final l10n = AppLocalizations.of(context);
+    final l10n = L10n.of(context);
+
+    _coordinator = Coordinator(l10n);
+
+    // UI listener 登録
+    _coordinator.addLocatedListener(_handleLocated, activeOnly: true);
+    _coordinator.addRunningStatusListener(_handleRunningStatusChanged);
+
     try {
       final results = await Future.wait([
-        AppSettings.load(),
-        StationManager.loadInfo(),
+        Settings.load(),
+        StationManager.load(),
+        // _coordinator.init(), // StationManager を返す // StationManager.loadInfo(),
       ]);
-      final settings = results[0] as AppSettings;
+      final settings = results[0] as Settings;
       final manager = results[1] as StationManager;
 
       setState(() {
         _settings = settings;
-        _count = manager.count;
-        _date = manager.date;
-        _size = manager.size;
+        _manager = manager;
+        // _count = manager.count;
+        // _date = manager.date;
+        // _size = manager.size;
       });
 
       // await widget.service.initService();
@@ -175,6 +201,21 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  void _handleLocated(
+    PositionResult? positionResult,
+    List<StationResult>? stationResults,
+  ) {
+    if (!mounted) return;
+    setState(() {});
+  }
+
+  void _handleRunningStatusChanged(RunningStatus runningStatus) {
+    if (!mounted) return;
+    setState(() {});
+  }
+
+  // ── ボタンイベント ────────────────────────────────────────────────
+
   /// 起動ボタン押下時
   /// 権限リクエスト + 定位開始
   Future<void> _start() async {
@@ -183,31 +224,18 @@ class _HomePageState extends State<HomePage> {
     debugPrint(DateTime.now().toString());
     debugPrint(Common.event().toString());
 
-    setState(() {
-      _runningStatus = RunningStatus.starting;
-    });
-
-    await widget.service.startLocating(
-      _settings!,
-      onLocated: (positionResult, stationResults) {
-        setState(() {
-          _positionResult = positionResult;
-          _stationResults = stationResults;
-        });
-      },
-      onRunningStatusChanged: (runningStatus) {
-        setState(() {
-          _runningStatus = runningStatus;
-        });
-      },
-    );
+    await _coordinator.start(_settings!);
+    // 按钮外观变更
+    // 在 service 内部由 init 绑定的 onRunningStatusChanged 触发
+    // setState(() {
+    //   _runningStatus = runningStatus;
+    // });
   }
 
-  /// 停止ボタン押下時の処理
   Future<void> _stop() async {
-    await widget.service.stopLocating();
+    await _coordinator.stop();
     // 按钮外观变更
-    // 在 service 内部由 startLocating 时传入的 onRunningStatusChanged 触发
+    // 在 service 内部由 init 绑定的 onRunningStatusChanged 触发
     // setState(() {
     //   _runningStatus = runningStatus;
     // });
@@ -256,19 +284,15 @@ class _HomePageState extends State<HomePage> {
       context: context,
       barrierColor: Colors.white.withValues(alpha: 0.5),
       builder: (context) => SettingsDialog(
-        info: (
-          settings: _settings!,
-          count: _count,
-          date: _date,
-          size: _size,
-        ),
+        _settings!,
+        _manager!,
         onSave: (settings) async {
           await settings.save();
           setState(() {
             _settings = settings;
           });
-          if (_runningStatus == RunningStatus.running) {
-            widget.service.changeSettings(settings);
+          if (_coordinator.runningStatus == RunningStatus.running) {
+            _coordinator.changeSettings(settings);
           }
         },
       ),
@@ -277,7 +301,7 @@ class _HomePageState extends State<HomePage> {
 
   // ── Position card ────────────────────────────────────────────────
 
-  Widget _buildPositionCard(AppLocalizations l10n) {
+  Widget _buildPositionCard(L10n l10n) {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -314,7 +338,7 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildPositionResult(AppLocalizations l10n) {
+  Widget _buildPositionResult(L10n l10n) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8),
       child: Column(
@@ -325,14 +349,16 @@ class _HomePageState extends State<HomePage> {
                 Expanded(
                   child: _PositionRow(
                     label: l10n.latitude,
-                    value: _positionResult!.latitude.toStringAsFixed(6),
+                    value: _coordinator.positionResult!.latitude
+                        .toStringAsFixed(6),
                   ),
                 ),
                 const SizedBox(width: 24),
                 Expanded(
                   child: _PositionRow(
                     label: l10n.longitude,
-                    value: _positionResult!.longitude.toStringAsFixed(6),
+                    value: _coordinator.positionResult!.longitude
+                        .toStringAsFixed(6),
                   ),
                 ),
               ],
@@ -344,7 +370,7 @@ class _HomePageState extends State<HomePage> {
               Expanded(
                 child: _PositionRow(
                   label: l10n.speed,
-                  value: _positionResult!.speedString,
+                  value: _coordinator.positionResult!.speedString,
                 ),
               ),
               if (_positionVisibility == 1) const SizedBox(width: 16),
@@ -352,7 +378,7 @@ class _HomePageState extends State<HomePage> {
               Expanded(
                 child: _PositionRow(
                   label: l10n.accuracy,
-                  value: _positionResult!.accuracyString,
+                  value: _coordinator.positionResult!.accuracyString,
                 ),
               ),
               if (_positionVisibility == 1) ...[
@@ -360,7 +386,8 @@ class _HomePageState extends State<HomePage> {
                 Expanded(
                   child: _PositionRow(
                     label: l10n.heading,
-                    value: l10n.direction(_positionResult!.headingIndex),
+                    value: l10n
+                        .direction(_coordinator.positionResult!.headingIndex),
                   ),
                 ),
               ],
@@ -373,14 +400,15 @@ class _HomePageState extends State<HomePage> {
                 Expanded(
                   child: _PositionRow(
                     label: l10n.heading,
-                    value: l10n.direction(_positionResult!.headingIndex),
+                    value: l10n
+                        .direction(_coordinator.positionResult!.headingIndex),
                   ),
                 ),
                 const SizedBox(width: 24),
                 Expanded(
                   child: _PositionRow(
                     label: l10n.timestamp,
-                    value: _positionResult!.timestampString,
+                    value: _coordinator.positionResult!.timestampString,
                   ),
                 ),
               ],
@@ -393,7 +421,7 @@ class _HomePageState extends State<HomePage> {
 
   // ── Service results card ─────────────────────────────────────────
 
-  Widget _buildServiceResultsCard(AppLocalizations l10n) {
+  Widget _buildServiceResultsCard(L10n l10n) {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -432,9 +460,9 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildServiceResultsExpanded(AppLocalizations l10n) {
-    if (_count > 0) {
-      if (_runningStatus == RunningStatus.stopped) {
+  Widget _buildServiceResultsExpanded(L10n l10n) {
+    if (_manager!.count > 0) {
+      if (_coordinator.runningStatus == RunningStatus.stopped) {
         return Align(
           alignment: Alignment.topCenter,
           child: Text(
@@ -442,9 +470,9 @@ class _HomePageState extends State<HomePage> {
             style: const TextStyle(color: Colors.grey),
           ),
         );
-      } else if (_runningStatus == RunningStatus.starting ||
-          _positionResult == null ||
-          (_stationResults?.isEmpty ?? true)) {
+      } else if (_coordinator.runningStatus == RunningStatus.starting ||
+          _coordinator.positionResult == null ||
+          (_coordinator.stationResults?.isEmpty ?? true)) {
         return Align(
           alignment: Alignment.topCenter,
           child: Text(
@@ -455,9 +483,9 @@ class _HomePageState extends State<HomePage> {
       } else {
         return ListView.builder(
           padding: const EdgeInsets.fromLTRB(6, 4, 6, 0),
-          itemCount: _stationResults!.length,
+          itemCount: _coordinator.stationResults!.length,
           itemBuilder: (context, index) {
-            final stationResult = _stationResults![index];
+            final stationResult = _coordinator.stationResults![index];
 
             return _StationTile(
               index: index,

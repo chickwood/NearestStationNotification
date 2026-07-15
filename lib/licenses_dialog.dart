@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:nearest_station_notification/station_manager.dart';
 
 import 'common.dart';
 import 'l10n.dart';
@@ -7,16 +8,9 @@ import 'l10n.dart';
 // ── License list dialog ───────────────────────────────────────────
 
 class LicenseListDialog extends StatefulWidget {
-  final ({
-    int count,
-    int date,
-    int size,
-  }) info;
+  final StationManager _manager;
 
-  const LicenseListDialog({
-    super.key,
-    required this.info,
-  });
+  const LicenseListDialog(this._manager, {super.key});
 
   @override
   State<LicenseListDialog> createState() => _LicenseListDialogState();
@@ -65,7 +59,7 @@ class _LicenseListDialogState extends State<LicenseListDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
+    final l10n = L10n.of(context);
     return Dialog(
       elevation: 2,
       insetPadding: const EdgeInsets.fromLTRB(16, 72, 16, 4),
@@ -126,8 +120,8 @@ class _LicenseListDialogState extends State<LicenseListDialog> {
                           context: context,
                           barrierColor: Colors.transparent,
                           builder: (_) => LicenseDetailDialog(
-                            package: l10n.appTitle,
-                            licenses: appLicenses.licenses,
+                            l10n.appTitle,
+                            appLicenses.licenses,
                           ),
                         ),
                         child: Column(
@@ -153,13 +147,13 @@ class _LicenseListDialogState extends State<LicenseListDialog> {
                                 fontSize: 12,
                               ),
                             ),
-                            if (widget.info.count > 0) ...[
+                            if (widget._manager.count > 0) ...[
                               const SizedBox(height: 4),
                               Text(
                                 l10n.licenseStationsDetails(
-                                  widget.info.count,
-                                  widget.info.date,
-                                  widget.info.size,
+                                  widget._manager.count,
+                                  widget._manager.date,
+                                  widget._manager.size,
                                 ),
                                 style: TextStyle(
                                   fontSize: 12,
@@ -168,7 +162,7 @@ class _LicenseListDialogState extends State<LicenseListDialog> {
                             ],
                             const SizedBox(height: 4),
                             Text(
-                              widget.info.count > 0
+                              widget._manager.count > 0
                                   ? l10n.licenseCountWithAdditionalNotice(
                                       appLicensesLength,
                                     )
@@ -189,8 +183,8 @@ class _LicenseListDialogState extends State<LicenseListDialog> {
                             context: context,
                             barrierColor: Colors.transparent,
                             builder: (_) => LicenseDetailDialog(
-                              package: entry.package,
-                              licenses: entry.licenses,
+                              entry.package,
+                              entry.licenses,
                             ),
                           ),
                           child: Padding(
@@ -226,14 +220,10 @@ class _LicenseListDialogState extends State<LicenseListDialog> {
 // ── License detail dialog ─────────────────────────────────────────
 
 class LicenseDetailDialog extends StatelessWidget {
-  final String package;
-  final List<List<String>> licenses;
+  final String _package;
+  final List<List<String>> _licenses;
 
-  const LicenseDetailDialog({
-    super.key,
-    required this.package,
-    required this.licenses,
-  });
+  const LicenseDetailDialog(this._package, this._licenses, {super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -254,7 +244,7 @@ class LicenseDetailDialog extends StatelessWidget {
                 children: [
                   const SizedBox(width: 4),
                   Text(
-                    package,
+                    _package,
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
@@ -275,7 +265,7 @@ class LicenseDetailDialog extends StatelessWidget {
             Expanded(
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(8, 0, 8, 16),
-                children: licenses
+                children: _licenses
                     // 1. 【外层空防御】过滤掉完全没有内容的空许可证大块
                     .where((paragraphs) => paragraphs.isNotEmpty)
                     .map((paragraphs) => paragraphs
