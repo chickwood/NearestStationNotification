@@ -76,7 +76,9 @@ android {
 
 kotlin {
     jvmToolchain(21)
-    compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21) }
+    compilerOptions {
+        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21
+    }
 }
 
 dependencies { coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5") }

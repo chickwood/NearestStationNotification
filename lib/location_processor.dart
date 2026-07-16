@@ -41,7 +41,7 @@ class LocationProcessor {
     this._manager, {
     required this.onLocated,
   }) {
-    _engine = SearchEngine.fromManager(_manager);
+    _engine = SearchEngine(_manager);
   }
 
   // ── 起動・停止 ────────────────────────────────────────────────────

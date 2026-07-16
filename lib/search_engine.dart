@@ -7,11 +7,12 @@ import 'station_manager.dart';
 class SearchEngine {
   late final StationManager _manager;
 
-  SearchEngine._load(this._manager);
+  // SearchEngine._load(this._manager);
+  SearchEngine(this._manager);
 
-  factory SearchEngine.fromManager(StationManager manager) {
-    return SearchEngine._load(manager);
-  }
+  // factory SearchEngine.fromManager(StationManager manager) {
+  //   return SearchEngine._load(manager);
+  // }
 
   /// 搜索最近的 K 个节点
   /// 返回包含索引、距离（弦长平方）、方位角的 StationResult

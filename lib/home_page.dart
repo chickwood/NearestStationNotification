@@ -18,7 +18,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Settings? _settings;
   StationManager? _manager;
 
-  late final Coordinator _coordinator;
+  Coordinator? _coordinator;
 
   int _positionVisibility = 0; // 坐标显示/关闭
 
@@ -28,23 +28,26 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
     WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _initialize();
+      if (!mounted) return;
+      _initialize();
     });
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _coordinator.removeLocatedHandler(_handleLocated);
-    _coordinator.removeRunningStatusHandler(_handleRunningStatusChanged);
-    _coordinator.stop();
+
+    _coordinator?.removeLocatedHandler(_handleLocated);
+    _coordinator?.removeRunningStatusHandler(_handleRunningStatusChanged);
+    _coordinator?.stop();
+
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
-    _coordinator.changeLifecycleState(state);
+    _coordinator?.changeLifecycleState(state);
   }
 
   @override
@@ -56,11 +59,15 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       _ => const Locale('en'),
     });
 
-    _coordinator.changeLocale(l10n);
+    _coordinator?.changeLocale(l10n);
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_coordinator == null || _settings == null || _manager == null) {
+      return const Scaffold();
+    }
+
     final l10n = L10n.of(context);
     return Scaffold(
       backgroundColor: Colors.grey.shade50,
@@ -88,8 +95,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         backgroundColor: const Color(0xFF4080FF),
         actions: [
           // 定位详细显示切换
-          if (_coordinator.runningStatus == RunningStatus.running &&
-              _coordinator.positionResult != null)
+          if (_coordinator!.runningStatus == RunningStatus.running &&
+              _coordinator!.positionResult != null)
             Padding(
               padding: const EdgeInsets.only(right: 10),
               child: GestureDetector(
@@ -109,16 +116,16 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           Padding(
             padding: const EdgeInsets.only(right: 8),
             child: GestureDetector(
-              onTap: switch (_coordinator.runningStatus) {
+              onTap: switch (_coordinator!.runningStatus) {
                 RunningStatus.stopped => _start,
                 RunningStatus.running => _stop,
                 _ => null, // starting
               },
               child: Icon(
-                _coordinator.runningStatus == RunningStatus.running
+                _coordinator!.runningStatus == RunningStatus.running
                     ? Icons.stop_circle
                     : Icons.play_circle_filled, // starting/stopped
-                color: _coordinator.runningStatus == RunningStatus.starting
+                color: _coordinator!.runningStatus == RunningStatus.starting
                     ? const Color(0xFFA0C0FF)
                     : Colors.white,
                 size: 32,
@@ -144,8 +151,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
           child: Column(
             children: [
-              if (_coordinator.runningStatus == RunningStatus.running &&
-                  _coordinator.positionResult != null &&
+              if (_coordinator!.runningStatus == RunningStatus.running &&
+                  _coordinator!.positionResult != null &&
                   _positionVisibility > 0) ...[
                 _buildPositionCard(l10n), // 上部可隐藏: 位置信息
                 const SizedBox(height: 4),
@@ -174,14 +181,16 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       final settings = results[0] as Settings;
       final manager = results[1] as StationManager;
 
-      _coordinator = Coordinator(l10n, true, settings, manager);
+      final coordinator = Coordinator(l10n, true, settings, manager);
+      _coordinator = coordinator;
 
       // UI handler 登録
-      _coordinator.addLocatedHandler(_handleLocated, activeOnly: true);
-      _coordinator.addRunningStatusHandler(_handleRunningStatusChanged);
+      coordinator.addLocatedHandler(_handleLocated, activeOnly: true);
+      coordinator.addRunningStatusHandler(_handleRunningStatusChanged);
 
-      await _coordinator.init();
+      await coordinator.init();
 
+      if (!mounted) return;
       setState(() {
         _settings = settings;
         _manager = manager;
@@ -216,7 +225,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     debugPrint(DateTime.now().toString());
     debugPrint(Common.event().toString());
 
-    await _coordinator.start();
+    await _coordinator?.start();
     // 按钮外观变更
     // 在 service 内部由 init 绑定的 onRunningStatusChanged 触发
     // setState(() {
@@ -225,7 +234,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   Future<void> _stop() async {
-    await _coordinator.stop();
+    await _coordinator?.stop();
     // 按钮外观变更
     // 在 service 内部由 init 绑定的 onRunningStatusChanged 触发
     // setState(() {
@@ -283,8 +292,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           setState(() {
             _settings = settings;
           });
-          if (_coordinator.runningStatus == RunningStatus.running) {
-            _coordinator.changeSettings(settings);
+          if (_coordinator?.runningStatus == RunningStatus.running) {
+            _coordinator?.changeSettings(settings);
           }
         },
       ),
@@ -341,7 +350,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 Expanded(
                   child: _PositionRow(
                     label: l10n.latitude,
-                    value: _coordinator.positionResult!.latitude
+                    value: _coordinator!.positionResult!.latitude
                         .toStringAsFixed(6),
                   ),
                 ),
@@ -349,7 +358,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 Expanded(
                   child: _PositionRow(
                     label: l10n.longitude,
-                    value: _coordinator.positionResult!.longitude
+                    value: _coordinator!.positionResult!.longitude
                         .toStringAsFixed(6),
                   ),
                 ),
@@ -362,7 +371,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               Expanded(
                 child: _PositionRow(
                   label: l10n.speed,
-                  value: _coordinator.positionResult!.speedString,
+                  value: _coordinator!.positionResult!.speedString,
                 ),
               ),
               if (_positionVisibility == 1) const SizedBox(width: 16),
@@ -370,7 +379,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               Expanded(
                 child: _PositionRow(
                   label: l10n.accuracy,
-                  value: _coordinator.positionResult!.accuracyString,
+                  value: _coordinator!.positionResult!.accuracyString,
                 ),
               ),
               if (_positionVisibility == 1) ...[
@@ -379,7 +388,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                   child: _PositionRow(
                     label: l10n.heading,
                     value: l10n
-                        .direction(_coordinator.positionResult!.headingIndex),
+                        .direction(_coordinator!.positionResult!.headingIndex),
                   ),
                 ),
               ],
@@ -393,14 +402,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                   child: _PositionRow(
                     label: l10n.heading,
                     value: l10n
-                        .direction(_coordinator.positionResult!.headingIndex),
+                        .direction(_coordinator!.positionResult!.headingIndex),
                   ),
                 ),
                 const SizedBox(width: 24),
                 Expanded(
                   child: _PositionRow(
                     label: l10n.timestamp,
-                    value: _coordinator.positionResult!.timestampString,
+                    value: _coordinator!.positionResult!.timestampString,
                   ),
                 ),
               ],
@@ -454,7 +463,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   Widget _buildServiceResultsExpanded(L10n l10n) {
     if (_manager!.count > 0) {
-      if (_coordinator.runningStatus == RunningStatus.stopped) {
+      if (_coordinator!.runningStatus == RunningStatus.stopped) {
         return Align(
           alignment: Alignment.topCenter,
           child: Text(
@@ -462,9 +471,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             style: const TextStyle(color: Colors.grey),
           ),
         );
-      } else if (_coordinator.runningStatus == RunningStatus.starting ||
-          _coordinator.positionResult == null ||
-          (_coordinator.stationResults?.isEmpty ?? true)) {
+      } else if (_coordinator!.runningStatus == RunningStatus.starting ||
+          _coordinator!.positionResult == null ||
+          (_coordinator!.stationResults?.isEmpty ?? true)) {
         return Align(
           alignment: Alignment.topCenter,
           child: Text(
@@ -475,9 +484,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       } else {
         return ListView.builder(
           padding: const EdgeInsets.fromLTRB(6, 4, 6, 0),
-          itemCount: _coordinator.stationResults!.length,
+          itemCount: _coordinator!.stationResults!.length,
           itemBuilder: (context, index) {
-            final stationResult = _coordinator.stationResults![index];
+            final stationResult = _coordinator!.stationResults![index];
 
             return _StationTile(
               index: index,
