@@ -151,12 +151,16 @@ class L10n {
   }
 
   // ── Notification ──────────────────────────────────────────────────
-  String get flnChannelName => appTitle;
-
-  String get flnChannelDescription {
+  String get flnChannelName {
     if (_isJa) return '最寄り駅変更通知';
     if (_isZhHans) return '最近车站变动通知';
-    return 'Nearest station update alerts';
+    return 'Nearest Station Change Notification';
+  }
+
+  String get flnChannelDescription {
+    if (_isJa) return '最寄り駅の変更時に通知します';
+    if (_isZhHans) return '最近车站发生变动时显示通知';
+    return 'This notification is shown when the nearest station changes';
   }
 
   String flnNotificationTitle(String name) {
@@ -184,7 +188,6 @@ class L10n {
   }
 
   // FGT 通知正文
-  String get fgtChannelDescription => fgtNotificationBody; // 定义别名区分使用位置
   String get fgtNotificationBody {
     if (_isJa) return '長押しでこの常駐通知の非表示を推奨します';
     if (_isZhHans) return '建议长按关闭常驻服务通知';

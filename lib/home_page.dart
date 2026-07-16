@@ -15,15 +15,11 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
-  late final Coordinator _coordinator;
-
   Settings? _settings;
   StationManager? _manager;
-  // StatusCard 用
-  // BIN ファイル情報
-  // int _count = 0; // 駅数
-  // int _date = 0; // タイムスタンプ
-  // int _size = 0; // データサイズ
+
+  late final Coordinator _coordinator;
+
   int _positionVisibility = 0; // 坐标显示/关闭
 
   @override
@@ -39,8 +35,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _coordinator.removeLocatedListener(_handleLocated);
-    _coordinator.removeRunningStatusListener(_handleRunningStatusChanged);
+    _coordinator.removeLocatedHandler(_handleLocated);
+    _coordinator.removeRunningStatusHandler(_handleRunningStatusChanged);
     _coordinator.stop();
     super.dispose();
   }
@@ -170,30 +166,26 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Future<void> _initialize() async {
     final l10n = L10n.of(context);
 
-    _coordinator = Coordinator(l10n);
-
-    // UI listener 登録
-    _coordinator.addLocatedListener(_handleLocated, activeOnly: true);
-    _coordinator.addRunningStatusListener(_handleRunningStatusChanged);
-
     try {
       final results = await Future.wait([
         Settings.load(),
         StationManager.load(),
-        // _coordinator.init(), // StationManager を返す // StationManager.loadInfo(),
       ]);
       final settings = results[0] as Settings;
       final manager = results[1] as StationManager;
 
+      _coordinator = Coordinator(l10n, true, settings, manager);
+
+      // UI handler 登録
+      _coordinator.addLocatedHandler(_handleLocated, activeOnly: true);
+      _coordinator.addRunningStatusHandler(_handleRunningStatusChanged);
+
+      await _coordinator.init();
+
       setState(() {
         _settings = settings;
         _manager = manager;
-        // _count = manager.count;
-        // _date = manager.date;
-        // _size = manager.size;
       });
-
-      // await widget.service.initService();
     } catch (e) {
       // 其他错误（文件读取失败等）
       debugPrint(e.toString());
@@ -224,7 +216,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     debugPrint(DateTime.now().toString());
     debugPrint(Common.event().toString());
 
-    await _coordinator.start(_settings!);
+    await _coordinator.start();
     // 按钮外观变更
     // 在 service 内部由 init 绑定的 onRunningStatusChanged 触发
     // setState(() {

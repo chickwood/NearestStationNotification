@@ -10,13 +10,15 @@ import 'l10n.dart';
 class NotificationService {
   L10n _l10n;
 
+  late final FlutterLocalNotificationsPlugin _fln;
+
   bool _isNotificationUpdating = false;
   StationResult? _lastNearestResult; // 最近车站切换检测用
   List<StationResult>? _stationResults;
 
-  final _fln = FlutterLocalNotificationsPlugin();
-
-  NotificationService(this._l10n);
+  NotificationService(this._l10n) {
+    _fln = FlutterLocalNotificationsPlugin();
+  }
 
   // ── 初期化 ──────────────────────────────────────────────────────
 

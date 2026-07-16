@@ -8,28 +8,24 @@ import 'common.dart';
 import 'l10n.dart';
 import 'location_processor.dart';
 import 'notification_service.dart';
-import 'search_engine.dart';
 import 'station_manager.dart';
 
-typedef LocatedListener = void Function(
+typedef LocatedHandler = void Function(
   PositionResult? positionResult,
   List<StationResult>? stationResults,
 );
-typedef RunningStatusListener = void Function(RunningStatus runningStatus);
+typedef RunningStatusHandler = void Function(RunningStatus runningStatus);
 
 /// アプリ全体を協調する Coordinator
-/// - StationManager / SearchEngine の初期化と保持
-/// - LocationProcessor の生命周期管理
+/// - LocationProcessor / NotificationService の生成と生命周期管理
 /// - 権限リクエスト
 /// - locate 結果に gcd/name を補完して StationResult を組立
-/// - listeners を通じて UI などの消費者へ配信
+/// - handlers を通じて UI などの消費者へ配信
 class Coordinator {
   L10n _l10n;
-  // AppSettings? _settings;
-  bool _active = true; // 前台=true，后台(paused)=false
-
-  StationManager? _stationManager;
-  SearchEngine? _engine;
+  bool _active;
+  Settings _settings;
+  final StationManager _manager;
 
   late final LocationProcessor _locationProcessor;
   late final NotificationService _notificationService;
@@ -46,62 +42,58 @@ class Coordinator {
   // コールバック
   // home では単に rebuild をトリガーする用途で使う想定
   // 実データは positionResult / stationResults / runningStatus の getter から取得する
-  final List<LocatedListener> _locatedListeners = [];
-  final List<LocatedListener> _activeLocatedListeners = [];
-  final List<RunningStatusListener> _runningStatusListeners = [];
+  final List<LocatedHandler> _locatedHandlers = [];
+  final List<LocatedHandler> _activeLocatedHandlers = [];
+  final List<RunningStatusHandler> _runningStatusHandlers = [];
 
-  Coordinator(this._l10n) {
+  Coordinator(this._l10n, this._active, this._settings, this._manager) {
     _notificationService = NotificationService(_l10n);
-    addLocatedListener(_notificationService.onLocated);
+    addLocatedHandler(_notificationService.onLocated);
 
     _locationProcessor = LocationProcessor(
+      _l10n,
+      _active,
+      _settings,
+      _manager,
       onLocated: _onReceiveLocation,
-      active: _active,
     );
   }
 
   // ── イベント購読 ─────────────────────────────────────────────────
 
-  void addLocatedListener(LocatedListener listener, {bool activeOnly = false}) {
+  void addLocatedHandler(LocatedHandler handler, {bool activeOnly = false}) {
     if (activeOnly) {
-      _activeLocatedListeners.add(listener);
+      _activeLocatedHandlers.add(handler);
     } else {
-      _locatedListeners.add(listener);
+      _locatedHandlers.add(handler);
     }
   }
 
-  void removeLocatedListener(LocatedListener listener) {
-    _locatedListeners.remove(listener);
-    _activeLocatedListeners.remove(listener);
+  void removeLocatedHandler(LocatedHandler handler) {
+    _locatedHandlers.remove(handler);
+    _activeLocatedHandlers.remove(handler);
   }
 
-  void addRunningStatusListener(RunningStatusListener listener) {
-    _runningStatusListeners.add(listener);
+  void addRunningStatusHandler(RunningStatusHandler handler) {
+    _runningStatusHandlers.add(handler);
   }
 
-  void removeRunningStatusListener(RunningStatusListener listener) {
-    _runningStatusListeners.remove(listener);
+  void removeRunningStatusHandler(RunningStatusHandler handler) {
+    _runningStatusHandlers.remove(handler);
   }
 
   // ── 初期化 ──────────────────────────────────────────────────────
 
   /// HomePage.initState() から呼び出す
-  /// StationManager と SearchEngine を一度だけロードする
-  /// 返却した StationManager は UI 表示（count/date/size）に使う
-  Future<StationManager> init() async {
+  /// FLN など非同期の初期化のみを担う
+  Future<void> init() async {
     await _notificationService.init();
-
-    final manager = await StationManager.load();
-    _stationManager = manager;
-    _engine = SearchEngine.fromManager(manager);
-
-    return manager;
   }
 
   // ── タスク制御 ────────────────────────────────────────────────────
 
   /// 開始ボタン押下時
-  Future<void> start(Settings settings) async {
+  Future<void> start() async {
     _runningStatus = RunningStatus.starting;
     _notifyRunningStatusChanged(_runningStatus);
 
@@ -112,8 +104,7 @@ class Coordinator {
       return;
     }
 
-    // _settings = settings;
-    await _locationProcessor.start(settings, _engine!);
+    await _locationProcessor.start();
 
     _runningStatus = RunningStatus.running;
     _notifyRunningStatusChanged(_runningStatus);
@@ -127,18 +118,17 @@ class Coordinator {
 
     _positionResult = null;
     _stationResults = null;
-    // _settings = null;
 
     _runningStatus = RunningStatus.stopped;
     _notifyRunningStatusChanged(_runningStatus);
 
-    _notifyLocated(null, null, forceActiveListeners: true);
+    _notifyLocated(null, null, forceActiveHandlers: true);
   }
 
   // ── 設定・Locale・Lifecycle ───────────────────────────────────────
 
   Future<void> changeSettings(Settings settings) async {
-    // _settings = settings;
+    _settings = settings;
     await _locationProcessor.changeSettings(settings);
   }
 
@@ -203,7 +193,7 @@ class Coordinator {
   ) {
     // index → gcd / name を補完して完全な StationResult を組立
     final completedStationResults = stationResults.map((result) {
-      final (gcd, name) = _stationManager!.getStationName(result.index);
+      final (gcd, name) = _manager.getStationName(result.index);
       return StationResult(
         index: result.index,
         gcd: gcd,
@@ -221,22 +211,22 @@ class Coordinator {
 
   void _notifyLocated(
       PositionResult? positionResult, List<StationResult>? stationResults,
-      {bool forceActiveListeners = false}) {
-    for (final listener in List<LocatedListener>.of(_locatedListeners)) {
-      listener(positionResult, stationResults);
+      {bool forceActiveHandlers = false}) {
+    for (final handler in List<LocatedHandler>.of(_locatedHandlers)) {
+      handler(positionResult, stationResults);
     }
-    if (_active || forceActiveListeners) {
-      for (final listener
-          in List<LocatedListener>.of(_activeLocatedListeners)) {
-        listener(positionResult, stationResults);
+    if (_active || forceActiveHandlers) {
+      for (final handler
+          in List<LocatedHandler>.of(_activeLocatedHandlers)) {
+        handler(positionResult, stationResults);
       }
     }
   }
 
   void _notifyRunningStatusChanged(RunningStatus runningStatus) {
-    for (final listener
-        in List<RunningStatusListener>.of(_runningStatusListeners)) {
-      listener(runningStatus);
+    for (final handler
+        in List<RunningStatusHandler>.of(_runningStatusHandlers)) {
+      handler(runningStatus);
     }
   }
 }

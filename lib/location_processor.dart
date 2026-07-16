@@ -7,41 +7,46 @@ import 'settings.dart';
 import 'common.dart';
 import 'l10n.dart';
 import 'search_engine.dart';
+import 'station_manager.dart';
+
+typedef LocationHandler = void Function(
+  PositionResult positionResult,
+  List<StationResult> stationResults,
+);
 
 /// 位置処理クラス
 /// GPS Stream の購読・漂移フィルタ・SearchEngine 呼び出しを担う
-/// 結果は onLocated コールバックで AppCoordinator へ渡す
+/// 結果は onLocated コールバックで Coordinator へ渡す
 class LocationProcessor {
-  L10n? _l10n;
-  Settings? _settings;
-  SearchEngine? _engine;
+  L10n _l10n;
+  bool _active;
+  Settings _settings;
+  final StationManager _manager;
 
-  StreamSubscription<Position>? _positionSubscription;
+  late final SearchEngine _engine;
 
   // 漂移フィルタ用キュー
   static const _queueSize = 3;
   final List<PositionResult> _positionQueue = [];
-  // PositionResult? get _lastPosition =>
-  //     _positionQueue.isEmpty ? null : _positionQueue.last;
 
-  // UI 活動状態（AppController.changeLifecycleState から更新）
-  // active=false の場合、engine は最近駅 1 件のみ返す（通知用最小データ）
-  bool active;
+  StreamSubscription<Position>? _positionSubscription;
 
-  // 結果コールバック（AppCoordinator が登録）
-  final void Function(PositionResult, List<StationResult>) onLocated;
+  // 結果コールバック（Coordinator が登録）
+  final LocationHandler onLocated;
 
-  LocationProcessor({
+  LocationProcessor(
+    this._l10n,
+    this._active,
+    this._settings,
+    this._manager, {
     required this.onLocated,
-    required this.active,
-  });
+  }) {
+    _engine = SearchEngine.fromManager(_manager);
+  }
 
   // ── 起動・停止 ────────────────────────────────────────────────────
 
-  Future<void> start(Settings settings, SearchEngine engine) async {
-    _settings = settings;
-    _engine = engine;
-
+  Future<void> start() async {
     _startStream();
   }
 
@@ -49,17 +54,16 @@ class LocationProcessor {
     _stopStream();
 
     _positionQueue.clear();
-    _settings = null;
-    _engine = null;
   }
 
-  // ── 設定更新 ──────────────────────────────────────────────────────
+  // ── 状態の変更 ──────────────────────────────────────────────────────
 
+  /// 設定更新
   Future<void> changeSettings(Settings settings) async {
-    final changeInterval = _settings?.locationInterval.milliseconds !=
+    final changeInterval = _settings.locationInterval.milliseconds !=
         settings.locationInterval.milliseconds;
     final changeCount =
-        _settings?.stationCount.count != settings.stationCount.count;
+        _settings.stationCount.count != settings.stationCount.count;
 
     _settings = settings;
 
@@ -75,17 +79,23 @@ class LocationProcessor {
   /// UI 活動状態の変更
   /// active が false → true になった場合は count 分の再検索が必要
   void changeActive(bool value) {
-    final changed = active != value;
-    active = value;
+    final changed = _active != value;
+    _active = value;
 
-    if (changed && active) {
+    if (changed && _active) {
       Geolocator.getCurrentPosition().then(
         (position) => _handlePositionUpdate(position, forceUpdate: true),
       );
     }
   }
 
-  void changeLocale(L10n l10n) {}
+  /// 系统语言更新
+  void changeLocale(L10n l10n) {
+    _l10n = l10n;
+
+    // 前台通知テキストを即座反映するため流を再起動
+    if (_positionSubscription != null) _startStream();
+  }
 
   // ── GPS Stream ───────────────────────────────────────────────────
 
@@ -93,8 +103,7 @@ class LocationProcessor {
     final distanceFilter = _positionQueue.isNotEmpty
         ? _positionQueue.last.samplingMode.filter
         : SamplingMode.staying.filter;
-    final milliseconds = _settings?.locationInterval.milliseconds ??
-        LocationInterval.s1.milliseconds;
+    final milliseconds = _settings.locationInterval.milliseconds;
 
     final locationSettings = switch (defaultTargetPlatform) {
       TargetPlatform.android => AndroidSettings(
@@ -102,9 +111,9 @@ class LocationProcessor {
           distanceFilter: distanceFilter,
           intervalDuration: Duration(milliseconds: milliseconds),
           foregroundNotificationConfig: ForegroundNotificationConfig(
-            notificationChannelName: Common.fgtChannelId,
-            notificationTitle: _l10n?.fgtNotificationTitle ?? '',
-            notificationText: _l10n?.fgtNotificationBody ?? '',
+            notificationChannelName: _l10n.fgtChannelName,
+            notificationTitle: _l10n.fgtNotificationTitle,
+            notificationText: _l10n.fgtNotificationBody,
             notificationIcon: const AndroidResource(
               name: Common.flnNotificationIcon,
               defType: 'drawable',
@@ -183,7 +192,7 @@ class LocationProcessor {
             prevMode == SamplingMode.transit &&
             Common.sampling(_positionQueue[_positionQueue.length - 3].speed) !=
                 SamplingMode.transit;
-        if (_settings?.locationInterval == LocationInterval.s1 && isObserving) {
+        if (_settings.locationInterval == LocationInterval.s1 && isObserving) {
           // 下一次定位又变为低速或静止
           // 认为是 GPS 漂移
           if (userMode != SamplingMode.transit) {
@@ -227,12 +236,12 @@ class LocationProcessor {
     final positionResult = _positionQueue.last;
     // 取得车站数全部在 engine 内进行分歧判断
     // 取得最小车站数后再填入其他属性返回最小数据集
-    final stationResults = _engine!
+    final stationResults = _engine
         .locate(
           userLatitude,
           userLongitude,
-          _settings?.stationCount.count ?? 0,
-          active,
+          _settings.stationCount.count,
+          _active,
         )
         .toList(growable: false);
 
