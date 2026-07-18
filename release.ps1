@@ -67,4 +67,4 @@ git commit -m "chore: sync version bump from $releaseBranch to main"
 git push origin main
 
 Write-Host "5. 清理本地临时发布分支..." -ForegroundColor Green
-git branch -d $releaseBranch
+git branch -D $releaseBranch

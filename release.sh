@@ -64,4 +64,4 @@ git commit -m "chore: sync version bump from ${RELEASE_BRANCH} to main"
 git push origin main
 
 echo "5. 清理本地临时发布分支..."
-git branch -d "${RELEASE_BRANCH}"
+git branch -D "${RELEASE_BRANCH}"
