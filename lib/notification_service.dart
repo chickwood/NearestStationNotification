@@ -6,7 +6,7 @@ import 'common.dart';
 import 'l10n.dart';
 
 /// 業務通知専用サービス（純粋な FLN ラッパー）
-/// 状態を持たず、呼び出し側（AppCoordinator）から渡されたデータで通知を表示する
+/// 状態を持たず、呼び出し側（Coordinator）から渡されたデータで通知を表示する
 class NotificationService {
   L10n _l10n;
 
@@ -51,7 +51,7 @@ class NotificationService {
 
   // ── 定位結果イベント ──────────────────────────────────────────────
 
-  void onLocated(
+  void handleLocationResultReceived(
     PositionResult? positionResult,
     List<StationResult>? stationResults,
   ) {

@@ -23,7 +23,7 @@ class Common {
   // // 二进制对应 2^-12
   // static const farScore = 2.44140625e-4;
 
-  // GPS漂移（距离过近）检测
+  // GPS 漂移（距离过近）检测
   // 单位为经纬度差值
   // 二进制对应 2^-15
   static const nearCoord = 3.0517578125e-5;

@@ -243,7 +243,7 @@ SearchEngine 只负责计算。
 - 持有业务逻辑
 
 NotificationService 不拥有定位或站点业务的主状态，但会持有通知显示所需的内部状态：当前语言、最近一次站点结果、通知更新锁及最近结果缓存。
-定位结果通常通过 onLocated 进入 NotificationService；Coordinator 当前仍直接调用其 cancelAll()、changeLocale()，并在 locale 变化时直接强制调用 show()。
+定位结果通常通过 handleLocationResultReceived() 进入 NotificationService；Coordinator 当前仍直接调用其 cancelAll()、changeLocale()，并在 locale 变化时直接强制调用 show()。
 收到定位结果时 show()，收到 null 结果时 cancelAll()。
 
 ---
@@ -296,8 +296,8 @@ Coordinator 不关心具体有哪些 Handler。
 HomePage 作为前台消费者监听定位结果并更新 UI。
 NotificationService 作为常驻消费者监听定位结果并更新通知。
 
-LocationProcessor 内部仍使用单一的 onLocated 回调向 Coordinator 返回算法结果；Coordinator 再将补全后的结果广播给多个消费者。
-HomePage 注册 activeOnly: true，只在前台收到定位结果；NotificationService 注册普通 handler，因此前后台都能收到结果。
+LocationProcessor 内部通过单一的 LocationHandler 向 Coordinator 返回算法结果；Coordinator 在构造完成后通过 setLocationHandler() 注册该 handler，再将补全后的结果广播给多个消费者。
+HomePage 注册 active: true，只在前台收到定位结果；NotificationService 注册普通 handler，因此前后台都能收到结果。
 
 停止流程：Coordinator 先停止 LocationProcessor，再直接调用 NotificationService.cancelAll()，清空自身缓存的定位结果和运行状态，最后广播 (null, null)，使前台 HomePage 清空列表。
 
@@ -333,20 +333,20 @@ Coordinator
 
 未来计划：
 
-- History
-- Voronoi
+- History（定位历史记录）
+- Voronoi 图着色
 
 新增功能应作为定位结果消费者。
 不得修改现有职责划分。
 
 定位结果与运行状态通过 Coordinator 的 Handler 扩展：
 
-- addLocatedHandler() / removeLocatedHandler()
+- addLocationResultHandler() / removeLocationResultHandler()
 - addRunningStatusHandler() / removeRunningStatusHandler()
 
 新增消费者不得覆盖既有 Handler。
-需要后台消费定位结果的消费者应注册普通 located handler。
-只需要前台更新的消费者应注册 activeOnly located handler。
+需要后台消费定位结果的消费者应注册普通 location result received handler。
+只需要前台更新的消费者应注册 active location result received handler。
 
 当前 Coordinator 仍在 changeLocale() 和 stop() 中直接操作 NotificationService；是否进一步收敛这条路径，待后续讨论。
 

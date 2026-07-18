@@ -10,7 +10,7 @@ class _Keys {
   // static const notificationMode = 'settings_notification_mode';
 }
 
-// ── AppSettings ───────────────────────────────────────────────────
+// ── Settings ───────────────────────────────────────────────────
 
 class Settings {
   StationCount stationCount;

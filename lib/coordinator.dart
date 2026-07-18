@@ -10,7 +10,7 @@ import 'location_processor.dart';
 import 'notification_service.dart';
 import 'station_manager.dart';
 
-typedef LocatedHandler = void Function(
+typedef LocationResultHandler = void Function(
   PositionResult? positionResult,
   List<StationResult>? stationResults,
 );
@@ -41,45 +41,69 @@ class Coordinator {
 
   // コールバック
   // home では単に rebuild をトリガーする用途で使う想定
-  // 実データは positionResult / stationResults / runningStatus の getter から取得する
-  final List<LocatedHandler> _locatedHandlers = [];
-  final List<LocatedHandler> _activeLocatedHandlers = [];
-  final List<RunningStatusHandler> _runningStatusHandlers = [];
+  final Set<LocationResultHandler> _onLocationResultReceived = {};
+  final Set<LocationResultHandler> _onLocationResultReceivedActive = {};
+  final Set<RunningStatusHandler> _onRunningStatusChanged = {};
 
   Coordinator(this._l10n, this._active, this._settings, this._manager) {
     _notificationService = NotificationService(_l10n);
-    addLocatedHandler(_notificationService.onLocated);
+    addLocationResultHandler(_notificationService.handleLocationResultReceived);
 
     _locationProcessor = LocationProcessor(
       _l10n,
       _active,
       _settings,
       _manager,
-      onLocated: _onReceiveLocation,
     );
+    _locationProcessor.setLocationHandler(_handleLocationUpdated);
   }
 
-  // ── イベント購読 ─────────────────────────────────────────────────
+  // ── イベント購読・コールバック ────────────────────────────────────────────
 
-  void addLocatedHandler(LocatedHandler handler, {bool activeOnly = false}) {
-    if (activeOnly) {
-      _activeLocatedHandlers.add(handler);
+  void addLocationResultHandler(LocationResultHandler handler,
+      {bool active = false}) {
+    removeLocationResultHandler(handler);
+
+    if (active) {
+      _onLocationResultReceivedActive.add(handler);
     } else {
-      _locatedHandlers.add(handler);
+      _onLocationResultReceived.add(handler);
     }
   }
 
-  void removeLocatedHandler(LocatedHandler handler) {
-    _locatedHandlers.remove(handler);
-    _activeLocatedHandlers.remove(handler);
+  void removeLocationResultHandler(LocationResultHandler handler) {
+    _onLocationResultReceived.remove(handler);
+    _onLocationResultReceivedActive.remove(handler);
+  }
+
+  void _notifyLocationResultReceived(
+      PositionResult? positionResult, List<StationResult>? stationResults,
+      {bool forceNotify = false}) {
+    for (final handler
+        in List<LocationResultHandler>.of(_onLocationResultReceived)) {
+      handler(positionResult, stationResults);
+    }
+    if (_active || forceNotify) {
+      for (final handler
+          in List<LocationResultHandler>.of(_onLocationResultReceivedActive)) {
+        handler(positionResult, stationResults);
+      }
+    }
   }
 
   void addRunningStatusHandler(RunningStatusHandler handler) {
-    _runningStatusHandlers.add(handler);
+    _onRunningStatusChanged.add(handler);
   }
 
   void removeRunningStatusHandler(RunningStatusHandler handler) {
-    _runningStatusHandlers.remove(handler);
+    _onRunningStatusChanged.remove(handler);
+  }
+
+  void _notifyRunningStatusChanged(RunningStatus runningStatus) {
+    for (final handler
+        in List<RunningStatusHandler>.of(_onRunningStatusChanged)) {
+      handler(runningStatus);
+    }
   }
 
   // ── 初期化 ──────────────────────────────────────────────────────
@@ -122,7 +146,7 @@ class Coordinator {
     _runningStatus = RunningStatus.stopped;
     _notifyRunningStatusChanged(_runningStatus);
 
-    _notifyLocated(null, null, forceActiveHandlers: true);
+    _notifyLocationResultReceived(null, null, forceNotify: true);
   }
 
   // ── 設定・Locale・Lifecycle ───────────────────────────────────────
@@ -161,7 +185,7 @@ class Coordinator {
 
       // 復帰時は即座に UI を更新
       if (_active) {
-        _notifyLocated(_positionResult, _stationResults);
+        _notifyLocationResultReceived(_positionResult, _stationResults);
       }
     }
   }
@@ -187,12 +211,14 @@ class Coordinator {
 
   // ── LocationProcessor コールバック ────────────────────────────────
 
-  void _onReceiveLocation(
+  void _handleLocationUpdated(
     PositionResult positionResult,
     List<StationResult> stationResults,
   ) {
-    // index → gcd / name を補完して完全な StationResult を組立
-    final completedStationResults = stationResults.map((result) {
+    _positionResult = positionResult;
+
+    // index → gcd と name を補完して完全な StationResult を組立
+    _stationResults = stationResults.map((result) {
       final (gcd, name) = _manager.getStationName(result.index);
       return StationResult(
         index: result.index,
@@ -203,30 +229,6 @@ class Coordinator {
       );
     }).toList(growable: false);
 
-    _positionResult = positionResult;
-    _stationResults = completedStationResults;
-
-    _notifyLocated(positionResult, completedStationResults);
-  }
-
-  void _notifyLocated(
-      PositionResult? positionResult, List<StationResult>? stationResults,
-      {bool forceActiveHandlers = false}) {
-    for (final handler in List<LocatedHandler>.of(_locatedHandlers)) {
-      handler(positionResult, stationResults);
-    }
-    if (_active || forceActiveHandlers) {
-      for (final handler
-          in List<LocatedHandler>.of(_activeLocatedHandlers)) {
-        handler(positionResult, stationResults);
-      }
-    }
-  }
-
-  void _notifyRunningStatusChanged(RunningStatus runningStatus) {
-    for (final handler
-        in List<RunningStatusHandler>.of(_runningStatusHandlers)) {
-      handler(runningStatus);
-    }
+    _notifyLocationResultReceived(_positionResult, _stationResults);
   }
 }

@@ -12,7 +12,7 @@ class L10n {
     return Localizations.of<L10n>(context, L10n) ?? const L10n(Locale('en'));
   }
 
-  static const delegate = _AppLocalizationsDelegate();
+  static const delegate = _L10nDelegate();
 
   static const supportedLocales = [
     Locale('en'),
@@ -312,8 +312,8 @@ class L10n {
 
 // ── Delegate ──────────────────────────────────────────────────────────────────
 
-class _AppLocalizationsDelegate extends LocalizationsDelegate<L10n> {
-  const _AppLocalizationsDelegate();
+class _L10nDelegate extends LocalizationsDelegate<L10n> {
+  const _L10nDelegate();
 
   @override
   bool isSupported(Locale locale) {
@@ -329,5 +329,5 @@ class _AppLocalizationsDelegate extends LocalizationsDelegate<L10n> {
   }
 
   @override
-  bool shouldReload(_AppLocalizationsDelegate old) => false;
+  bool shouldReload(_L10nDelegate old) => false;
 }

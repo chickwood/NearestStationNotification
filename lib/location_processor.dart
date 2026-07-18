@@ -15,7 +15,7 @@ typedef LocationHandler = void Function(
 );
 
 /// 位置処理クラス
-/// GPS Stream の購読・漂移フィルタ・SearchEngine 呼び出しを担う
+/// GPS Stream の購読・位置ズレフィルタ・SearchEngine 呼び出しを担う
 /// 結果は onLocated コールバックで Coordinator へ渡す
 class LocationProcessor {
   L10n _l10n;
@@ -25,24 +25,26 @@ class LocationProcessor {
 
   late final SearchEngine _engine;
 
-  // 漂移フィルタ用キュー
+  // 位置ズレフィルタ用キュー
   static const _queueSize = 3;
   final List<PositionResult> _positionQueue = [];
 
   StreamSubscription<Position>? _positionSubscription;
 
   // 結果コールバック（Coordinator が登録）
-  final LocationHandler onLocated;
+  LocationHandler? _onLocationUpdated;
 
-  LocationProcessor(
-    this._l10n,
-    this._active,
-    this._settings,
-    this._manager, {
-    required this.onLocated,
-  }) {
+  LocationProcessor(this._l10n, this._active, this._settings, this._manager) {
     _engine = SearchEngine(_manager);
   }
+
+  void setLocationHandler(LocationHandler handler) {
+    _onLocationUpdated = handler;
+  }
+
+  // void _notifyLocationUpdated() {
+  //   // noop;
+  // }
 
   // ── 起動・停止 ────────────────────────────────────────────────────
 
@@ -71,7 +73,7 @@ class LocationProcessor {
 
     if (changeCount) {
       Geolocator.getCurrentPosition().then(
-        (position) => _handlePositionUpdate(position, forceUpdate: true),
+        (position) => _handlePositionUpdated(position, forceUpdate: true),
       );
     }
   }
@@ -84,7 +86,7 @@ class LocationProcessor {
 
     if (changed && _active) {
       Geolocator.getCurrentPosition().then(
-        (position) => _handlePositionUpdate(position, forceUpdate: true),
+        (position) => _handlePositionUpdated(position, forceUpdate: true),
       );
     }
   }
@@ -136,7 +138,7 @@ class LocationProcessor {
     _positionSubscription?.cancel();
     _positionSubscription =
         Geolocator.getPositionStream(locationSettings: locationSettings)
-            .listen((position) => _handlePositionUpdate(position));
+            .listen((position) => _handlePositionUpdated(position));
   }
 
   void _stopStream() {
@@ -146,7 +148,7 @@ class LocationProcessor {
 
   // ── 位置更新処理（GPS Stream）────────────────────────────
 
-  void _handlePositionUpdate(Position position, {bool forceUpdate = false}) {
+  void _handlePositionUpdated(Position position, {bool forceUpdate = false}) {
     // 基础数据
     final userLatitude = position.latitude;
     final userLongitude = position.longitude;
@@ -245,6 +247,11 @@ class LocationProcessor {
         )
         .toList(growable: false);
 
-    onLocated(positionResult, stationResults);
+    // _onLocated?.call 的写法更为简洁直观
+    // if case 的写法是为了和 coordinator 中的 _notify 统一
+    // _onLocated?.call(positionResult, stationResults);
+    if (_onLocationUpdated case final handler?) {
+      handler(positionResult, stationResults);
+    }
   }
 }

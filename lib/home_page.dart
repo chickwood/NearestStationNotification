@@ -37,7 +37,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
 
-    _coordinator?.removeLocatedHandler(_handleLocated);
+    _coordinator?.removeLocationResultHandler(_handleLocationResultReceived);
     _coordinator?.removeRunningStatusHandler(_handleRunningStatusChanged);
     _coordinator?.stop();
 
@@ -158,7 +158,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 const SizedBox(height: 4),
               ],
               Expanded(
-                child: _buildServiceResultsCard(l10n), // 中部可滚动: 车站列表
+                child: _buildStationResultsCard(l10n), // 中部可滚动: 车站列表
               ),
             ],
           ),
@@ -185,7 +185,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       _coordinator = coordinator;
 
       // UI handler 登録
-      coordinator.addLocatedHandler(_handleLocated, activeOnly: true);
+      coordinator.addLocationResultHandler(_handleLocationResultReceived,
+          active: true);
       coordinator.addRunningStatusHandler(_handleRunningStatusChanged);
 
       await coordinator.init();
@@ -202,7 +203,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
   }
 
-  void _handleLocated(
+  void _handleLocationResultReceived(
     PositionResult? positionResult,
     List<StationResult>? stationResults,
   ) {
@@ -422,7 +423,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   // ── Service results card ─────────────────────────────────────────
 
-  Widget _buildServiceResultsCard(L10n l10n) {
+  Widget _buildStationResultsCard(L10n l10n) {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -453,7 +454,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             ),
             const SizedBox(height: 4),
             Expanded(
-              child: _buildServiceResultsExpanded(l10n), // リスト部分のみスクロール
+              child: _buildStationResultsExpanded(l10n), // リスト部分のみスクロール
             ),
           ],
         ),
@@ -461,7 +462,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     );
   }
 
-  Widget _buildServiceResultsExpanded(L10n l10n) {
+  Widget _buildStationResultsExpanded(L10n l10n) {
     if (_manager!.count > 0) {
       if (_coordinator!.runningStatus == RunningStatus.stopped) {
         return Align(
