@@ -1,9 +1,9 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:nearest_station_notification/station_manager.dart';
 
 import 'common.dart';
 import 'l10n.dart';
+import 'station_manager.dart';
 
 // ── License list dialog ───────────────────────────────────────────
 

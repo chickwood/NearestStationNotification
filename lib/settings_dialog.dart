@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:nearest_station_notification/station_manager.dart';
 
 import 'settings.dart';
 import 'common.dart';
 import 'l10n.dart';
 import 'licenses_dialog.dart';
+import 'station_manager.dart';
 
 // ── Settings Dialog ───────────────────────────────────────────────
 
