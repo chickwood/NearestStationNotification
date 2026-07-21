@@ -82,6 +82,17 @@ LocationProcessor   NotificationService
         ▲
         │
         └────────────── HomePage
+
+后台任务适配链：
+
+```text
+HomePage
+   │
+   ▼
+BackgroundTask
+   │ Android only
+   ▼
+MainActivity / MethodChannel
 ```
 
 约束：
@@ -107,6 +118,7 @@ LocationProcessor   NotificationService
 - StationManager 初始化
 - 创建并持有 Coordinator
 - 通过 Coordinator 的 handler 触发 UI 重建，并通过 getter 读取当前结果和运行状态
+- 向 BackgroundTask 提供 Coordinator.runningStatus == RunningStatus.running 的状态
 
 可直接使用：
 
@@ -248,6 +260,31 @@ NotificationService 不拥有定位或站点业务的主状态，但会持有通
 
 ---
 
+---
+
+### BackgroundTask
+
+职责：
+
+- 隔离平台返回行为的差异
+- 仅在原生 Android 环境注册根路由 `PopScope`
+- 定位运行时拦截 Android 返回，并请求 Android 将任务移至后台
+- iOS、Web、Windows、macOS、Linux 原样返回 `child`
+
+不负责：
+
+- 保存或判断定位业务状态
+- 管理 Coordinator、GPS、Notification 或生命周期清理
+
+---
+
+## Android Task Policy
+
+- `MainActivity` 是应用唯一根 Activity。
+- 使用 `singleTask`，桌面入口和通知入口应优先复用同一任务。
+- 定位运行时按返回键不销毁 Activity，而是调用 Android `moveTaskToBack(true)`。
+- 系统杀死进程后的冷启动不恢复旧 Coordinator 状态。
+- 当前 `taskAffinity=""` 暂时保留；是否调整必须基于任务栈验证结果单独讨论。
 ## Data Model
 
 ### StationResult

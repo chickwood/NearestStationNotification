@@ -9,6 +9,7 @@
 ```
 NearestStationNotification/
 ├── lib/
+│   ├── background_task.dart        # Android 返回与后台任务处理
 │   ├── common.dart                 # 共用类、枚举与工具函数
 │   ├── coordinator.dart            # 业务协调、状态保存与结果分发
 │   ├── home_page.dart              # UI 主页面
