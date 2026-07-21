@@ -9,12 +9,12 @@ class BackgroundTask extends StatelessWidget {
     'name.w57.nearest_station_notification/background_task',
   );
 
-  final bool moveTaskToBackground;
+  final bool keepBackgroundTask;
   final Widget child;
 
   const BackgroundTask({
     super.key,
-    required this.moveTaskToBackground,
+    required this.keepBackgroundTask,
     required this.child,
   });
 
@@ -30,9 +30,9 @@ class BackgroundTask extends StatelessWidget {
     if (!_isNativeAndroid) return child;
 
     return PopScope(
-      canPop: !moveTaskToBackground,
+      canPop: !keepBackgroundTask,
       onPopInvokedWithResult: (didPop, result) {
-        if (!didPop && moveTaskToBackground) {
+        if (!didPop && keepBackgroundTask) {
           unawaited(_moveTaskToBack());
         }
       },

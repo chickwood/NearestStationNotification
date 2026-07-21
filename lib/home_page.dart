@@ -71,8 +71,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
     final l10n = L10n.of(context);
     return BackgroundTask(
-      moveTaskToBackground:
-          _coordinator!.runningStatus == RunningStatus.running,
+      keepBackgroundTask: _coordinator!.runningStatus == RunningStatus.running,
       child: Scaffold(
         backgroundColor: Colors.grey.shade50,
         appBar: AppBar(
