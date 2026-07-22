@@ -9,7 +9,6 @@
 # Plugins (FGT, Geolocator, FLN)
 -keep class com.baseflow.geolocator.** { *; }
 -keep class com.dexterous.flutterlocalnotifications.** { *; }
--keep class com.pravera.flutter_foreground_task.** { *; }
 
 # =========================================================
 # 2. Dontwarn Rules (Internal Alphabetical Order)
