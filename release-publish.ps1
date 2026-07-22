@@ -12,6 +12,11 @@ function Test-GitRef {
     return ($LASTEXITCODE -eq 0)
 }
 
+function Test-GitAncestor {
+    & git merge-base --is-ancestor @args *> $null
+    return ($LASTEXITCODE -eq 0)
+}
+
 # 1. 检查工作区，避免自动切换分支时覆盖本地修改
 $gitStatus = git status --porcelain
 if ($gitStatus) {
@@ -57,7 +62,7 @@ if (-not (Test-GitRef ls-remote --exit-code --heads origin $releaseBranch)) {
     exit 1
 }
 Invoke-Git fetch origin "${releaseBranch}:refs/remotes/origin/${releaseBranch}"
-if (-not (git merge-base --is-ancestor "origin/$releaseBranch" HEAD)) {
+if (-not (Test-GitAncestor "origin/$releaseBranch" HEAD)) {
     Write-Error "错误: PR 尚未合并到 main，不能创建 Tag。"
     exit 1
 }
