@@ -56,7 +56,7 @@ if (-not (Test-GitRef ls-remote --exit-code --heads origin $releaseBranch)) {
     Write-Error "错误: 远程 release 分支不存在: $releaseBranch"
     exit 1
 }
-Invoke-Git fetch origin $releaseBranch
+Invoke-Git fetch origin "${releaseBranch}:refs/remotes/origin/${releaseBranch}"
 if (-not (git merge-base --is-ancestor "origin/$releaseBranch" HEAD)) {
     Write-Error "错误: PR 尚未合并到 main，不能创建 Tag。"
     exit 1
