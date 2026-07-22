@@ -1,8 +1,6 @@
 # Nearest Station Notification 🚉
 
-> Locates the nearest station based on your current position.
-
-无论用户身处何地距离远近，始终实时定位并指向物理距离最近的车站并显示通知。
+> 根据当前定位查找距离最近的车站并显示通知。
 
 ## 项目结构
 
