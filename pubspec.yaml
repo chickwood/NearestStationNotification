@@ -1,5 +1,5 @@
 name: nearest_station_notification
-description: "Locates the nearest station based on your current position."
+description: "Finds the nearest station using your location and sends a notification."
 publish_to: 'none'
 version: 1.1.0-20260713-5+2026071306
 

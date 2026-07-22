@@ -43,9 +43,9 @@ class L10n {
   // ── HomePage ─────────────────────────────────────────────────────
 
   String get currentStatus {
-    if (_isJa) return '現在状態';
-    if (_isZhHans) return '当前状态';
-    return 'Current Status';
+    if (_isJa) return '現在位置及び状態情報';
+    if (_isZhHans) return '当前定位及状态信息';
+    return 'Current Location & Status';
   }
 
   String get notStarted {

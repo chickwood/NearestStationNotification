@@ -379,7 +379,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                   value: _coordinator!.positionResult!.speedString,
                 ),
               ),
-              if (_positionVisibility == 1) const SizedBox(width: 16),
+              if (_positionVisibility == 1) const SizedBox(width: 12),
               if (_positionVisibility == 2) const SizedBox(width: 24),
               Expanded(
                 child: _PositionRow(
