@@ -284,7 +284,8 @@ NotificationService 不拥有定位或站点业务的主状态，但会持有通
 - 使用 `singleTask`，桌面入口和通知入口应优先复用同一任务。
 - 定位运行时按返回键不销毁 Activity，而是调用 Android `moveTaskToBack(true)`。
 - 系统杀死进程后的冷启动不恢复旧 Coordinator 状态。
-- 当前 `taskAffinity=""` 暂时保留；是否调整必须基于任务栈验证结果单独讨论。
+- 使用 Android 默认的应用 task affinity（包名 `name.w57.nearest_station_notification`），不额外设置 `taskAffinity`。
+
 ## Data Model
 
 ### StationResult
