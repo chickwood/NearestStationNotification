@@ -45,12 +45,12 @@ if git show-ref --verify --quiet "refs/tags/${TARGET_TAG}" || \
     exit 1
 fi
 
-echo "将基于当前 main 创建并推送 Tag: ${TARGET_TAG}"
+echo "将基于版本提交创建并推送 Tag: ${TARGET_TAG}"
 read -p "确认继续？(Y/N): " confirmation
 if [[ ! "$confirmation" =~ ^[yY]$ ]]; then
     exit 0
 fi
 
-run_git tag "$TARGET_TAG"
+run_git tag "$TARGET_TAG" "origin/${RELEASE_BRANCH}"
 run_git push origin "$TARGET_TAG"
 echo "发布 Tag 已推送: ${TARGET_TAG}"

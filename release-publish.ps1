@@ -76,7 +76,7 @@ if ((Test-GitRef show-ref --verify --quiet "refs/tags/$targetTag") -or
 
 # 7. 用户确认并推送 Tag
 Write-Host "========== 发布执行 ==========" -ForegroundColor Cyan
-Write-Host "将基于当前 main 创建并推送 Tag: $targetTag"
+Write-Host "将基于版本提交创建并推送 Tag: $targetTag"
 Write-Host "==============================" -ForegroundColor Cyan
 $confirmation = Read-Host "确认继续？(Y/N)"
 if ($confirmation -notmatch "^[yY]$") {
@@ -85,6 +85,6 @@ if ($confirmation -notmatch "^[yY]$") {
 }
 
 Write-Host "正在创建并推送 Tag..." -ForegroundColor Green
-Invoke-Git tag $targetTag
+Invoke-Git tag $targetTag "origin/$releaseBranch"
 Invoke-Git push origin $targetTag
 Write-Host "发布 Tag 已推送: $targetTag" -ForegroundColor Cyan

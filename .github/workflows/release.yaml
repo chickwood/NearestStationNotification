@@ -62,6 +62,10 @@ jobs:
           files: |
             build/app/outputs/flutter-apk/app-release.apk
             build/app/outputs/flutter-apk/app-*.apk
-          generate_release_notes: true # 自动根据 commit 历史生成变更日志
+          # 发布说明只显示当前 Tag，避免 GitHub 跨 Tag 自动收集旧版本提交。
+          generate_release_notes: false
+          body: |
+            Version: ${{ github.ref_name }}
+            构建来源：PR 合并后的 main
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # 官方内置安全令牌
