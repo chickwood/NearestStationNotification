@@ -349,57 +349,44 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       padding: const EdgeInsets.symmetric(horizontal: 8),
       child: Column(
         children: [
+          Row(
+            children: [
+              Expanded(
+                child: _PositionRow(
+                  label: l10n.latitude,
+                  value:
+                      _coordinator!.positionResult!.latitude.toStringAsFixed(6),
+                ),
+              ),
+              const SizedBox(width: 24),
+              Expanded(
+                child: _PositionRow(
+                  label: l10n.longitude,
+                  value: _coordinator!.positionResult!.longitude
+                      .toStringAsFixed(6),
+                ),
+              ),
+            ],
+          ),
           if (_positionVisibility == 2) ...[
+            const SizedBox(height: 4),
             Row(
               children: [
                 Expanded(
                   child: _PositionRow(
-                    label: l10n.latitude,
-                    value: _coordinator!.positionResult!.latitude
-                        .toStringAsFixed(6),
+                    label: l10n.speed,
+                    value: _coordinator!.positionResult!.speedString,
                   ),
                 ),
                 const SizedBox(width: 24),
                 Expanded(
                   child: _PositionRow(
-                    label: l10n.longitude,
-                    value: _coordinator!.positionResult!.longitude
-                        .toStringAsFixed(6),
+                    label: l10n.accuracy,
+                    value: _coordinator!.positionResult!.accuracyString,
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 4),
-          ],
-          Row(
-            children: [
-              Expanded(
-                child: _PositionRow(
-                  label: l10n.speed,
-                  value: _coordinator!.positionResult!.speedString,
-                ),
-              ),
-              if (_positionVisibility == 1) const SizedBox(width: 12),
-              if (_positionVisibility == 2) const SizedBox(width: 24),
-              Expanded(
-                child: _PositionRow(
-                  label: l10n.accuracy,
-                  value: _coordinator!.positionResult!.accuracyString,
-                ),
-              ),
-              if (_positionVisibility == 1) ...[
-                const SizedBox(width: 16),
-                Expanded(
-                  child: _PositionRow(
-                    label: l10n.heading,
-                    value: l10n
-                        .direction(_coordinator!.positionResult!.headingIndex),
-                  ),
-                ),
-              ],
-            ],
-          ),
-          if (_positionVisibility == 2) ...[
             const SizedBox(height: 4),
             Row(
               children: [
