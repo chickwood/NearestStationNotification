@@ -17,6 +17,22 @@ jobs:
       # 1. 物理检出 GitHub 仓库源码
       - name: Checkout Code
         uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      # 获取上一个 Tag，用于生成单行 Full Changelog 链接
+      - name: Prepare Full Changelog
+        id: changelog
+        shell: bash
+        run: |
+          current_tag="${GITHUB_REF_NAME}"
+          previous_tag=$(git tag --sort=-creatordate | grep -Fxv "$current_tag" | head -n 1)
+          if [ -n "$previous_tag" ]; then
+            changelog_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/compare/${previous_tag}...${current_tag}"
+          else
+            changelog_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases"
+          fi
+          echo "url=$changelog_url" >> "$GITHUB_OUTPUT"
 
       # 2. 物理初始化 Java 环境（根据 build.gradle.kts 锁定 JDK 21）
       - name: Set up JDK
@@ -62,10 +78,8 @@ jobs:
           files: |
             build/app/outputs/flutter-apk/app-release.apk
             build/app/outputs/flutter-apk/app-*.apk
-          # 发布说明只显示当前 Tag，避免 GitHub 跨 Tag 自动收集旧版本提交。
+          # 只保留一行 Full Changelog，不生成提交列表。
           generate_release_notes: false
-          body: |
-            Version: ${{ github.ref_name }}
-            构建来源：PR 合并后的 main
+          body: "**Full Changelog**: ${{ steps.changelog.outputs.url }}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # 官方内置安全令牌
