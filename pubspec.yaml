@@ -1,7 +1,7 @@
 name: nearest_station_notification
 description: "Locates the nearest station based on your current position."
 publish_to: 'none'
-version: 1.1.0-20260713-2+2026071303
+version: 1.1.0-20260713-3+2026071304
 
 environment:
   sdk: '>=3.0.0 <4.0.0'

@@ -34,7 +34,7 @@ if ! git ls-remote --exit-code --heads origin "$RELEASE_BRANCH" >/dev/null 2>&1;
     echo "错误: 远程 release 分支不存在: ${RELEASE_BRANCH}"
     exit 1
 fi
-run_git fetch origin "$RELEASE_BRANCH"
+run_git fetch origin "$RELEASE_BRANCH:refs/remotes/origin/$RELEASE_BRANCH"
 if ! git merge-base --is-ancestor "origin/${RELEASE_BRANCH}" HEAD; then
     echo "错误: PR 尚未合并到 main，不能创建 Tag。"
     exit 1
