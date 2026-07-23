@@ -161,10 +161,6 @@ class Coordinator {
 
     _locationProcessor.changeLocale(l10n);
     _notificationService.changeLocale(l10n);
-
-    if (_stationResults != null) {
-      unawaited(_notificationService.show(_stationResults!, forceUpdate: true));
-    }
   }
 
   /// UI の前台/后台状態が変わった時

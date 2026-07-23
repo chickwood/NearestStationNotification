@@ -255,7 +255,7 @@ SearchEngine 只负责计算。
 - 持有业务逻辑
 
 NotificationService 不拥有定位或站点业务的主状态，但会持有通知显示所需的内部状态：当前语言、最近一次站点结果、通知更新锁及最近结果缓存。
-定位结果通常通过 handleLocationResultReceived() 进入 NotificationService；Coordinator 当前仍直接调用其 cancelAll()、changeLocale()，并在 locale 变化时直接强制调用 show()。
+定位结果通常通过 handleLocationResultReceived() 进入 NotificationService；Coordinator 当前仍直接调用其 cancelAll() 和 changeLocale()。NotificationService.changeLocale() 在已有结果时负责刷新通知。
 收到定位结果时 show()，收到 null 结果时 cancelAll()。
 
 ---

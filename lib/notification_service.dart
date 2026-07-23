@@ -57,12 +57,12 @@ class NotificationService {
   ) {
     _stationResults = stationResults;
 
-    if (stationResults == null) {
+    if (_stationResults == null) {
       unawaited(cancelAll());
       return;
     }
 
-    unawaited(show(stationResults));
+    unawaited(show(_stationResults!));
   }
 
   // ── Locale 更新 ──────────────────────────────────────────────────
