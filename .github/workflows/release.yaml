@@ -74,10 +74,8 @@ jobs:
         with:
           # 动态将 Release 的标题设置为对应的 Git Tag 名称（如 Release v1.0.0）
           name: "Release ${{ github.ref_name }}"
-          # 显式指定抓取通用胖包以及所有切分后的架构包
-          files: |
-            build/app/outputs/flutter-apk/app-release.apk
-            build/app/outputs/flutter-apk/app-*.apk
+          # 抓取通用胖包以及所有切分后的架构包
+          files: build/app/outputs/flutter-apk/app-*.apk
           # 只保留一行 Full Changelog，不生成提交列表。
           generate_release_notes: false
           body: "**Full Changelog**: ${{ steps.changelog.outputs.url }}"
