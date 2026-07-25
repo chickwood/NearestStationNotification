@@ -43,9 +43,9 @@ class L10n {
   // ── HomePage ─────────────────────────────────────────────────────
 
   String get currentStatus {
-    if (_isJa) return '現在位置及び状態情報';
+    if (_isJa) return '現在位置・状態情報';
     if (_isZhHans) return '当前定位及状态信息';
-    return 'Current Location & Status';
+    return 'Current Location and Status';
   }
 
   String get notStarted {
@@ -240,13 +240,13 @@ class L10n {
   String get settingsInfoTitle {
     if (_isJa) return 'ライセンス・駅情報';
     if (_isZhHans) return '许可证及车站信息';
-    return 'License and Station Information';
+    return 'Licenses and Station Information';
   }
 
   String get settingsLicense {
     if (_isJa) return 'ここをクリックして、ライセンス・駅情報詳細を表示。';
     if (_isZhHans) return '点击此处以显示许可证及车站信息详情。';
-    return 'Tap here to view license and station information details.';
+    return 'Tap here to view licenses and station information details.';
   }
 
   String settingsStations(int count) => countStations(count); // 定义别名区分使用位置
