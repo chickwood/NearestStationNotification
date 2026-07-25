@@ -14,6 +14,9 @@ if (keystorePropertiesFile.exists()) {
 
 android {
     namespace = "name.w57.nearest_station_notification"
+    // Any value starting with "flutter." gets its value from
+    // the Flutter Gradle plugin.
+    // To change from these defaults, make your changes in this file.
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
