@@ -41,11 +41,16 @@ class L10n {
   }
 
   // ── HomePage ─────────────────────────────────────────────────────
+  String get currentLocation {
+    if (_isJa) return '現在位置';
+    if (_isZhHans) return '当前定位';
+    return 'Current Location';
+  }
 
-  String get currentStatus {
-    if (_isJa) return '現在位置・状態情報';
-    if (_isZhHans) return '当前定位及状态信息';
-    return 'Current Location and Status';
+  String get currentLocationStatus {
+    if (_isJa) return '$currentLocation・状態';
+    if (_isZhHans) return '$currentLocation及状态';
+    return '$currentLocation and Status';
   }
 
   String get notStarted {
@@ -101,7 +106,7 @@ class L10n {
     return 'Updated at';
   }
 
-  String get nearestStations {
+  String get nearbyStations {
     if (_isJa) return '最寄り駅一覧';
     if (_isZhHans) return '附近车站列表';
     return 'Nearby Stations';
@@ -125,30 +130,29 @@ class L10n {
   }
 
   // ── SamplingFilter ─────────────────────────────────────────────────
+  // String get stayingMode {
+  //   if (_isJa) return '静止 🧍';
+  //   if (_isZhHans) return '停留 🧍';
+  //   return 'Staying 🧍';
+  // }
 
-  String get stayingMode {
-    if (_isJa) return '静止 🧍';
-    if (_isZhHans) return '停留 🧍';
-    return 'Staying 🧍';
-  }
+  // String get walkingMode {
+  //   if (_isJa) return '歩く 🚶';
+  //   if (_isZhHans) return '步行 🚶';
+  //   return 'Walking 🚶';
+  // }
 
-  String get walkingMode {
-    if (_isJa) return '歩く 🚶';
-    if (_isZhHans) return '步行 🚶';
-    return 'Walking 🚶';
-  }
+  // String get cyclingMode {
+  //   if (_isJa) return '自転車 🚲';
+  //   if (_isZhHans) return '骑行 🚲';
+  //   return 'Cycling 🚲';
+  // }
 
-  String get cyclingMode {
-    if (_isJa) return '自転車 🚲';
-    if (_isZhHans) return '骑行 🚲';
-    return 'Cycling 🚲';
-  }
-
-  String get transitMode {
-    if (_isJa) return '乗り物移動 🚃';
-    if (_isZhHans) return '乘用交通工具 🚃';
-    return 'Transit 🚃';
-  }
+  // String get transitMode {
+  //   if (_isJa) return '乗り物移動 🚃';
+  //   if (_isZhHans) return '乘用交通工具 🚃';
+  //   return 'Transit 🚃';
+  // }
 
   // ── Notification ──────────────────────────────────────────────────
   String get flnChannelName {
@@ -195,7 +199,6 @@ class L10n {
   }
 
   // ── Settings Dialog ───────────────────────────────────────────────────────────
-
   String get settingsDialogTitle {
     if (_isJa) return '設定';
     if (_isZhHans) return '设置';
@@ -263,7 +266,6 @@ class L10n {
   }
 
   // ── License Dialog ───────────────────────────────────────────────────────────
-
   String get licensesDialogTitle => settingsInfoTitle;
 
   String licenseCount(int count) {
@@ -310,8 +312,7 @@ class L10n {
   }
 }
 
-// ── Delegate ──────────────────────────────────────────────────────────────────
-
+/// Delegate
 class _L10nDelegate extends LocalizationsDelegate<L10n> {
   const _L10nDelegate();
 

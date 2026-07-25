@@ -327,7 +327,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                   ),
                   const SizedBox(width: 4),
                   Text(
-                    l10n.currentStatus,
+                    _positionVisibility == 1
+                        ? l10n.currentLocation
+                        : l10n.currentLocationStatus,
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
@@ -434,7 +436,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                   ),
                   const SizedBox(width: 4),
                   Text(
-                    l10n.nearestStations,
+                    l10n.nearbyStations,
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
