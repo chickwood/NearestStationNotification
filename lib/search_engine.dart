@@ -25,9 +25,19 @@ class SearchEngine {
 
     final inside = Common.inside(userLatitude, userLongitude);
 
-    var search = active ? (inside ? count * 2 : count) : 5;
-    if (search < 5) search = 5;
-    final take = active ? count : 1;
+    // 粗筛
+    // KD-Tree 剪枝只保证"能找回"，不保证"正是最近 K 个"，
+    // 故收集的候选量须大于最终精算返回量，多留余量以覆盖排序截断误差。
+    // - 前台且在日本全境及近海区域：粗筛取 count * 2，保证 Top-K 召回率
+    // - 前台但在区域外：粗筛直接按 count 收集
+    // - 后台/非活跃：固定 leastCount
+    var search = active ? (inside ? count * 2 : count) : Common.leastCount;
+    // - 下限：保证至少探测 leastCount，避免 bestNodes 过少导致回溯剪枝过度产生遗漏
+    if (search < Common.leastCount) search = Common.leastCount;
+    // 精算
+    // - 前台：取 count
+    // - 后台/非活跃：仅需精算最近 1 个即可
+    final take = active ? count : Common.leastCountInactive;
 
     final userLatRad = Common.radians(userLatitude);
     final userLonRad = Common.radians(userLongitude);
@@ -156,8 +166,6 @@ class SearchEngine {
 
       return StationResult(
         index: result.index,
-        gcd: 0,
-        name: '',
         distance: distance,
         bearing: Common.bearing(
           userCosLatRad,

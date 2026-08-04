@@ -61,12 +61,12 @@ class Settings {
     ]);
   }
 
-  // toTransferable
-  List<int> toTransferable() => [
-        stationCount.index,
-        locationInterval.index,
-        // notificationMode.index,
-      ];
+  // // toTransferable（暂存，未来可能用于持久化，当前无调用）
+  // List<int> toTransferable() => [
+  //       stationCount.index,
+  //       locationInterval.index,
+  //       // notificationMode.index,
+  //     ];
 
   // fromTransferable
   factory Settings.fromTransferable(List data) => Settings._(

@@ -8,9 +8,9 @@ import 'station_manager.dart';
 // ── License list dialog ───────────────────────────────────────────
 
 class LicenseListDialog extends StatefulWidget {
-  final StationManager _manager;
+  final StationManager manager;
 
-  const LicenseListDialog(this._manager, {super.key});
+  const LicenseListDialog(this.manager, {super.key});
 
   @override
   State<LicenseListDialog> createState() => _LicenseListDialogState();
@@ -147,13 +147,13 @@ class _LicenseListDialogState extends State<LicenseListDialog> {
                                 fontSize: 12,
                               ),
                             ),
-                            if (widget._manager.count > 0) ...[
+                            if (widget.manager.count > 0) ...[
                               const SizedBox(height: 4),
                               Text(
                                 l10n.licenseStationsDetails(
-                                  widget._manager.count,
-                                  widget._manager.date,
-                                  widget._manager.size,
+                                  widget.manager.count,
+                                  widget.manager.date,
+                                  widget.manager.size,
                                 ),
                                 style: TextStyle(
                                   fontSize: 12,
@@ -162,7 +162,7 @@ class _LicenseListDialogState extends State<LicenseListDialog> {
                             ],
                             const SizedBox(height: 4),
                             Text(
-                              widget._manager.count > 0
+                              widget.manager.count > 0
                                   ? l10n.licenseCountWithAdditionalNotice(
                                       appLicensesLength,
                                     )
@@ -220,10 +220,10 @@ class _LicenseListDialogState extends State<LicenseListDialog> {
 // ── License detail dialog ─────────────────────────────────────────
 
 class LicenseDetailDialog extends StatelessWidget {
-  final String _package;
-  final List<List<String>> _licenses;
+  final String package;
+  final List<List<String>> licenses;
 
-  const LicenseDetailDialog(this._package, this._licenses, {super.key});
+  const LicenseDetailDialog(this.package, this.licenses, {super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -244,7 +244,7 @@ class LicenseDetailDialog extends StatelessWidget {
                 children: [
                   const SizedBox(width: 4),
                   Text(
-                    _package,
+                    package,
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
@@ -265,7 +265,7 @@ class LicenseDetailDialog extends StatelessWidget {
             Expanded(
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(8, 0, 8, 16),
-                children: _licenses
+                children: licenses
                     // 1. 【外层空防御】过滤掉完全没有内容的空许可证大块
                     .where((paragraphs) => paragraphs.isNotEmpty)
                     .map((paragraphs) => paragraphs

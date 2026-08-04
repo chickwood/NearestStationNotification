@@ -160,9 +160,8 @@ class StationManager {
   // ── 数据访问 ────────────────────────────────────────────────────
 
   /// 根据索引按需获取车站名 (Lazy Loading)
-  (int, String) getStationName(int index) {
-    var returnValue = (0, "");
-
+  /// 解析失败时返回 (null, null) 以与正常数据区分
+  (int?, String?) getStationName(int index) {
     try {
       if (isLoaded) {
         final int start = _offsets[index];
@@ -174,14 +173,14 @@ class StationManager {
 
         final match = Common.namePattern.firstMatch(utf8.decode(nameBytes));
         if (match != null) {
-          returnValue = (int.parse(match.group(1)!), match.group(2)!);
+          return (int.parse(match.group(1)!), match.group(2)!);
         }
       }
     } catch (e, st) {
       debugPrint('error: $e\n$st');
     }
 
-    return returnValue;
+    return (null, null);
   }
 
   // 根据索引按需获取车站坐标详情

@@ -3,19 +3,19 @@ import 'package:flutter/material.dart';
 import 'settings.dart';
 import 'common.dart';
 import 'l10n.dart';
-import 'licenses_dialog.dart';
+import 'license_dialog.dart';
 import 'station_manager.dart';
 
 // ── Settings Dialog ───────────────────────────────────────────────
 
 class SettingsDialog extends StatefulWidget {
-  final Settings _settings;
-  final StationManager _manager;
+  final Settings settings;
+  final StationManager manager;
   final Future<void> Function(Settings) onSave;
 
   const SettingsDialog(
-    this._settings,
-    this._manager, {
+    this.settings,
+    this.manager, {
     super.key,
     required this.onSave,
   });
@@ -32,7 +32,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
     super.initState();
 
     // 弹窗内操作的临时副本，取消则丢弃
-    _draft = widget._settings.copyWith();
+    _draft = widget.settings.copyWith();
   }
 
   @override
@@ -135,11 +135,11 @@ class _SettingsDialogState extends State<SettingsDialog> {
                       onPressed: () => showDialog<void>(
                         context: context,
                         barrierColor: Colors.transparent,
-                        builder: (_) => LicenseListDialog(widget._manager),
+                        builder: (_) => LicenseListDialog(widget.manager),
                       ),
                       // onPressed: () => showLicensePage(context: context),
                       label: Text(
-                        '${widget._manager.count > 0 ? l10n.countStations(widget._manager.count) : l10n.countStations(0)}\n'
+                        '${widget.manager.count > 0 ? l10n.countStations(widget.manager.count) : l10n.countStations(0)}\n'
                         '${l10n.settingsLicense}',
                         style: TextStyle(
                           color: Colors.grey.shade600,

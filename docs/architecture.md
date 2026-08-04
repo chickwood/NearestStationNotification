@@ -58,6 +58,15 @@ Test
 
 ---
 
+## Field Visibility
+
+「构造传参」只约束参数的传递方式，不规定字段可见性。字段可见性按对象类型区分：
+
+- **普通/服务类**（如 `Coordinator`、`LocationProcessor`、`NotificationService`）：字段是内部状态，私有且可重新赋值，只能经 `changeXxx()` 等专用方法变更
+- **UI 组件（Widget）**：按 Flutter 官方约定，Widget 是 UI 的不可变描述（immutable），故配置字段是构造时传入的值，须 `final`（不可重新赋值）；设为公开是为了让 `State` 经 `widget.x` 读取、供父组件比较/重建。UI 组件的可变性（如车站列表随定位变化）由配套的 `State` 承接：`State` 持有可重新赋值的字段，随外部事件更新，再经重建反映到 UI
+
+---
+
 ## Dependency
 
 ```text

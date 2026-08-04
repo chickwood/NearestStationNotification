@@ -23,6 +23,10 @@ class Common {
   // // 二进制对应 2^-12
   // static const farScore = 2.44140625e-4;
 
+  // 最少搜索站数
+  static const leastCount = 5;
+  static const leastCountInactive = 1;
+
   // GPS 漂移（距离过近）检测
   // 单位为经纬度差值
   // 二进制对应 2^-15
@@ -232,15 +236,15 @@ class Common {
 
 class StationResult {
   final int index;
-  final int gcd;
-  final String name;
+  final int? gcd; // SearchEngine 原产出无此資訊，由 Coordinator 補全
+  final String? name; // SearchEngine 原产出无此資訊，由 Coordinator 補全
   final double distance;
   final double bearing;
 
   StationResult({
     required this.index,
-    required this.gcd,
-    required this.name,
+    this.gcd,
+    this.name,
     required this.distance,
     required this.bearing,
   });
@@ -255,18 +259,18 @@ class StationResult {
       : '${(distance / 1000.0).toStringAsFixed(2)} km';
   Direction get bearingIndex => Common.direction(bearing);
 
-  // 序列化
-  List<dynamic> toTransferable() => [index, gcd, name, distance, bearing];
+  // // 序列化（暂存，未来可能用于 Isolate 间通信，当前无调用）
+  // List<dynamic> toTransferable() => [index, gcd, name, distance, bearing];
 
-  // 反序列化
-  // 添加显式强制转换
-  factory StationResult.fromTransferable(List<dynamic> data) => StationResult(
-        index: data[0] as int,
-        gcd: data[1] as int,
-        name: data[2] as String,
-        distance: (data[3] as num).toDouble(),
-        bearing: (data[4] as num).toDouble(),
-      );
+  // // 反序列化
+  // // 添加显式强制转换
+  // factory StationResult.fromTransferable(List<dynamic> data) => StationResult(
+  //       index: data[0] as int,
+  //       gcd: data[1] as int?,
+  //       name: data[2] as String?,
+  //       distance: (data[3] as num).toDouble(),
+  //       bearing: (data[4] as num).toDouble(),
+  //     );
 }
 
 class PositionResult {
@@ -296,26 +300,27 @@ class PositionResult {
   int get elapsed => DateTime.now().difference(timestamp).inMilliseconds;
   SamplingMode get samplingMode => Common.sampling(speed);
 
-  // 序列化
-  List<dynamic> toTransferable() => [
-        latitude,
-        longitude,
-        speed,
-        accuracy,
-        heading,
-        timestamp.millisecondsSinceEpoch,
-      ];
+  // // 序列化（暂存，未来可能用于 Isolate 间通信，当前无调用）
+  // List<dynamic> toTransferable() => [
+  //       latitude,
+  //       longitude,
+  //       speed,
+  //       accuracy,
+  //       heading,
+  //       timestamp.millisecondsSinceEpoch,
+  //     ];
 
-  // 反序列化
-  // 添加显式强制转换
-  factory PositionResult.fromTransferable(List<dynamic> data) => PositionResult(
-        latitude: (data[0] as num).toDouble(),
-        longitude: (data[1] as num).toDouble(),
-        speed: (data[2] as num).toDouble(),
-        accuracy: (data[3] as num).toDouble(),
-        heading: (data[4] as num).toDouble(),
-        timestamp: DateTime.fromMillisecondsSinceEpoch(data[5] as int),
-      );
+  // // 反序列化
+  // // 添加显式强制转换
+  // factory PositionResult.fromTransferable(List<dynamic> data) =>
+  //     PositionResult(
+  //       latitude: (data[0] as num).toDouble(),
+  //       longitude: (data[1] as num).toDouble(),
+  //       speed: (data[2] as num).toDouble(),
+  //       accuracy: (data[3] as num).toDouble(),
+  //       heading: (data[4] as num).toDouble(),
+  //       timestamp: DateTime.fromMillisecondsSinceEpoch(data[5] as int),
+  //     );
 }
 
 enum RunningStatus {

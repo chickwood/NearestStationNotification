@@ -484,7 +484,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
             return _StationTile(
               index: index,
-              name: stationResult.name,
+              name: stationResult.name ?? '',
               distance: stationResult.distanceInUnit,
               direction: l10n.direction(stationResult.bearingIndex),
               part: _settings!.stationCount.part(index),

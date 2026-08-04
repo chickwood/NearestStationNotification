@@ -161,19 +161,19 @@ class L10n {
     return 'Nearest Station Change Notification';
   }
 
-  String get flnChannelDescription {
+  String? get flnChannelDescription {
     if (_isJa) return '最寄り駅の変更時に通知します';
     if (_isZhHans) return '最近车站发生变动时显示通知';
     return 'This notification is shown when the nearest station changes';
   }
 
-  String flnNotificationTitle(String name) {
+  String? flnNotificationTitle(String? name) {
     if (_isJa) return '🚉 最寄り駅: $name';
     if (_isZhHans) return '🚉 最近车站: $name';
     return '🚉 Nearest: $name';
   }
 
-  String? flnNotificationGcd(int gcd) {
+  String? flnNotificationGcd(int? gcd) {
     return 'ID: $gcd';
   }
 
