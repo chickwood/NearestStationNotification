@@ -127,7 +127,7 @@ MainActivity / MethodChannel
 - StationManager 初始化
 - 创建并持有 Coordinator
 - 通过 Coordinator 的 handler 触发 UI 重建，并通过 getter 读取当前结果和运行状态
-- 向 BackgroundTask 提供 Coordinator.runningStatus == RunningStatus.running 的状态
+- 向 BackgroundTask 提供 Coordinator.runningStatus != RunningStatus.stopped 的状态（starting/running 时保持后台任务）
 
 可直接使用：
 
@@ -277,7 +277,7 @@ NotificationService 不拥有定位或站点业务的主状态，但会持有通
 
 - 隔离平台返回行为的差异
 - 仅在原生 Android 环境注册根路由 `PopScope`
-- 定位运行时拦截 Android 返回，并请求 Android 将任务移至后台
+- 定位流程进行中（runningStatus 为 starting/running）时拦截 Android 返回，并请求 Android 将任务移至后台
 - iOS、Web、Windows、macOS、Linux 原样返回 `child`
 
 不负责：
@@ -291,7 +291,7 @@ NotificationService 不拥有定位或站点业务的主状态，但会持有通
 
 - `MainActivity` 是应用唯一根 Activity。
 - 使用 `singleTask`，桌面入口和通知入口应优先复用同一任务。
-- 定位运行时按返回键不销毁 Activity，而是调用 Android `moveTaskToBack(true)`。
+- 定位流程进行中（starting/running）按返回键不销毁 Activity，而是调用 Android `moveTaskToBack(true)`。
 - 系统杀死进程后的冷启动不恢复旧 Coordinator 状态。
 - 使用 Android 默认的应用 task affinity（包名 `name.w57.nearest_station_notification`），不额外设置 `taskAffinity`。
 
@@ -350,6 +350,33 @@ HomePage 注册 active: true，只在前台收到定位结果；NotificationServ
 
 ---
 
+## RunningStatus
+
+呈现状态机，UI 只读取，不派生：
+
+```text
+stopped ──start()──► starting ──首个定位结果──► running
+  ▲                    │                          │
+  │◄──── 权限被拒 ──────┘                          │
+  │◄──────────────── stop() ───────────────────────┘
+```
+
+- `stopped`：初始状态。positionResult / stationResults 为 null，GPS 订阅不存在。
+- `starting`：start() 调用后立即进入，覆盖权限请求、GPS 订阅建立、直至首个定位结果到达；期间 UI 仅允许停止操作（取消）。
+- `running`：首个定位结果到达时由 Coordinator 在结果回调中升级。
+
+不变式：
+
+- `running ⇔ positionResult != null`（升级与赋值在同一同步块完成；stop() 同步清空）
+- `stopped ⇒ GPS 订阅不存在`（stop() 先取消订阅再置状态；start() 在权限等待期间被停止则中断，不建立订阅）
+
+分工：
+
+- UI 呈现（按钮 / 图标 / 列表占位 / keepBackgroundTask）只读取 RunningStatus。
+- 是否重启 GPS 流等控制流由 LocationProcessor 依据自身订阅状态（_positionSubscription）自行判断，UI 层不设状态门控。
+
+---
+
 ## Lifecycle
 
 ```text
@@ -373,6 +400,9 @@ Coordinator
 ↓
 需要更新文本的模块
 ```
+
+- 语言解析采用严格匹配：ja、en、zh-Hans（或 zh-CN），不做语言码级宽松回退，无匹配时回退 en。
+- MaterialApp 的 localeListResolutionCallback 与 HomePage.didChangeLocales 共用 L10n.resolve()，保证 UI 与通知的语言判定一致。
 
 ---
 

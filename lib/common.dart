@@ -15,7 +15,7 @@ class Common {
 
   static const flnChannelId = 'notification_fln_channel';
   static const flnNotificationId = 1058;
-  static const flnNotificationIcon = "ic_notification";
+  static const flnNotificationIcon = 'ic_notification';
 
   // // 距离过远检测
   // // 单位为经纬度差值平方 / 弦长平方
@@ -135,7 +135,7 @@ class Common {
     (start: DateTime(2026, 5, 1, 15), end: DateTime(2026, 5, 31, 23, 59, 59)),
   ];
 
-  static bool event() {
+  static bool isEventPeriod() {
     final now = DateTime.now();
     return _eventPeriods.any((period) {
       return !now.isBefore(period.start) && !now.isAfter(period.end);
@@ -297,7 +297,7 @@ class PositionResult {
   Direction get headingIndex => Common.direction(heading, speed: speed);
   String get timestampString =>
       "${timestamp.hour.toString().padLeft(2, '0')}:${timestamp.minute.toString().padLeft(2, '0')}:${timestamp.second.toString().padLeft(2, '0')}";
-  int get elapsed => DateTime.now().difference(timestamp).inMilliseconds;
+  // int get elapsed => DateTime.now().difference(timestamp).inMilliseconds;
   SamplingMode get samplingMode => Common.sampling(speed);
 
   // // 序列化（暂存，未来可能用于 Isolate 间通信，当前无调用）
@@ -431,13 +431,14 @@ enum StationCount {
   });
 
   // 传入 engine 的实际 count
-  int get count => friend + (Common.event() ? event : 0) + radar + natsume;
+  int get count =>
+      friend + (Common.isEventPeriod() ? event : 0) + radar + natsume;
 
   StationCountPart part(int index) {
     if (index < friend) {
       return StationCountPart.friend;
     } else {
-      if (Common.event()) {
+      if (Common.isEventPeriod()) {
         if (index < friend + event) return StationCountPart.event;
         if (index < friend + event + radar) return StationCountPart.radar;
         return StationCountPart.natsume;
@@ -450,7 +451,7 @@ enum StationCount {
 
   // 显示标签，例如 "12"、"12 + 4"、"12 + 4 + 2"
   String get label {
-    return '$friend${(event > 0 && Common.event() ? ' + $event' : '')}'
+    return '$friend${(event > 0 && Common.isEventPeriod() ? ' + $event' : '')}'
         '${(radar > 0 ? ' + $radar' : '')}${(natsume > 0 ? ' + $natsume' : '')}';
   }
 }

@@ -55,12 +55,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   void didChangeLocales(List<Locale>? locales) {
     super.didChangeLocales(locales);
 
-    final l10n = L10n(switch (locales) {
-      [final first, ...] => first,
-      _ => const Locale('en'),
-    });
-
-    _coordinator?.changeLocale(l10n);
+    // 厳格な locale 解析（MaterialApp と同一の L10n.resolve を使用）
+    _coordinator?.changeLocale(L10n(L10n.resolve(locales)));
   }
 
   @override
@@ -71,7 +67,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
     final l10n = L10n.of(context);
     return BackgroundTask(
-      keepBackgroundTask: _coordinator!.runningStatus == RunningStatus.running,
+      keepBackgroundTask: _coordinator!.runningStatus != RunningStatus.stopped,
       child: Scaffold(
         backgroundColor: Colors.grey.shade50,
         appBar: AppBar(
@@ -98,8 +94,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           backgroundColor: const Color(0xFF4080FF),
           actions: [
             // 定位详细显示切换
-            if (_coordinator!.runningStatus == RunningStatus.running &&
-                _coordinator!.positionResult != null)
+            if (_coordinator!.runningStatus == RunningStatus.running)
               Padding(
                 padding: const EdgeInsets.only(right: 10),
                 child: GestureDetector(
@@ -121,8 +116,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               child: GestureDetector(
                 onTap: switch (_coordinator!.runningStatus) {
                   RunningStatus.stopped => _start,
-                  RunningStatus.running => _stop,
-                  _ => null, // starting
+                  // starting でも即時停止できる
+                  RunningStatus.running || RunningStatus.starting => _stop,
                 },
                 child: Icon(
                   _coordinator!.runningStatus == RunningStatus.running
@@ -135,14 +130,18 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 ),
               ),
             ),
-            // 设置
+            // 设置（starting 中は無効化）
             Padding(
               padding: const EdgeInsets.only(right: 12),
               child: GestureDetector(
-                onTap: _showSettingsDialog,
-                child: const Icon(
+                onTap: _coordinator!.runningStatus == RunningStatus.starting
+                    ? null
+                    : _showSettingsDialog,
+                child: Icon(
                   Icons.settings,
-                  color: Colors.white,
+                  color: _coordinator!.runningStatus == RunningStatus.starting
+                      ? const Color(0xFFA0C0FF)
+                      : Colors.white,
                   size: 32,
                 ),
               ),
@@ -155,7 +154,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             child: Column(
               children: [
                 if (_coordinator!.runningStatus == RunningStatus.running &&
-                    _coordinator!.positionResult != null &&
                     _positionVisibility > 0) ...[
                   _buildPositionCard(l10n), // 上部可隐藏: 位置信息
                   const SizedBox(height: 4),
@@ -176,6 +174,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   /// アプリ起動時に呼び出初期化処理
   Future<void> _initialize() async {
     final l10n = L10n.of(context);
+    final active = true; // 应用启动时 active 必然为 true
 
     try {
       final results = await Future.wait([
@@ -185,7 +184,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       final settings = results[0] as Settings;
       final manager = results[1] as StationManager;
 
-      final coordinator = Coordinator(l10n, true, settings, manager);
+      final coordinator = Coordinator(l10n, active, settings, manager);
       _coordinator = coordinator;
 
       // UI handler 登録
@@ -226,9 +225,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   /// 権限リクエスト + 定位開始
   Future<void> _start() async {
     if (_settings == null) return;
-
-    debugPrint(DateTime.now().toString());
-    debugPrint(Common.event().toString());
 
     await _coordinator?.start();
     // 按钮外观变更
@@ -297,9 +293,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           setState(() {
             _settings = settings;
           });
-          if (_coordinator?.runningStatus == RunningStatus.running) {
-            _coordinator?.changeSettings(settings);
-          }
+          // 无论运行状态如何都立即反映
+          // （LocationProcessor 内部会根据 stream 状态自行判断）
+          _coordinator?.changeSettings(settings);
         },
       ),
     );
@@ -465,9 +461,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             style: const TextStyle(color: Colors.grey),
           ),
         );
-      } else if (_coordinator!.runningStatus == RunningStatus.starting ||
-          _coordinator!.positionResult == null ||
-          (_coordinator!.stationResults?.isEmpty ?? true)) {
+      } else if (_coordinator!.runningStatus == RunningStatus.starting) {
         return Align(
           alignment: Alignment.topCenter,
           child: Text(

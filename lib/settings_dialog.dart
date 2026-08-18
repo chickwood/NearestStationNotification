@@ -131,25 +131,40 @@ class _SettingsDialogState extends State<SettingsDialog> {
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(color: const Color(0xFF60A0FF)),
                     ),
-                    child: TextButton.icon(
-                      onPressed: () => showDialog<void>(
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => showDialog<void>(
                         context: context,
                         barrierColor: Colors.transparent,
                         builder: (_) => LicenseListDialog(widget.manager),
                       ),
-                      // onPressed: () => showLicensePage(context: context),
-                      label: Text(
-                        '${widget.manager.count > 0 ? l10n.countStations(widget.manager.count) : l10n.countStations(0)}\n'
-                        '${l10n.settingsLicense}',
-                        style: TextStyle(
-                          color: Colors.grey.shade600,
-                          fontSize: 12,
+                      // onTap: () => showLicensePage(context: context),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
                         ),
-                        softWrap: true,
-                      ),
-                      icon: const Icon(
-                        Icons.info,
-                        color: Color(0xFF4080FF),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.info,
+                              color: Color(0xFF4080FF),
+                            ),
+                            const SizedBox(width: 8),
+                            Flexible(
+                              child: Text(
+                                '${l10n.countStations(widget.manager.count)}\n'
+                                '${l10n.settingsLicense}',
+                                style: TextStyle(
+                                  color: Colors.grey.shade600,
+                                  fontSize: 12,
+                                ),
+                                softWrap: true,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -160,24 +175,42 @@ class _SettingsDialogState extends State<SettingsDialog> {
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: Text(
-                    l10n.settingsCancel,
-                    style: const TextStyle(
-                      color: Color(0xFF4080FF),
+                GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => Navigator.of(context).pop(),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    child: Text(
+                      l10n.settingsCancel,
+                      style: const TextStyle(
+                        color: Color(0xFF4080FF),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                   ),
                 ),
-                TextButton(
-                  onPressed: () async {
+                GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () async {
                     Navigator.of(context).pop();
                     await widget.onSave(_draft);
                   },
-                  child: Text(
-                    l10n.settingsSave,
-                    style: const TextStyle(
-                      color: Color(0xFF4080FF),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    child: Text(
+                      l10n.settingsSave,
+                      style: const TextStyle(
+                        color: Color(0xFF4080FF),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                   ),
                 ),

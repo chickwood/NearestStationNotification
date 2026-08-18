@@ -20,6 +20,24 @@ class L10n {
     Locale.fromSubtags(languageCode: 'zh', scriptCode: 'Hans'),
   ];
 
+  /// 严格 locale 解析：按优先顺序返回第一个受支持语言的规范 locale
+  /// zh 仅接受 Hans 文字或 CN 地区（与 _isZhHans 一致），
+  /// 不做语言码级宽松回退；无匹配时返回 en
+  static Locale resolve(List<Locale>? locales) {
+    for (final locale in locales ?? const <Locale>[]) {
+      if (locale.languageCode == 'ja') return const Locale('ja');
+      if (locale.languageCode == 'en') return const Locale('en');
+      if (locale.languageCode == 'zh' &&
+          (locale.scriptCode == 'Hans' || locale.countryCode == 'CN')) {
+        return const Locale.fromSubtags(
+          languageCode: 'zh',
+          scriptCode: 'Hans',
+        );
+      }
+    }
+    return const Locale('en');
+  }
+
   bool get _isEn => locale.languageCode == 'en';
   bool get _isJa => locale.languageCode == 'ja';
   bool get _isZhHans =>
@@ -167,21 +185,21 @@ class L10n {
     return 'This notification is shown when the nearest station changes';
   }
 
-  String? flnNotificationTitle(String? name) {
+  String flnNotificationTitle(String? name) {
     if (_isJa) return '🚉 最寄り駅: $name';
     if (_isZhHans) return '🚉 最近车站: $name';
     return '🚉 Nearest: $name';
   }
 
-  String? flnNotificationGcd(int? gcd) {
+  String flnNotificationGcd(int? gcd) {
     return 'ID: $gcd';
   }
 
-  String? flnNotificationFull(int gcd, String distanceInUnit) {
-    if (_isJa) return '${flnNotificationGcd(gcd)}\n距離: $distanceInUnit';
-    if (_isZhHans) return '${flnNotificationGcd(gcd)}\n距离: $distanceInUnit';
-    return '${flnNotificationGcd(gcd)}\nDistance: $distanceInUnit';
-  }
+  // String flnNotificationFull(int? gcd, String distanceInUnit) {
+  //   if (_isJa) return '${flnNotificationGcd(gcd)}\n距離: $distanceInUnit';
+  //   if (_isZhHans) return '${flnNotificationGcd(gcd)}\n距离: $distanceInUnit';
+  //   return '${flnNotificationGcd(gcd)}\nDistance: $distanceInUnit';
+  // }
 
   // FGT 通知标题
   String get fgtChannelName => fgtNotificationTitle; // 定义别名区分使用位置
@@ -195,7 +213,7 @@ class L10n {
   String get fgtNotificationBody {
     if (_isJa) return '長押しでこの常駐通知の非表示を推奨します';
     if (_isZhHans) return '建议长按关闭常驻服务通知';
-    return 'Recommanded to hide this notification by long press';
+    return 'Recommended to hide this notification by long press';
   }
 
   // ── Settings Dialog ───────────────────────────────────────────────────────────

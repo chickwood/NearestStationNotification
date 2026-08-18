@@ -128,10 +128,13 @@ class Coordinator {
       return;
     }
 
+    // 権限要求中に停止された場合は開始処理を中断する
+    if (_runningStatus != RunningStatus.starting) return;
+
     await _locationProcessor.start();
 
-    _runningStatus = RunningStatus.running;
-    _notifyRunningStatusChanged(_runningStatus);
+    // running への遷移は最初の定位結果を受信した時点で
+    // _handleLocationUpdated にて行う
   }
 
   /// 停止ボタン押下時
@@ -211,6 +214,9 @@ class Coordinator {
     PositionResult positionResult,
     List<StationResult> stationResults,
   ) {
+    // 停止後に到着した遅延定位結果は破棄する
+    if (_runningStatus == RunningStatus.stopped) return;
+
     _positionResult = positionResult;
 
     // index → gcd と name を補完して完全な StationResult を組立
@@ -224,6 +230,12 @@ class Coordinator {
         bearing: result.bearing,
       );
     }).toList(growable: false);
+
+    // 最初の定位結果を受信した時点で starting から running へ遷移する
+    if (_runningStatus == RunningStatus.starting) {
+      _runningStatus = RunningStatus.running;
+      _notifyRunningStatusChanged(_runningStatus);
+    }
 
     _notifyLocationResultReceived(_positionResult, _stationResults);
   }

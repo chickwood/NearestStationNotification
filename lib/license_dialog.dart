@@ -108,6 +108,7 @@ class _LicenseListDialogState extends State<LicenseListDialog> {
                   }
 
                   final licenses = (snapshot.data ?? []).toList();
+                  // ADDITIONAL_NOTICE 单独处理
                   final appLicenses = licenses.removeLast();
                   final appLicensesLength = appLicenses.licenses.length - 1;
 
@@ -124,55 +125,58 @@ class _LicenseListDialogState extends State<LicenseListDialog> {
                             appLicenses.licenses,
                           ),
                         ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              l10n.appTitle,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
+                        child: SizedBox(
+                          width: double.infinity,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                l10n.appTitle,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                ),
                               ),
-                            ),
-                            Text(
-                              'Powered by Flutter',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
+                              Text(
+                                'Powered by Flutter',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              l10n.licensePublish,
-                              style: TextStyle(
-                                fontSize: 12,
-                              ),
-                            ),
-                            if (widget.manager.count > 0) ...[
                               const SizedBox(height: 4),
                               Text(
-                                l10n.licenseStationsDetails(
-                                  widget.manager.count,
-                                  widget.manager.date,
-                                  widget.manager.size,
-                                ),
+                                l10n.licensePublish,
                                 style: TextStyle(
                                   fontSize: 12,
                                 ),
                               ),
-                            ],
-                            const SizedBox(height: 4),
-                            Text(
-                              widget.manager.count > 0
-                                  ? l10n.licenseCountWithAdditionalNotice(
-                                      appLicensesLength,
-                                    )
-                                  : l10n.licenseCount(appLicensesLength),
-                              style: TextStyle(
-                                color: Colors.grey.shade600,
-                                fontSize: 12,
+                              if (widget.manager.count > 0) ...[
+                                const SizedBox(height: 4),
+                                Text(
+                                  l10n.licenseStationsDetails(
+                                    widget.manager.count,
+                                    widget.manager.date,
+                                    widget.manager.size,
+                                  ),
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                              const SizedBox(height: 4),
+                              Text(
+                                widget.manager.count > 0
+                                    ? l10n.licenseCountWithAdditionalNotice(
+                                        appLicensesLength,
+                                      )
+                                    : l10n.licenseCount(appLicensesLength),
+                                style: TextStyle(
+                                  color: Colors.grey.shade600,
+                                  fontSize: 12,
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
                       const Divider(height: 8),
@@ -187,20 +191,23 @@ class _LicenseListDialogState extends State<LicenseListDialog> {
                               entry.licenses,
                             ),
                           ),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 4),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(entry.package),
-                                Text(
-                                  l10n.licenseCount(entry.licenses.length),
-                                  style: TextStyle(
-                                    color: Colors.grey.shade600,
-                                    fontSize: 12,
+                          child: SizedBox(
+                            width: double.infinity,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 4),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(entry.package),
+                                  Text(
+                                    l10n.licenseCount(entry.licenses.length),
+                                    style: TextStyle(
+                                      color: Colors.grey.shade600,
+                                      fontSize: 12,
+                                    ),
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
                           ),
                         ),

@@ -57,6 +57,7 @@ class NearestStationNotificationApp extends StatelessWidget {
         GlobalCupertinoLocalizations.delegate,
       ],
       supportedLocales: L10n.supportedLocales,
+      localeListResolutionCallback: (locales, _) => L10n.resolve(locales),
       home: const HomePage(),
     );
   }
