@@ -331,9 +331,9 @@ enum RunningStatus {
 
 enum SamplingMode {
   staying(speed: 0, filter: 4), // 静止
-  walking(speed: 1, filter: 4), // 步行 > 1 m/s
-  cycling(speed: 4, filter: 4), // 骑自行车 > 4 m/s
-  transit(speed: 8, filter: 16); // 乘车 > 8 m/s（~ 30 km/h）
+  walking(speed: 1, filter: 4), // 步行 >= 1 m/s
+  cycling(speed: 4, filter: 4), // 骑自行车 >= 4 m/s
+  transit(speed: 8, filter: 16); // 乘车 >= 8 m/s（~ 30 km/h）
 
   final double speed;
   final int filter;

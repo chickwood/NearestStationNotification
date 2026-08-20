@@ -65,9 +65,9 @@ class StationManager {
   // ── BIN 文件读写 ────────────────────────────────────────────────
 
   /// BIN ファイルを読み込み StationManager インスタンスを生成する
-  /// 读取或解析失败时抛出异常
+  /// 读取（资产加载）失败时抛出异常
+  /// 解析校验失败时返回空实例降级
   /// 将来的には documents → assets の順に試み
-  /// どちらも存在しないか 0 バイトなら null を返す
   static Future<StationManager> load() async {
     final data = await _loadStationBin();
 
