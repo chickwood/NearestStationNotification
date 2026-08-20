@@ -179,7 +179,7 @@ class L10n {
     return 'Nearest Station Change Notification';
   }
 
-  String? get flnChannelDescription {
+  String get flnChannelDescription {
     if (_isJa) return '最寄り駅の変更時に通知します';
     if (_isZhHans) return '最近车站发生变动时显示通知';
     return 'This notification is shown when the nearest station changes';

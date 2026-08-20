@@ -548,6 +548,20 @@ class _StationTile extends StatelessWidget {
     required this.part,
   });
 
+  // part → 配色（边框深一档 / 填充浅一档）
+  static final _partBorderColors = <StationCountPart, Color>{
+    StationCountPart.friend: Colors.grey.shade300,
+    StationCountPart.event: const Color(0xFFB8D8FF),
+    StationCountPart.radar: const Color(0xFFC0E8CC),
+    StationCountPart.natsume: const Color(0xFFFFF0B0),
+  };
+  static final _partFillColors = <StationCountPart, Color>{
+    StationCountPart.friend: Colors.grey.shade100,
+    StationCountPart.event: const Color(0xFFDCECFF),
+    StationCountPart.radar: const Color(0xFFE0F4E8),
+    StationCountPart.natsume: const Color(0xFFFFF9E0),
+  };
+
   @override
   Widget build(BuildContext context) {
     final isNearest = index == 0;
@@ -566,15 +580,7 @@ class _StationTile extends StatelessWidget {
         border: Border.all(
           color: isNearest
               ? const Color(0xFFFFC000) // Colors.orange.shade700
-              : switch (part) {
-                  StationCountPart.friend => Colors.grey.shade300,
-                  StationCountPart.event =>
-                    const Color(0xFFB8D8FF), // Colors.indigo.shade200
-                  StationCountPart.radar =>
-                    const Color(0xFFC0E8CC), // Colors.green.shade200
-                  StationCountPart.natsume =>
-                    const Color(0xFFFFF0B0), // Colors.orange.shade200
-                },
+              : _partBorderColors[part]!,
         ),
       ),
       child: Row(
@@ -585,15 +591,7 @@ class _StationTile extends StatelessWidget {
             decoration: BoxDecoration(
               color: isNearest
                   ? const Color(0xFFFFC000) // Colors.orange.shade700
-                  : switch (part) {
-                      StationCountPart.friend => Colors.grey.shade100,
-                      StationCountPart.event =>
-                        const Color(0xFFDCECFF), // Colors.indigo.shade100
-                      StationCountPart.radar =>
-                        const Color(0xFFE0F4E8), // Colors.green.shade100
-                      StationCountPart.natsume =>
-                        const Color(0xFFFFF9E0), // Colors.orange.shade100
-                    },
+                  : _partFillColors[part]!,
               shape: BoxShape.circle,
             ),
             child: Center(
@@ -625,15 +623,7 @@ class _StationTile extends StatelessWidget {
             decoration: BoxDecoration(
               color: isNearest
                   ? const Color(0xFFFFC000) // Colors.orange.shade700
-                  : switch (part) {
-                      StationCountPart.friend => Colors.grey.shade100,
-                      StationCountPart.event =>
-                        const Color(0xFFDCECFF), // Colors.indigo.shade100
-                      StationCountPart.radar =>
-                        const Color(0xFFE0F4E8), // Colors.green.shade100
-                      StationCountPart.natsume =>
-                        const Color(0xFFFFF9E0), // Colors.orange.shade100
-                    },
+                  : _partFillColors[part]!,
               borderRadius: BorderRadius.circular(16),
             ),
             child: Center(
@@ -654,15 +644,7 @@ class _StationTile extends StatelessWidget {
             decoration: BoxDecoration(
               color: isNearest
                   ? const Color(0xFFFFC000) // Colors.orange.shade700
-                  : switch (part) {
-                      StationCountPart.friend => Colors.grey.shade100,
-                      StationCountPart.event =>
-                        const Color(0xFFDCECFF), // Colors.indigo.shade100
-                      StationCountPart.radar =>
-                        const Color(0xFFE0F4E8), // Colors.green.shade100
-                      StationCountPart.natsume =>
-                        const Color(0xFFFFF9E0), // Colors.orange.shade100
-                    },
+                  : _partFillColors[part]!,
               borderRadius: BorderRadius.circular(16),
             ),
             child: Center(
