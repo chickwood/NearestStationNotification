@@ -85,3 +85,10 @@ ios/Podfile.lock
 **/*.old.*
 **/*.bak
 **/*.old
+
+# Widget Preview related
+.widget_preview/
+
+# AI 自定义命令/代理定义关联
+.kilo/
+.agents/
