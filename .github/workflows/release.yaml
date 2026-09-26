@@ -15,8 +15,8 @@ jobs:
 
     steps:
       # 1. 物理检出 GitHub 仓库源码
-      - name: Checkout Code
-        uses: actions/checkout@v7
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
 
@@ -35,15 +35,15 @@ jobs:
           echo "url=$changelog_url" >> "$GITHUB_OUTPUT"
 
       # 2. 物理初始化 Java 环境（根据 build.gradle.kts 锁定 JDK 21）
-      - name: Set up JDK
-        uses: actions/setup-java@v5
+      - name: Setup Java JDK
+        uses: actions/setup-java@v6.0.1
         with:
           distribution: 'temurin'
           java-version: '21'
 
       # 3. 物理初始化 Flutter 环境（直接锁定稳定版）
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
+      - name: Flutter action
+        uses: subosito/flutter-action@v2.23.0
         with:
           channel: 'stable'
           cache: true # 开启依赖缓存
@@ -61,7 +61,7 @@ jobs:
       - name: Build Android APK
         run: |
           flutter build apk --release
-          flutter build apk --release --split-per-abi
+        # flutter build apk --release --split-per-abi
         env:
           KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
@@ -69,8 +69,8 @@ jobs:
           KEYSTORE_PATH: ../../app-release-key.jks # 基于 android/app/ 目录的物理相对路径
 
       # 7. 瞬间抓取产物并物理发布到 GitHub Releases
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v3
+      - name: GH Release
+        uses: softprops/action-gh-release@v3.0.3
         with:
           # 动态将 Release 的标题设置为对应的 Git Tag 名称（如 Release v1.0.0）
           name: "Release ${{ github.ref_name }}"
