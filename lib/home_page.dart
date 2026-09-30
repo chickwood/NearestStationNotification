@@ -48,7 +48,16 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
-    _coordinator?.changeLifecycleState(state);
+
+    // inactive などの過渡状態は無視し、paused / resumed のみ伝達する
+    switch (state) {
+      case AppLifecycleState.paused:
+        _coordinator?.changeActive(false);
+      case AppLifecycleState.resumed:
+        _coordinator?.changeActive(true);
+      default:
+        break;
+    }
   }
 
   @override

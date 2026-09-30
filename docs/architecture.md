@@ -46,7 +46,7 @@ Test
   - 对象生命周期内代表其依赖关系的值（如回调函数）
   - 会随外部事件变化、但变化后即代表「当前状态」、且被对象内部多处方法读取的值
   - 判断标准不是「是否会变」，而是「变化的来源是否属于该对象所处的环境状态」
-  - 例：`l10n`（系统语言变化）、`active`（前后台切换）、`settings`（设置弹窗保存）、`manager`（初始资源）均属此类，四者生命周期模式相同：HomePage 初始化产生初值 → 传入 → 运行期间由外部事件驱动变化 → 通知更新
+  - 例：`l10n`（系统语言变化）、`active`（前后台切换）、`settings`（设置项保存）、`manager`（站点数据管理）均属此类，四者生命周期模式相同：HomePage 初始化产生初值 → 传入 → 运行期间由外部事件驱动变化 → 通知更新
   - 私有字段（下划线开头）不能使用命名参数（Dart 语言限制），故统一使用位置参数
 
 - **方法参数传参**：
@@ -108,8 +108,8 @@ MainActivity / MethodChannel
 
 - SearchEngine 是 LocationProcessor 的内部依赖。
 - StationManager 是共享 Repository。
-- HomePage 可直接依赖 StationManager（Dialog、站点信息显示）。
-- Coordinator 不负责站点数据的加载实现。
+- HomePage 可直接依赖 StationManager（Dialog、站点信息显示、站点数据管理）。
+- Coordinator 不负责站点数据的加载与写入实现。
 
 ---
 
@@ -124,14 +124,17 @@ MainActivity / MethodChannel
 - 生命周期
 - locale 更新
 - Settings 加载
+- 设置入口（settings dialog：设置项编辑与保存）
 - StationManager 初始化
+- 站点数据管理入口（info dialog：bin 信息 / 下载 / 导入 / 许可证入口）
+- 真实车站数据下载引导提示（stopped 且为示例数据时）
 - 创建并持有 Coordinator
 - 通过 Coordinator 的 handler 触发 UI 重建，并通过 getter 读取当前结果和运行状态
 - 向 BackgroundTask 提供 Coordinator.runningStatus != RunningStatus.stopped 的状态（starting/running 时保持后台任务）
 
 可直接使用：
 
-- StationManager（站点信息显示）
+- StationManager（站点信息显示、站点数据管理）
 
 不负责：
 
@@ -149,9 +152,10 @@ MainActivity / MethodChannel
 - 协调业务流程
 - start()
 - stop()
-- 生命周期转发
-- locale 更新
-- settings 更新
+- 生命周期转发（changeActive）
+- locale 更新（changeLocale）
+- settings 更新（changeSettings）
+- station data 更新（changeData）
 - 接收定位结果
 - 根据 StationManager 补全 station metadata
 - 广播完整定位结果
@@ -160,7 +164,7 @@ MainActivity / MethodChannel
 
 - GPS
 - SearchEngine
-- StationManager 的加载实现
+- StationManager 的加载与写入实现
 - Notification
 - UI
 
@@ -217,7 +221,9 @@ SearchEngine 只负责计算。
 
 职责：
 
-- BIN 加载
+- BIN 校验（尺寸 / 结构；加载与写入共用）
+- BIN 加载（documents 优先，无效回退 assets 示例）
+- BIN 写入（原子替换：临时文件 → 改名）
 - XYZ
 - 经纬度
 - station metadata（name、gcd）
@@ -269,8 +275,6 @@ NotificationService 不拥有定位或站点业务的主状态，但会持有通
 
 ---
 
----
-
 ### BackgroundTask
 
 职责：
@@ -287,6 +291,29 @@ NotificationService 不拥有定位或站点业务的主状态，但会持有通
 
 ---
 
+## Entry and Interaction
+
+对话框入口（HomePage AppBar 右侧）：
+
+- settings dialog：设置按钮
+- info dialog：info 按钮（最右侧）
+
+入口按钮在 `starting` 中禁用，stopped / running 可用（changeXxx 本身任意状态可调用，禁用仅为既有 UI 策略）。
+
+settings dialog：
+
+- 只负责设置项（无分隔线、保存按钮行位于最下方）；不包含许可证区块、不接收 `manager` 参数
+
+info dialog：
+
+- 结构：bin 信息（车站数 / 大小 / 版本 = date）→ 下载（固定 URL）/ 导入（文件选择器）→ 状态行 → 许可证入口
+- 许可证入口：「许可证及车站信息」区块样式，点击打开 `LicenseListDialog`
+- 下载中：状态行显示累计已下载字节（无进度条、不依赖 Content-Length）；下载 / 导入 / 许可证入口禁用；禁止关闭——`PopScope(canPop: false)` + `barrierDismissible: false` + X 禁用，`mounted` 守卫兜底
+- 失败：状态行红色失败文案（纯文本不可点）；下载按钮恢复可用即重试；对话框恢复可关闭
+- 导入失败：同状态行红色文案，重新选择即可
+
+---
+
 ## Android Task Policy
 
 - `MainActivity` 是应用唯一根 Activity。
@@ -294,6 +321,8 @@ NotificationService 不拥有定位或站点业务的主状态，但会持有通
 - 定位流程进行中（starting/running）按返回键不销毁 Activity，而是调用 Android `moveTaskToBack(true)`。
 - 系统杀死进程后的冷启动不恢复旧 Coordinator 状态。
 - 使用 Android 默认的应用 task affinity（包名 `name.w57.nearest_station_notification`），不额外设置 `taskAffinity`。
+
+---
 
 ## Data Model
 
@@ -350,7 +379,7 @@ HomePage 注册 active: true，只在前台收到定位结果；NotificationServ
 
 ---
 
-## RunningStatus
+## Running Status
 
 呈现状态机，UI 只读取，不派生：
 
@@ -377,6 +406,25 @@ stopped ──start()──► starting ──首个定位结果──► runnin
 
 ---
 
+## Hot Reload
+
+changeXxx 家族（外部事件驱动的状态更新）：
+
+- changeLocale：l10n 更新（系统语言变化；传播至 LocationProcessor 与 NotificationService）
+- changeActive：active 更新（前后台切换；LocationProcessor 切换搜索件数）
+- changeSettings：settings 更新（设置项保存）
+- changeData：站点数据更新（下载 / 导入）
+  - `Coordinator._manager`、`LocationProcessor._manager`、`_engine`（重建为 `SearchEngine(新 manager)`）在同一同步块内成对替换；流不中断、队列不清
+  - Dart 单线程保证换链不与在途 fix 交错；索引与站名成对换新；UI 列表与通知在下一个定位点（≤ 采样间隔）刷新
+
+共通语义：
+
+- 即时生效；任意状态（stopped / starting / running）可调用
+- 不打断当前流程；无停止限制
+- 无任何提示（SnackBar 等）
+
+---
+
 ## Lifecycle
 
 ```text
@@ -384,7 +432,9 @@ HomePage
 ↓
 didChangeAppLifecycleState()
 ↓
-Coordinator.onLifecycleChanged()
+解析：paused → active=false / resumed → active=true（inactive 等过渡状态忽略）
+↓
+Coordinator.changeActive()
 ↓
 由 Coordinator 决定是否转发给需要的模块。
 ```
@@ -403,6 +453,55 @@ Coordinator
 
 - 语言解析采用严格匹配：ja、en、zh-Hans（或 zh-CN），不做语言码级宽松回退，无匹配时回退 en。
 - MaterialApp 的 localeListResolutionCallback 与 HomePage.didChangeLocales 共用 L10n.resolve()，保证 UI 与通知的语言判定一致。
+
+---
+
+## Station Data
+
+### Data Sources and Fallback
+
+- 数据文件：`station_data_xyz.bin`（assets 与 documents 同名、路径不同）
+  - assets：随应用发布的示例数据
+  - documents（私有目录）：真实数据，由下载或导入写入
+- 启动选源：documents 文件存在且校验通过则使用（含此前更新版本）；否则回退 assets 示例（静默降级策略）
+
+### Update Flow
+
+更新（下载 / 导入）写入必须：
+
+- 先校验（复用加载校验），再写临时文件
+- 原子替换（临时文件 → 改名）；失败不覆盖现有私有文件
+- 失败不执行 `Coordinator.changeData()`；此前更新过的版本继续生效（从未更新过则仍为示例）
+
+```text
+info dialog（下载 / 导入）获取字节
+        │
+        ▼
+校验（复用加载校验）
+        │
+        ▼
+原子写 documents（临时文件 → 改名）
+        │
+        ▼
+StationManager.load()
+        │
+        ▼
+info dialog 刷新 bin 信息 + 回调 HomePage
+        │
+        ▼
+Coordinator.changeData() + HomePage setState
+```
+
+### Hosting
+
+- 真实数据从固定 URL 下载（独立托管站点，背后为另一个 GitHub Release）
+- URL 为 Common 常量
+- 下载走 HTTPS，并设超时与响应大小上限
+- Android 需要 `INTERNET` 权限（release 构建不会自动注入）；SAF 不需要存储权限（READ_EXTERNAL_STORAGE / READ_MEDIA_IMAGES 评估移除）
+
+### HomePage Guide
+
+- 仅 stopped 且为示例数据时，在「定位停止中」下一行显示引导下载提示；下载真实数据后消失
 
 ---
 

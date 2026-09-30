@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/widgets.dart';
 import 'package:geolocator/geolocator.dart';
 
 import 'settings.dart';
@@ -168,13 +167,7 @@ class Coordinator {
 
   /// UI の前台/后台状態が変わった時
   /// LocationProcessor に active を伝え、search 件数を切り替える
-  void changeLifecycleState(AppLifecycleState state) {
-    final active = switch (state) {
-      AppLifecycleState.paused => false,
-      AppLifecycleState.resumed => true,
-      _ => _active,
-    };
-
+  void changeActive(bool active) {
     if (active != _active) {
       _active = active;
 
