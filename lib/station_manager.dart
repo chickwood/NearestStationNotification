@@ -26,6 +26,7 @@ class StationManager {
   final int mcount;
   final int count;
   final int date;
+  final int pdate;
   final int size;
 
   bool get isLoaded =>
@@ -52,15 +53,17 @@ class StationManager {
     required this.mcount,
     required this.count,
     required this.date,
+    required this.pdate,
     required this.size,
   });
 
   StationManager._info()
-      : root = Common.intMaxValue,
-        mcount = 0,
-        count = 0,
-        date = 0,
-        size = 0;
+    : root = Common.intMaxValue,
+      mcount = 0,
+      count = 0,
+      date = 0,
+      pdate = 0,
+      size = 0;
 
   // ── BIN 文件读写 ────────────────────────────────────────────────
 
@@ -72,19 +75,20 @@ class StationManager {
     final data = await _loadStationBin();
 
     // 数据完整性校验
-    // 总长度应大于尾部长度 (车站数(4) + 日期戳(4))
+    // 总长度应大于尾部长度 (根节点索引(4) + 非叶节点数(4) + 车站数(4) + 日期戳(4) + 修订日期戳(4))
     final size = data.lengthInBytes;
-    if (size > 16) {
+    if (size > 20) {
       // 提取车站数和日期戳
-      final root = data.getUint32(size - 16, Endian.little);
-      final mcount = data.getUint32(size - 12, Endian.little);
-      final count = data.getUint32(size - 8, Endian.little);
-      final date = data.getUint32(size - 4, Endian.little);
+      final root = data.getUint32(size - 20, Endian.little);
+      final mcount = data.getUint32(size - 16, Endian.little);
+      final count = data.getUint32(size - 12, Endian.little);
+      final date = data.getUint32(size - 8, Endian.little);
+      final patchDate = data.getUint32(size - 4, Endian.little);
 
       // 取得 _count 后的数据完整性校验
       // 总长度应大于不含车站名的基础长度加尾部长度
-      // (_count * (经纬度(16) + XYZ(24) + 车站名偏移(4)) + 根节点索引(4) + 非叶节点数(4) + 车站数(4) + 日期戳(4))
-      if (size > (count * 44) + 16) {
+      // (_count * (经纬度(16) + XYZ(24) + 车站名偏移(4)) + 根节点索引(4) + 非叶节点数(4) + 车站数(4) + 日期戳(4) + 修订日期戳(4))
+      if (size > (count * 44) + 20) {
         return StationManager._manager(
           data.buffer.asFloat64List(data.offsetInBytes, count),
           data.buffer.asFloat64List(data.offsetInBytes + (count * 8), count),
@@ -93,16 +97,22 @@ class StationManager {
           data.buffer.asFloat64List(data.offsetInBytes + (count * 32), count),
           data.buffer.asUint32List(data.offsetInBytes + (count * 40), mcount),
           data.buffer.asUint32List(
-              data.offsetInBytes + (count * 40) + (mcount * 4), mcount),
+            data.offsetInBytes + (count * 40) + (mcount * 4),
+            mcount,
+          ),
           data.buffer.asUint32List(
-              data.offsetInBytes + (count * 40) + (mcount * 8), count),
+            data.offsetInBytes + (count * 40) + (mcount * 8),
+            count,
+          ),
           data.buffer.asUint8List(
-              data.offsetInBytes + (count * 44) + (mcount * 8),
-              size - 16 - (count * 44) - (mcount * 8)),
+            data.offsetInBytes + (count * 44) + (mcount * 8),
+            size - 20 - (count * 44) - (mcount * 8),
+          ),
           root: root,
           mcount: mcount,
           count: count,
           date: date,
+          pdate: patchDate,
           size: size,
         );
       }
@@ -115,14 +125,15 @@ class StationManager {
   //   final data = await _loadStationBin();
 
   //   // 数据完整性校验
-  //   // 总长度应大于尾部长度 (车站数(4) + 日期戳(4))
+  //   // 总长度应大于尾部长度 (根节点索引(4) + 非叶节点数(4) + 车站数(4) + 日期戳(4) + 修订日期戳(4))
   //   final size = data.lengthInBytes;
-  //   if (size > 16) {
+  //   if (size > 20) {
   //     // 提取车站数和日期戳
-  //     final root = data.getUint32(size - 16, Endian.little);
-  //     final mcount = data.getUint32(size - 12, Endian.little);
-  //     final count = data.getUint32(size - 8, Endian.little);
-  //     final date = data.getUint32(size - 4, Endian.little);
+  //     final root = data.getUint32(size - 20, Endian.little);
+  //     final mcount = data.getUint32(size - 16, Endian.little);
+  //     final count = data.getUint32(size - 12, Endian.little);
+  //     final date = data.getUint32(size - 8, Endian.little);
+  //     final patchDate = data.getUint32(size - 4, Endian.little);
 
   //     // 提取车站数和日期戳
   //     return StationManager._info(
@@ -130,6 +141,7 @@ class StationManager {
   //       mcount: mcount,
   //       count: count,
   //       date: date,
+  //       patchDate: patchDate,
   //       size: size,
   //     );
   //   }
@@ -166,11 +178,14 @@ class StationManager {
     try {
       if (isLoaded) {
         final int start = _offsets[index];
-        final int end = (index == _offsets.length - 1)
-            ? _names.length
-            : _offsets[index + 1];
-        final nameBytes = _names.buffer
-            .asUint8List(_names.offsetInBytes + start, end - start);
+        final int end =
+            (index == _offsets.length - 1)
+                ? _names.length
+                : _offsets[index + 1];
+        final nameBytes = _names.buffer.asUint8List(
+          _names.offsetInBytes + start,
+          end - start,
+        );
 
         final match = Common.namePattern.firstMatch(utf8.decode(nameBytes));
         if (match != null) {
