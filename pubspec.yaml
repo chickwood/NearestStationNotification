@@ -4,19 +4,19 @@ publish_to: 'none'
 version: 1.1.6-20260731+2026073105
 
 environment:
-  sdk: '>=3.6.0 <4.0.0'
+  sdk: '>=3.7.0 <4.0.0'
 
 dependencies:
   flutter:
     sdk: flutter
   flutter_localizations:
     sdk: flutter
-  flutter_local_notifications: ^22.3.1
-  geolocator: ^14.0.3
-  package_info_plus: ^10.2.1
+  flutter_local_notifications: ^22.3.2
+  geolocator: ^14.1.1
+  package_info_plus: ^10.2.2
   # path_provider: ^2.1.6
-  shared_preferences: ^2.5.5
-  # url_launcher: ^6.3.2
+  shared_preferences: ^2.5.6
+  # url_launcher: ^6.3.3
 
 dev_dependencies:
   flutter_lints: ^6.0.0
