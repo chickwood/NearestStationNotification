@@ -1,7 +1,9 @@
 name: nearest_station_notification
 description: "Finds the nearest station using your location and sends a notification."
 publish_to: 'none'
-version: 1.1.6-20260731+2026073105
+# version 格式: X.Y.Z-YYYYMMDD[-N]+YYYYMMDDNN
+# (后半段 Version Code，Google Play 的规定上限 2100000000，按此编码约到 2100 年）
+version: 1.1.7-20260731+2026101501
 
 environment:
   sdk: '>=3.7.0 <4.0.0'
