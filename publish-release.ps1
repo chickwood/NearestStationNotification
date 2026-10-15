@@ -41,20 +41,14 @@ if (-not $versionLine) {
     exit 1
 }
 $versionStr = ($versionLine.Line -split ":", 2)[1].Trim()
-if ($versionStr -notmatch '^[0-9]+\.[0-9]+\.[0-9]+-(?<versionDate>[0-9]{8})(-[0-9]+)?\+(?<buildDate>[0-9]{8})(?<buildNumber>[0-9]{2})$') {
+if ($versionStr -notmatch '^[0-9]+\.[0-9]+\.[0-9]+-[0-9]{8}(-[0-9]+)?\+[0-9]{8}[0-9]{2}$') {
     Write-Error "错误: version 格式无效: $versionStr"
     Write-Error "格式应为: X.Y.Z-YYYYMMDD[-N]+YYYYMMDDNN"
     exit 1
 }
-if ($Matches.versionDate -ne $Matches.buildDate) {
-    Write-Error "错误: version 中的两个日期必须一致: $versionStr"
-    exit 1
-}
-
 # 4. 生成 release 分支名和 Tag 名
-$tagName = ($versionStr -split "\+")[0]
-$releaseBranch = "release/v$tagName"
-$targetTag = "v$tagName"
+$releaseBranch = "release/v$versionStr"
+$targetTag = "v$versionStr"
 
 # 5. 确认 release 分支已经通过 PR 合并到 main
 if (-not (Test-GitRef ls-remote --exit-code --heads origin $releaseBranch)) {

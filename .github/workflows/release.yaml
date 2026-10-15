@@ -68,14 +68,46 @@ jobs:
           KEY_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
           KEYSTORE_PATH: ../../app-release-key.jks # 基于 android/app/ 目录的物理相对路径
 
-      # 7. 瞬间抓取产物并物理发布到 GitHub Releases
+      # 7. 重命名产物为 <project>-<arch>-<buildType>-<versionCode>.apk 形式
+      - name: Rename APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          version_str=$(grep '^version:' pubspec.yaml | awk '{print $2}')
+          version_code="${version_str##*+}"
+          project_name=$(grep '^name:' pubspec.yaml | awk '{print $2}')
+          mkdir -p dist
+          for f in build/app/outputs/flutter-apk/app-*.apk; do
+            [ -e "$f" ] || continue
+            base=$(basename "$f" .apk)
+            body="${base#app-}"
+            case "$body" in
+              release | debug)
+                arch=""; build_type="$body" ;;
+              *-release)
+                arch="${body%-release}"; build_type="release" ;;
+              *-debug)
+                arch="${body%-debug}"; build_type="debug" ;;
+              *)
+                echo "跳过未知产物: $f"; continue ;;
+            esac
+            if [ -n "$arch" ]; then
+              out="${project_name}-${arch}-${build_type}-${version_code}.apk"
+            else
+              out="${project_name}-${build_type}-${version_code}.apk"
+            fi
+            cp "$f" "dist/$out"
+          done
+          ls -l dist
+
+      # 8. 瞬间抓取产物并物理发布到 GitHub Releases
       - name: GH Release
         uses: softprops/action-gh-release@v3.0.3
         with:
           # 动态将 Release 的标题设置为对应的 Git Tag 名称（如 Release v1.0.0）
           name: "Release ${{ github.ref_name }}"
-          # 抓取通用胖包以及所有切分后的架构包
-          files: build/app/outputs/flutter-apk/app-*.apk
+          # 抓取重命名后的通用胖包以及所有切分后的架构包
+          files: dist/*.apk
           # 只保留一行 Full Changelog，不生成提交列表。
           generate_release_notes: false
           body: "**Full Changelog**: ${{ steps.changelog.outputs.url }}"
