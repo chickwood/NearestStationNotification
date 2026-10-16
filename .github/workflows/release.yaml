@@ -101,7 +101,7 @@ jobs:
           ls -l dist
 
       # 8. 瞬间抓取产物并物理发布到 GitHub Releases
-      - name: GH Release
+      - name: Create Release and Upload Asset
         uses: softprops/action-gh-release@v3.0.3
         with:
           # 动态将 Release 的标题设置为对应的 Git Tag 名称（如 Release v1.0.0）
