@@ -3,19 +3,15 @@ import 'package:flutter/material.dart';
 import 'settings.dart';
 import 'common.dart';
 import 'l10n.dart';
-import 'license_dialog.dart';
-import 'station_manager.dart';
 
 // ── Settings Dialog ───────────────────────────────────────────────
 
 class SettingsDialog extends StatefulWidget {
   final Settings settings;
-  final StationManager manager;
   final Future<void> Function(Settings) onSave;
 
   const SettingsDialog(
-    this.settings,
-    this.manager, {
+    this.settings, {
     super.key,
     required this.onSave,
   });
@@ -120,54 +116,6 @@ class _SettingsDialogState extends State<SettingsDialog> {
                   //       setState(() => _draft = _draft.copyWith(notificationMode: v)),
                   // ),
                   // const SizedBox(height: 12),
-                  // ── 駅情報 ────────────────────────────────────────────
-                  _SectionLabel(label: l10n.settingsInfoTitle),
-                  const SizedBox(height: 8),
-                  Container(
-                    width: double.infinity,
-                    alignment: Alignment.centerLeft,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFE8F8FF),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: const Color(0xFF60A0FF)),
-                    ),
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTap: () => showDialog<void>(
-                        context: context,
-                        barrierColor: Colors.transparent,
-                        builder: (_) => LicenseListDialog(widget.manager),
-                      ),
-                      // onTap: () => showLicensePage(context: context),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              Icons.info,
-                              color: Color(0xFF4080FF),
-                            ),
-                            const SizedBox(width: 8),
-                            Flexible(
-                              child: Text(
-                                '${l10n.countStations(widget.manager.count)}\n'
-                                '${l10n.settingsLicense}',
-                                style: TextStyle(
-                                  color: Colors.grey.shade600,
-                                  fontSize: 12,
-                                ),
-                                softWrap: true,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
                 ],
               ),
             ),

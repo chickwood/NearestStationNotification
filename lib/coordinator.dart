@@ -24,7 +24,7 @@ class Coordinator {
   L10n _l10n;
   bool _active;
   Settings _settings;
-  final StationManager _manager;
+  StationManager _manager;
 
   late final LocationProcessor _locationProcessor;
   late final NotificationService _notificationService;
@@ -151,7 +151,7 @@ class Coordinator {
     _notifyLocationResultReceived(null, null, forceNotify: true);
   }
 
-  // ── 設定・Locale・Lifecycle ───────────────────────────────────────
+  // ── 設定・Locale・Lifecycle・Data ─────────────────────────────────
 
   Future<void> changeSettings(Settings settings) async {
     _settings = settings;
@@ -180,6 +180,13 @@ class Coordinator {
         _notifyLocationResultReceived(_positionResult, _stationResults);
       }
     }
+  }
+
+  /// 站点数据更新（hot reload）
+  /// manager 与 SearchEngine 在 LocationProcessor 内成对替换（同一同步块）
+  void changeData(StationManager manager) {
+    _manager = manager;
+    _locationProcessor.changeData(manager);
   }
 
   // ── 権限 ────────────────────────────────────────────────────────

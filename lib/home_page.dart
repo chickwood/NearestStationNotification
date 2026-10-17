@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import 'coordinator.dart';
 import 'settings.dart';
 import 'common.dart';
+import 'event_manager.dart';
 import 'l10n.dart';
+import 'info_dialog.dart';
 import 'settings_dialog.dart';
 import 'station_manager.dart';
 import 'background_task.dart';
@@ -90,35 +92,21 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               //   fit: BoxFit.contain,
               // ),
               // const SizedBox(width: 4),
-              Text(
-                l10n.appTitle,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w500,
+              Flexible(
+                child: Text(
+                  l10n.appTitle,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ),
             ],
           ),
           backgroundColor: const Color(0xFF4080FF),
           actions: [
-            // 定位详细显示切换
-            if (_coordinator!.runningStatus == RunningStatus.running)
-              Padding(
-                padding: const EdgeInsets.only(right: 10),
-                child: GestureDetector(
-                  onTap: _switchPositionVisibility,
-                  child: Icon(
-                    _positionVisibility == 0
-                        ? Icons.visibility_off
-                        : Icons.visibility,
-                    color: _positionVisibility == 1
-                        ? const Color(0xFFA0C0FF)
-                        : Colors.white,
-                    size: 32,
-                  ),
-                ),
-              ),
             // 开始/停止
             Padding(
               padding: const EdgeInsets.only(right: 8),
@@ -141,13 +129,29 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             ),
             // 设置（starting 中は無効化）
             Padding(
-              padding: const EdgeInsets.only(right: 12),
+              padding: const EdgeInsets.only(right: 8),
               child: GestureDetector(
                 onTap: _coordinator!.runningStatus == RunningStatus.starting
                     ? null
                     : _showSettingsDialog,
                 child: Icon(
                   Icons.settings,
+                  color: _coordinator!.runningStatus == RunningStatus.starting
+                      ? const Color(0xFFA0C0FF)
+                      : Colors.white,
+                  size: 32,
+                ),
+              ),
+            ),
+            // 情報（starting 中は無効化）
+            Padding(
+              padding: const EdgeInsets.only(right: 12),
+              child: GestureDetector(
+                onTap: _coordinator!.runningStatus == RunningStatus.starting
+                    ? null
+                    : _showInfoDialog,
+                child: Icon(
+                  Icons.info,
                   color: _coordinator!.runningStatus == RunningStatus.starting
                       ? const Color(0xFFA0C0FF)
                       : Colors.white,
@@ -162,13 +166,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
             child: Column(
               children: [
-                if (_coordinator!.runningStatus == RunningStatus.running &&
-                    _positionVisibility > 0) ...[
-                  _buildPositionCard(l10n), // 上部可隐藏: 位置信息
-                  const SizedBox(height: 4),
-                ],
                 Expanded(
-                  child: _buildStationResultsCard(l10n), // 中部可滚动: 车站列表
+                  child: _buildStationResultsCard(l10n), // 车站列表 + 下部可隐藏: 位置信息
                 ),
               ],
             ),
@@ -186,12 +185,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     final active = true; // 应用启动时 active 必然为 true
 
     try {
-      final results = await Future.wait([
-        Settings.load(),
-        StationManager.load(),
+      late Settings settings;
+      late StationManager manager;
+      await Future.wait([
+        Settings.load().then((value) => settings = value),
+        StationManager.load().then((value) => manager = value),
+        EventManager.load(),
       ]);
-      final settings = results[0] as Settings;
-      final manager = results[1] as StationManager;
 
       final coordinator = Coordinator(l10n, active, settings, manager);
       _coordinator = coordinator;
@@ -296,7 +296,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       barrierColor: Colors.white.withValues(alpha: 0.5),
       builder: (context) => SettingsDialog(
         _settings!,
-        _manager!,
         onSave: (settings) async {
           await settings.save();
           setState(() {
@@ -310,9 +309,27 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     );
   }
 
-  // ── Position card ────────────────────────────────────────────────
+  // ── Info Dialog ─────────────────────────────────────────────────────
 
-  Widget _buildPositionCard(L10n l10n) {
+  void _showInfoDialog() {
+    showDialog(
+      context: context,
+      barrierColor: Colors.white.withValues(alpha: 0.5),
+      builder: (context) => InfoDialog(
+        _manager!,
+        onDataChanged: (manager) {
+          _coordinator?.changeData(manager);
+          setState(() {
+            _manager = manager;
+          });
+        },
+      ),
+    );
+  }
+
+  // ── Service results card ─────────────────────────────────────────
+
+  Widget _buildStationResultsCard(L10n l10n) {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -327,35 +344,142 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               child: Row(
                 children: [
                   Icon(
-                    Icons.my_location,
-                    color: const Color(0xFF4080FF), // Colors.indigo.shade700
+                    Icons.radar,
+                    color: const Color(0xFFFFC000), // Colors.orange.shade700
                   ),
                   const SizedBox(width: 4),
                   Text(
-                    _positionVisibility == 1
-                        ? l10n.currentLocation
-                        : l10n.currentLocationStatus,
+                    l10n.nearbyStations,
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
+                  const Spacer(),
+                  // 定位详细显示切换
+                  if (_coordinator!.runningStatus == RunningStatus.running)
+                    GestureDetector(
+                      onTap: _switchPositionVisibility,
+                      child: Icon(
+                        _positionVisibility > 0
+                            ? Icons.near_me
+                            : Icons.near_me_disabled,
+                        color: _positionVisibility < 2
+                            ? const Color(0xFFA0C0FF)
+                            : const Color(0xFF4080FF),
+                      ),
+                    ),
                 ],
               ),
             ),
-            const SizedBox(height: 4),
-            _buildPositionResult(l10n),
+            if (_coordinator!.runningStatus == RunningStatus.running &&
+                _positionVisibility > 0) ...[
+              _buildPositionResult(l10n), // 下部可隐藏: 位置信息（リスト外・カード下端）
+              const Divider(
+                height: 8,
+                indent: 8,
+                endIndent: 8,
+              ),
+            ],
+            const SizedBox(height: 2),
+            Expanded(
+              child: _buildStationResultsExpanded(l10n), // リスト部分のみスクロール
+            ),
           ],
         ),
       ),
     );
   }
 
+  // ── Station results (expanded) ────────────────────────────────────────────────
+
+  Widget _buildStationResultsExpanded(L10n l10n) {
+    if (_manager!.count > 0) {
+      if (_coordinator!.runningStatus == RunningStatus.stopped) {
+        return Align(
+          alignment: Alignment.topCenter,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                l10n.notStarted,
+                style: const TextStyle(color: Colors.grey),
+              ),
+              if (_manager!.isSampleData) ...[
+                const SizedBox(height: 4),
+                Text(
+                  l10n.sampleDataGuide,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.grey),
+                ),
+              ],
+            ],
+          ),
+        );
+      } else if (_coordinator!.runningStatus == RunningStatus.starting) {
+        return Align(
+          alignment: Alignment.topCenter,
+          child: Text(
+            l10n.waitingForLocation,
+            style: const TextStyle(color: Colors.grey),
+          ),
+        );
+      } else {
+        return Padding(
+          padding: const EdgeInsets.all(4),
+          child: ListView.separated(
+            itemCount: _coordinator!.stationResults!.length,
+            itemBuilder: (context, index) {
+              final stationResult = _coordinator!.stationResults![index];
+
+              return _StationTile(
+                index: index,
+                name: stationResult.name ?? '',
+                distance: stationResult.distanceInUnit,
+                direction: l10n.direction(stationResult.bearingIndex),
+                part: _settings!.stationCount.part(index),
+              );
+            },
+            separatorBuilder: (BuildContext context, int index) {
+              return const SizedBox(height: 4);
+            },
+          ),
+        );
+      }
+    } else {
+      return Align(
+        alignment: Alignment.topCenter,
+        child: Text(
+          l10n.countStations(0),
+          style: const TextStyle(color: Colors.grey),
+        ),
+      );
+    }
+  }
+
+  // ── Position result ────────────────────────────────────────────────
+
   Widget _buildPositionResult(L10n l10n) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8),
+      padding: const EdgeInsets.symmetric(
+        horizontal: 8,
+        vertical: 4,
+      ),
       child: Column(
         children: [
+          Row(
+            children: [
+              Text(
+                _positionVisibility == 1
+                    ? l10n.currentLocation
+                    : l10n.currentLocationStatus,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
           Row(
             children: [
               Expanded(
@@ -417,93 +541,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         ],
       ),
     );
-  }
-
-  // ── Service results card ─────────────────────────────────────────
-
-  Widget _buildStationResultsCard(L10n l10n) {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(8),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // タイトル行
-            Padding(
-              padding: const EdgeInsets.all(4),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.radar,
-                    color: const Color(0xFFFFC000), // Colors.orange.shade700
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    l10n.nearbyStations,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 4),
-            Expanded(
-              child: _buildStationResultsExpanded(l10n), // リスト部分のみスクロール
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStationResultsExpanded(L10n l10n) {
-    if (_manager!.count > 0) {
-      if (_coordinator!.runningStatus == RunningStatus.stopped) {
-        return Align(
-          alignment: Alignment.topCenter,
-          child: Text(
-            l10n.notStarted,
-            style: const TextStyle(color: Colors.grey),
-          ),
-        );
-      } else if (_coordinator!.runningStatus == RunningStatus.starting) {
-        return Align(
-          alignment: Alignment.topCenter,
-          child: Text(
-            l10n.waitingForLocation,
-            style: const TextStyle(color: Colors.grey),
-          ),
-        );
-      } else {
-        return ListView.builder(
-          padding: const EdgeInsets.fromLTRB(6, 4, 6, 0),
-          itemCount: _coordinator!.stationResults!.length,
-          itemBuilder: (context, index) {
-            final stationResult = _coordinator!.stationResults![index];
-
-            return _StationTile(
-              index: index,
-              name: stationResult.name ?? '',
-              distance: stationResult.distanceInUnit,
-              direction: l10n.direction(stationResult.bearingIndex),
-              part: _settings!.stationCount.part(index),
-            );
-          },
-        );
-      }
-    } else {
-      return Align(
-        alignment: Alignment.topCenter,
-        child: Text(
-          l10n.countStations(0),
-          style: const TextStyle(color: Colors.grey),
-        ),
-      );
-    }
   }
 }
 
@@ -576,7 +613,7 @@ class _StationTile extends StatelessWidget {
     final isNearest = index == 0;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 4),
+      // margin: const EdgeInsets.only(bottom: 4),
       padding: EdgeInsets.symmetric(
         horizontal: 12,
         vertical: isNearest ? 8 : 6,

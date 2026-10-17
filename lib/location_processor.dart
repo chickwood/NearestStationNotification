@@ -21,9 +21,9 @@ class LocationProcessor {
   L10n _l10n;
   bool _active;
   Settings _settings;
-  final StationManager _manager;
+  StationManager _manager;
 
-  late final SearchEngine _engine;
+  late SearchEngine _engine;
 
   // 位置ズレフィルタ用キュー
   static const _queueSize = 3;
@@ -98,6 +98,13 @@ class LocationProcessor {
     if (_positionSubscription != null) {
       _startStream();
     }
+  }
+
+  /// 站点数据更新（hot reload）
+  /// manager 与 SearchEngine 成对替换（同一同步块，不中断流）
+  void changeData(StationManager manager) {
+    _manager = manager;
+    _engine = SearchEngine(manager);
   }
 
   // ── GPS Stream ───────────────────────────────────────────────────

@@ -131,13 +131,15 @@ class L10n {
   }
 
   String countStations(int count) {
-    if (_isJa) {
-      return '$count 駅を読み込みました。';
-    } else if (_isZhHans) {
-      return '已读取 $count 个车站。';
-    } else {
-      return '${count > 0 ? '$count' : 'No'} station${count == 1 ? '' : 's'} loaded.';
-    }
+    if (_isJa) return '$count 駅を読み込みました。';
+    if (_isZhHans) return '已读取 $count 个车站。';
+    return '${count > 0 ? '$count' : 'No'} station${count == 1 ? '' : 's'} loaded.';
+  }
+
+  String get sampleDataGuide {
+    if (_isJa) return 'サンプルデータを使用中です。右上の情報ボタンから実データの入手方法を確認できます。';
+    if (_isZhHans) return '当前为示例数据。可点击右上角信息按钮查看真实数据的获取方法。';
+    return 'Sample data in use. See the Info button (top right) for how to get the full data.';
   }
 
   // ── SnackBar ───────────────────────────────────────────────
@@ -258,15 +260,9 @@ class L10n {
     return '$seconds s';
   }
 
-  String get settingsInfoTitle {
-    if (_isJa) return 'ライセンス・駅情報';
-    if (_isZhHans) return '许可证及车站信息';
-    return 'Licenses and Station Information';
-  }
-
   String get settingsLicense {
     if (_isJa) return 'ここをクリックして、ライセンス・駅情報詳細を表示。';
-    if (_isZhHans) return '点击此处以显示许可证及车站信息详情。';
+    if (_isZhHans) return '点击此处显示许可证及车站信息详情。';
     return 'Tap here to view licenses and station information details.';
   }
 
@@ -283,8 +279,80 @@ class L10n {
     return 'Cancel';
   }
 
+  // ── Info Dialog ──────────────────────────────────────────────────
+  String get infoDialogTitle {
+    if (_isJa) return '情報';
+    if (_isZhHans) return '信息';
+    return 'Info';
+  }
+
+  String get infoTitle {
+    if (_isJa) return 'ライセンス・駅情報';
+    if (_isZhHans) return '许可证及车站信息';
+    return 'Licenses and Station Information';
+  }
+
+  String get infoUpdateTitle {
+    if (_isJa || _isZhHans) return '更新';
+    return 'Update';
+  }
+
+  String get infoUpdateNotice {
+    if (_isJa) {
+      return '駅データ・イベントデータは定期的に更新してください。'
+          '\nここをクリックして、ダウンロードサイトを開く。'
+          '\n\nダウンロード後、インポートをクリックして、データファイルを選択してインポート。';
+    }
+    if (_isZhHans) {
+      return '请定期更新车站数据与事件数据。'
+          '\n点击此处打开下载网站。'
+          '\n\n下载完成后，点击导入，选择数据文件并导入。';
+    }
+    return 'Update station data and event data periodically.'
+        '\nTap here to open download website.'
+        '\n\nAfter download, tap import, select data file to import.';
+  }
+
+  String get infoImport {
+    if (_isJa) return 'インポート';
+    if (_isZhHans) return '导入';
+    return 'Import';
+  }
+
+  String get infoImportedStation {
+    if (_isJa) return '駅データをインポートしました。イベントデータを更新する場合は続けてインポートしてください。';
+    if (_isZhHans) return '已导入车站数据。如需更新事件数据，可继续导入。';
+    return 'Station data imported. To update event data, import it as well。';
+  }
+
+  String get infoImportedEvent {
+    if (_isJa) return 'イベントデータをインポートしました。駅データを更新する場合は続けてインポートしてください。';
+    if (_isZhHans) return '已导入事件数据。如需更新车站数据，可继续导入。';
+    return 'Event data imported. To update station data, import it as well.';
+  }
+
+  String get infoInvalidFile {
+    if (_isJa) return '無効なファイルです';
+    if (_isZhHans) return '无效的文件';
+    return 'Invalid file';
+  }
+
+  String infoSize(int size) {
+    final kb = size ~/ 1024;
+    if (_isJa) return 'サイズ: $kb KB';
+    if (_isZhHans) return '大小: $kb KB';
+    return 'Size: $kb KB';
+  }
+
+  String infoVersion(int date) {
+    final ts = date > 0 ? '$date' : '--';
+    if (_isJa) return 'バージョン: $ts';
+    if (_isZhHans) return '版本: $ts';
+    return 'Version: $ts';
+  }
+
   // ── License Dialog ───────────────────────────────────────────────────────────
-  String get licensesDialogTitle => settingsInfoTitle;
+  String get licensesDialogTitle => infoTitle;
 
   String licenseCount(int count) {
     if (_isJa) return '$count 件ライセンス';

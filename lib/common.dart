@@ -7,6 +7,15 @@ class Common {
   // 駅情報
   static const binFileName = 'station_data_xyz.bin';
 
+  // イベント情報
+  static const eventFileName = 'event_data.json';
+
+  // 駅データ配信 URL（仮値。実 URL 提供後に置換）
+  static const dataUrl = 'https://www.w57.name/release.html?project=c6f7b0e2';
+
+  // 示例数据判定阈值（小于该车站数视为示例数据）
+  static const sampleThreshold = 50;
+
   // 駅ID解析
   static final namePattern = RegExp(r'^(\d{1,7}),(.*)$');
 
@@ -128,17 +137,6 @@ class Common {
         if (intersect) inside = !inside;
       }
       return inside;
-    });
-  }
-
-  static final _eventPeriods = [
-    (start: DateTime(2026, 5, 1, 15), end: DateTime(2026, 5, 31, 23, 59, 59)),
-  ];
-
-  static bool isEventPeriod() {
-    final now = DateTime.now();
-    return _eventPeriods.any((period) {
-      return !now.isBefore(period.start) && !now.isAfter(period.end);
     });
   }
 
@@ -402,6 +400,7 @@ enum LocationInterval {
 
 // StationCount 的四个预设
 // friend: 传入 engine 的基础数量
+// event: 事件期间追加的数量
 // radar: 第一段扩展（+4）
 // natsume: 第二段扩展（+2）
 enum StationCount {
@@ -430,15 +429,17 @@ enum StationCount {
     required this.natsume,
   });
 
+  /// 事件期间判定器（由 EventManager 初始化时注入；默认 false）
+  static bool Function() eventPeriod = () => false;
+
   // 传入 engine 的实际 count
-  int get count =>
-      friend + (Common.isEventPeriod() ? event : 0) + radar + natsume;
+  int get count => friend + (eventPeriod() ? event : 0) + radar + natsume;
 
   StationCountPart part(int index) {
     if (index < friend) {
       return StationCountPart.friend;
     } else {
-      if (Common.isEventPeriod()) {
+      if (eventPeriod()) {
         if (index < friend + event) return StationCountPart.event;
         if (index < friend + event + radar) return StationCountPart.radar;
         return StationCountPart.natsume;
@@ -451,7 +452,7 @@ enum StationCount {
 
   // 显示标签，例如 "12"、"12 + 4"、"12 + 4 + 2"
   String get label {
-    return '$friend${(event > 0 && Common.isEventPeriod() ? ' + $event' : '')}'
+    return '$friend${(event > 0 && eventPeriod() ? ' + $event' : '')}'
         '${(radar > 0 ? ' + $radar' : '')}${(natsume > 0 ? ' + $natsume' : '')}';
   }
 }
