@@ -134,12 +134,12 @@ class L10n {
   }
 
   String get sampleDataGuide {
-    if (_isJa) return 'サンプルデータを使用中です。右上の情報ボタンから実データの入手方法を確認できます。';
-    if (_isZhHans) return '当前为示例数据。可点击右上角信息按钮查看真实数据的获取方法。';
-    return 'Sample data in use. See the Info button (top right) for how to get the full data.';
+    if (_isJa) return 'サンプル駅情報を使用中です。右上の情報ボタンをクリックして駅情報を確認・更新。';
+    if (_isZhHans) return '当前正在使用示例车站信息。点击右上角的信息按钮查看和更新车站信息。';
+    return 'Sample data in use. Tap the Info button on the top right to view and update station information.';
   }
 
-  // ── SnackBar ───────────────────────────────────────────────
+  // ── Toast ──────────────────────────────────────────────────
   String errorMsg(String message) {
     if (_isJa) return '読み込み失敗: $message';
     if (_isZhHans) return '读取失败: $message';
@@ -257,14 +257,6 @@ class L10n {
     return '$seconds s';
   }
 
-  String get settingsLicense {
-    if (_isJa) return 'ここをクリックして、ライセンス・駅情報詳細を表示。';
-    if (_isZhHans) return '点击此处显示许可证及车站信息详情。';
-    return 'Tap here to view licenses and station information details.';
-  }
-
-  String settingsStations(int count) => countStations(count); // 定义别名区分使用位置
-
   String get settingsSave {
     if (_isJa || _isZhHans) return '保存';
     return 'Save';
@@ -289,6 +281,30 @@ class L10n {
     return 'Licenses and Station Information';
   }
 
+  String infoStations(int count) => countStations(count); // 定义别名区分使用位置
+
+  String infoVersion(int date, int pdate) {
+    if (_isJa) {
+      return 'バージョン: ${date > 0 ? '$date${pdate > 0 ? ' + パッチ: $pdate' : ''}' : ''}';
+    }
+    if (_isZhHans) {
+      return '版本: ${date > 0 ? '$date${pdate > 0 ? ' + 修订: $pdate' : ''}' : ''}';
+    }
+    return 'Version: ${date > 0 ? '$date${pdate > 0 ? ' + Patch: $pdate' : ''}' : ''}';
+  }
+
+  String infoSize(int size) {
+    if (_isJa) return 'サイズ: ${size ~/ 1024} KB';
+    if (_isZhHans) return '大小: ${size ~/ 1024} KB';
+    return 'Size: ${size ~/ 1024} KB';
+  }
+
+  String get infoLicense {
+    if (_isJa) return 'ここをクリックして、ライセンス・駅情報詳細を表示。';
+    if (_isZhHans) return '点击此处显示许可证及车站信息详情。';
+    return 'Tap here to view licenses and station information details.';
+  }
+
   String get infoUpdateTitle {
     if (_isJa || _isZhHans) return '更新';
     return 'Update';
@@ -296,18 +312,18 @@ class L10n {
 
   String get infoUpdateNotice {
     if (_isJa) {
-      return '駅データ・イベントデータは定期的に更新してください。'
+      return '駅情報・イベント情報データは定期的に更新してください。'
           '\nここをクリックして、ダウンロードサイトを開く。'
-          '\n\nダウンロード後、インポートをクリックして、データファイルを選択してインポート。';
+          '\n\nダウンロード後、インポートをクリックして、データファイルを選択して情報を更新。';
     }
     if (_isZhHans) {
-      return '请定期更新车站数据与事件数据。'
+      return '请定期更新车站信息与事件信息数据。'
           '\n点击此处打开下载网站。'
-          '\n\n下载完成后，点击导入，选择数据文件并导入。';
+          '\n\n下载后，点击导入，选择数据文件更新信息。';
     }
-    return 'Update station data and event data periodically.'
+    return 'Update station information and event information data periodically.'
         '\nTap here to open download website.'
-        '\n\nAfter download, tap import, select data file to import.';
+        '\n\nAfter download, tap import, select data file to update information.';
   }
 
   String get infoImport {
@@ -317,35 +333,21 @@ class L10n {
   }
 
   String get infoImportedStation {
-    if (_isJa) return '駅データをインポートしました。イベントデータを更新する場合は続けてインポートしてください。';
-    if (_isZhHans) return '已导入车站数据。如需更新事件数据，可继续导入。';
-    return 'Station data imported. To update event data, import it as well。';
+    if (_isJa) return '駅情報データをインポートしました。イベント情報データを更新する場合は続けてインポートしてください。';
+    if (_isZhHans) return '已导入车站信息数据。如需更新事件信息数据，可继续导入。';
+    return 'Station information data imported. To update event information data, import it as well。';
   }
 
   String get infoImportedEvent {
-    if (_isJa) return 'イベントデータをインポートしました。駅データを更新する場合は続けてインポートしてください。';
-    if (_isZhHans) return '已导入事件数据。如需更新车站数据，可继续导入。';
-    return 'Event data imported. To update station data, import it as well.';
+    if (_isJa) return 'イベント情報データをインポートしました。駅情報データを更新する場合は続けてインポートしてください。';
+    if (_isZhHans) return '已导入事件信息数据。如需更新车站信息数据，可继续导入。';
+    return 'Event information data imported. To update station information data, import it as well.';
   }
 
   String get infoInvalidFile {
     if (_isJa) return '無効なファイルです';
     if (_isZhHans) return '无效的文件';
     return 'Invalid file';
-  }
-
-  String infoSize(int size) {
-    final kb = size ~/ 1024;
-    if (_isJa) return 'サイズ: $kb KB';
-    if (_isZhHans) return '大小: $kb KB';
-    return 'Size: $kb KB';
-  }
-
-  String infoVersion(int date) {
-    final ts = date > 0 ? '$date' : '--';
-    if (_isJa) return 'バージョン: $ts';
-    if (_isZhHans) return '版本: $ts';
-    return 'Version: $ts';
   }
 
   // ── License Dialog ───────────────────────────────────────────────────────────
@@ -369,26 +371,16 @@ class L10n {
     return 'Source code published under the MIT License.';
   }
 
-  String licenseStationsDetails(int count, int date, int pdate, int size) {
-    if (_isJa) {
-      return '駅情報詳細'
-          '\n${countStations(count)}'
-          '\nバージョン: ${date > 0 ? '$date${pdate > 0 ? '\nパッチ: $pdate' : ''}' : ''}'
-          '\nサイズ: ${size ~/ 1024} KB'
-          '\n駅情報は 駅データ.jp のデータに基づき、加工・生成されたものです。';
-    }
-    if (_isZhHans) {
-      return '车站信息详情'
-          '\n${countStations(count)}'
-          '\n版本: ${date > 0 ? '$date${pdate > 0 ? ' 修订版本: $pdate' : ''}' : ''}'
-          '\n大小: ${size ~/ 1024} KB'
-          '\n车站信息衍生于 ekidata.jp 所公开的数据。';
-    }
-    return 'Detail of station information'
-        '\n${countStations(count)}'
-        '\nVersion: ${date > 0 ? '$date${pdate > 0 ? ' Patch: $pdate' : ''}' : ''}'
-        '\nSize: ${size ~/ 1024} KB'
-        '\nStation information based on and derived from the dataset published by ekidata.jp.';
+  String get licenseStationDetailsTitle {
+    if (_isJa) return '駅情報詳細';
+    if (_isZhHans) return '车站信息详情';
+    return 'Station information details';
+  }
+
+  String get licenseStationDetailsEkidata {
+    if (_isJa) return '駅情報は 駅データ.jp のデータに基づき、加工・生成されたものです。';
+    if (_isZhHans) return '车站信息衍生于 ekidata.jp 所公开的数据。';
+    return 'Station information based on and derived from the dataset published by ekidata.jp.';
   }
 }
 
