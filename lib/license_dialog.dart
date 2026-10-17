@@ -18,7 +18,7 @@ class LicenseListDialog extends StatefulWidget {
 
 class _LicenseListDialogState extends State<LicenseListDialog> {
   late final Future<List<({String package, List<List<String>> licenses})>>
-      _licensesFuture;
+  _licensesFuture;
 
   @override
   void initState() {
@@ -27,16 +27,17 @@ class _LicenseListDialogState extends State<LicenseListDialog> {
   }
 
   static Future<List<({String package, List<List<String>> licenses})>>
-      _loadLicenses() async {
+  _loadLicenses() async {
     final map = <String, List<List<String>>>{};
 
     await for (final entry in LicenseRegistry.licenses) {
       for (final package in entry.packages) {
         map.putIfAbsent(package, () => []);
-        final paragraphs = entry.paragraphs
-            .map((p) => p.text.trim())
-            .where((t) => t.isNotEmpty)
-            .toList();
+        final paragraphs =
+            entry.paragraphs
+                .map((p) => p.text.trim())
+                .where((t) => t.isNotEmpty)
+                .toList();
         if (paragraphs.isNotEmpty) map[package]!.add(paragraphs);
       }
     }
@@ -44,15 +45,9 @@ class _LicenseListDialogState extends State<LicenseListDialog> {
     final appLicenses = map.remove(Common.appName) ?? [];
     final licenses =
         (map.entries.toList()..sort((a, b) => a.key.compareTo(b.key)))
-            .map((entry) => (
-                  package: entry.key,
-                  licenses: entry.value,
-                ))
+            .map((entry) => (package: entry.key, licenses: entry.value))
             .toList()
-          ..add((
-            package: Common.appName,
-            licenses: appLicenses,
-          ));
+          ..add((package: Common.appName, licenses: appLicenses));
 
     return licenses;
   }
@@ -75,10 +70,7 @@ class _LicenseListDialogState extends State<LicenseListDialog> {
               padding: const EdgeInsets.all(4),
               child: Row(
                 children: [
-                  const Icon(
-                    Icons.description,
-                    color: Color(0xFF4080FF),
-                  ),
+                  const Icon(Icons.description, color: Color(0xFF4080FF)),
                   const SizedBox(width: 4),
                   Text(
                     l10n.licensesDialogTitle,
@@ -90,10 +82,7 @@ class _LicenseListDialogState extends State<LicenseListDialog> {
                   const Spacer(),
                   GestureDetector(
                     onTap: () => Navigator.of(context).pop(),
-                    child: Icon(
-                      Icons.close,
-                      color: Colors.grey.shade600,
-                    ),
+                    child: Icon(Icons.close, color: Colors.grey.shade600),
                   ),
                 ],
               ),
@@ -117,14 +106,16 @@ class _LicenseListDialogState extends State<LicenseListDialog> {
                     children: [
                       // ── アプリ固有のヘッダー ──────────────────────
                       GestureDetector(
-                        onTap: () => showDialog<void>(
-                          context: context,
-                          barrierColor: Colors.transparent,
-                          builder: (_) => LicenseDetailDialog(
-                            l10n.appTitle,
-                            appLicenses.licenses,
-                          ),
-                        ),
+                        onTap:
+                            () => showDialog<void>(
+                              context: context,
+                              barrierColor: Colors.transparent,
+                              builder:
+                                  (_) => LicenseDetailDialog(
+                                    l10n.appTitle,
+                                    appLicenses.licenses,
+                                  ),
+                            ),
                         child: SizedBox(
                           width: double.infinity,
                           child: Column(
@@ -146,9 +137,7 @@ class _LicenseListDialogState extends State<LicenseListDialog> {
                               const SizedBox(height: 4),
                               Text(
                                 l10n.licensePublish,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                ),
+                                style: TextStyle(fontSize: 12),
                               ),
                               if (widget.manager.count > 0) ...[
                                 const SizedBox(height: 4),
@@ -156,19 +145,18 @@ class _LicenseListDialogState extends State<LicenseListDialog> {
                                   l10n.licenseStationsDetails(
                                     widget.manager.count,
                                     widget.manager.date,
+                                    widget.manager.pdate,
                                     widget.manager.size,
                                   ),
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                  ),
+                                  style: TextStyle(fontSize: 12),
                                 ),
                               ],
                               const SizedBox(height: 4),
                               Text(
                                 widget.manager.count > 0
                                     ? l10n.licenseCountWithAdditionalNotice(
-                                        appLicensesLength,
-                                      )
+                                      appLicensesLength,
+                                    )
                                     : l10n.licenseCount(appLicensesLength),
                                 style: TextStyle(
                                   color: Colors.grey.shade600,
@@ -183,14 +171,16 @@ class _LicenseListDialogState extends State<LicenseListDialog> {
                       // ── 通常のライセンス条目 ──────────────────────
                       ...licenses.map(
                         (entry) => GestureDetector(
-                          onTap: () => showDialog<void>(
-                            context: context,
-                            barrierColor: Colors.transparent,
-                            builder: (_) => LicenseDetailDialog(
-                              entry.package,
-                              entry.licenses,
-                            ),
-                          ),
+                          onTap:
+                              () => showDialog<void>(
+                                context: context,
+                                barrierColor: Colors.transparent,
+                                builder:
+                                    (_) => LicenseDetailDialog(
+                                      entry.package,
+                                      entry.licenses,
+                                    ),
+                              ),
                           child: SizedBox(
                             width: double.infinity,
                             child: Padding(
@@ -260,10 +250,7 @@ class LicenseDetailDialog extends StatelessWidget {
                   const Spacer(),
                   GestureDetector(
                     onTap: () => Navigator.of(context).pop(),
-                    child: Icon(
-                      Icons.close,
-                      color: Colors.grey.shade600,
-                    ),
+                    child: Icon(Icons.close, color: Colors.grey.shade600),
                   ),
                 ],
               ),
@@ -272,29 +259,37 @@ class LicenseDetailDialog extends StatelessWidget {
             Expanded(
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(8, 0, 8, 16),
-                children: licenses
-                    // 1. 【外层空防御】过滤掉完全没有内容的空许可证大块
-                    .where((paragraphs) => paragraphs.isNotEmpty)
-                    .map((paragraphs) => paragraphs
-                        // 2. 【内层空防御】过滤掉许可证内部可能存在的空字符串/空段落
-                        .where((paragraph) => paragraph.isNotEmpty)
-                        // 3. 【内层拼装与截断】添加内层分隔符，并切掉最后一个
-                        .expand((paragraph) => [
-                              Text(
-                                paragraph,
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  fontFamily: 'monospace',
-                                ),
-                              ),
-                              const SizedBox(height: 12),
-                            ])
+                children:
+                    licenses
+                        // 1. 【外层空防御】过滤掉完全没有内容的空许可证大块
+                        .where((paragraphs) => paragraphs.isNotEmpty)
+                        .map(
+                          (paragraphs) =>
+                              paragraphs
+                                  // 2. 【内层空防御】过滤掉许可证内部可能存在的空字符串/空段落
+                                  .where((paragraph) => paragraph.isNotEmpty)
+                                  // 3. 【内层拼装与截断】添加内层分隔符，并切掉最后一个
+                                  .expand(
+                                    (paragraph) => [
+                                      Text(
+                                        paragraph,
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          fontFamily: 'monospace',
+                                        ),
+                                      ),
+                                      const SizedBox(height: 12),
+                                    ],
+                                  )
+                                  .toList()
+                                ..removeLast(),
+                        )
+                        // 4. 【外层拼装与截断】添加外层分隔符，并切掉最后一个
+                        .expand(
+                          (texts) => [...texts, const Divider(height: 24)],
+                        )
                         .toList()
-                      ..removeLast())
-                    // 4. 【外层拼装与截断】添加外层分隔符，并切掉最后一个
-                    .expand((texts) => [...texts, const Divider(height: 24)])
-                    .toList()
-                  ..removeLast(),
+                      ..removeLast(),
               ),
             ),
           ],

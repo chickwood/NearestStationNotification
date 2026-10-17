@@ -1,10 +1,12 @@
 name: nearest_station_notification
 description: "Finds the nearest station using your location and sends a notification."
 publish_to: 'none'
-version: 1.1.6-20260731+2026073105
+# version 格式: X.Y.Z-YYYYMMDD[-N]+YYYYMMDDNN
+# (后半段 Version Code，Google Play 的规定上限 2100000000，按此编码约到 2100 年）
+version: 1.1.7-20260731+2026101501
 
 environment:
-  sdk: '>=3.6.0 <4.0.0'
+  sdk: '>=3.7.0 <4.0.0'
 
 dependencies:
   flutter:
@@ -12,12 +14,12 @@ dependencies:
   flutter_localizations:
     sdk: flutter
   file_selector: ^1.0.3
-  flutter_local_notifications: ^22.3.1
+  flutter_local_notifications: ^22.3.2
   geolocator: ^14.1.1
   package_info_plus: ^10.2.2
   path_provider: ^2.1.6
-  shared_preferences: ^2.5.5
-  url_launcher: ^6.3.2
+  shared_preferences: ^2.5.6
+  url_launcher: ^6.3.3
 
 dev_dependencies:
   flutter_lints: ^6.0.0

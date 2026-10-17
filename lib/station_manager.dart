@@ -28,6 +28,7 @@ class StationManager {
   final int mcount;
   final int count;
   final int date;
+  final int pdate;
   final int size;
 
   bool get isLoaded =>
@@ -57,15 +58,17 @@ class StationManager {
     required this.mcount,
     required this.count,
     required this.date,
+    required this.pdate,
     required this.size,
   });
 
   StationManager._info()
-      : root = Common.intMaxValue,
-        mcount = 0,
-        count = 0,
-        date = 0,
-        size = 0;
+    : root = Common.intMaxValue,
+      mcount = 0,
+      count = 0,
+      date = 0,
+      pdate = 0,
+      size = 0;
 
   // ── BIN 文件读写 ────────────────────────────────────────────────
 
@@ -130,11 +133,17 @@ class StationManager {
       data.buffer.asFloat64List(data.offsetInBytes + (count * 32), count),
       data.buffer.asUint32List(data.offsetInBytes + (count * 40), mcount),
       data.buffer.asUint32List(
-          data.offsetInBytes + (count * 40) + (mcount * 4), mcount),
+        data.offsetInBytes + (count * 40) + (mcount * 4),
+        mcount,
+      ),
       data.buffer.asUint32List(
-          data.offsetInBytes + (count * 40) + (mcount * 8), count),
-      data.buffer.asUint8List(data.offsetInBytes + (count * 44) + (mcount * 8),
-          size - 16 - (count * 44) - (mcount * 8)),
+        data.offsetInBytes + (count * 40) + (mcount * 8),
+        count,
+      ),
+      data.buffer.asUint8List(
+        data.offsetInBytes + (count * 44) + (mcount * 8),
+        size - 16 - (count * 44) - (mcount * 8),
+      ),
       root: root,
       mcount: mcount,
       count: count,
@@ -170,11 +179,14 @@ class StationManager {
     try {
       if (isLoaded) {
         final int start = _offsets[index];
-        final int end = (index == _offsets.length - 1)
-            ? _names.length
-            : _offsets[index + 1];
-        final nameBytes = _names.buffer
-            .asUint8List(_names.offsetInBytes + start, end - start);
+        final int end =
+            (index == _offsets.length - 1)
+                ? _names.length
+                : _offsets[index + 1];
+        final nameBytes = _names.buffer.asUint8List(
+          _names.offsetInBytes + start,
+          end - start,
+        );
 
         final match = Common.namePattern.firstMatch(utf8.decode(nameBytes));
         if (match != null) {

@@ -10,11 +10,7 @@ class SettingsDialog extends StatefulWidget {
   final Settings settings;
   final Future<void> Function(Settings) onSave;
 
-  const SettingsDialog(
-    this.settings, {
-    super.key,
-    required this.onSave,
-  });
+  const SettingsDialog(this.settings, {super.key, required this.onSave});
 
   @override
   State<SettingsDialog> createState() => _SettingsDialogState();
@@ -48,10 +44,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
               padding: const EdgeInsets.all(4),
               child: Row(
                 children: [
-                  const Icon(
-                    Icons.settings,
-                    color: Color(0xFF4080FF),
-                  ),
+                  const Icon(Icons.settings, color: Color(0xFF4080FF)),
                   const SizedBox(width: 4),
                   Text(
                     l10n.settingsDialogTitle,
@@ -63,10 +56,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
                   const Spacer(),
                   GestureDetector(
                     onTap: () => Navigator.of(context).pop(),
-                    child: Icon(
-                      Icons.close,
-                      color: Colors.grey.shade600,
-                    ),
+                    child: Icon(Icons.close, color: Colors.grey.shade600),
                   ),
                 ],
               ),
@@ -81,14 +71,13 @@ class _SettingsDialogState extends State<SettingsDialog> {
                   _SectionLabel(label: l10n.settingsStationCount),
                   const SizedBox(height: 8),
                   _SegmentedRow<StationCount>(
-                    values: const [
-                      StationCount.game,
-                      StationCount.max,
-                    ],
+                    values: const [StationCount.game, StationCount.max],
                     selected: _draft.stationCount,
                     labelOf: (v) => v.label,
-                    onChanged: (v) => setState(
-                        () => _draft = _draft.copyWith(stationCount: v)),
+                    onChanged:
+                        (v) => setState(
+                          () => _draft = _draft.copyWith(stationCount: v),
+                        ),
                   ),
                   const SizedBox(height: 12),
                   // ── 位置情報取得頻度 ────────────────────────────────────
@@ -97,10 +86,12 @@ class _SettingsDialogState extends State<SettingsDialog> {
                   _SegmentedRow<LocationInterval>(
                     values: LocationInterval.values,
                     selected: _draft.locationInterval,
-                    labelOf: (v) =>
-                        l10n.settingsLocationIntervalLabel(v.seconds),
-                    onChanged: (v) => setState(
-                        () => _draft = _draft.copyWith(locationInterval: v)),
+                    labelOf:
+                        (v) => l10n.settingsLocationIntervalLabel(v.seconds),
+                    onChanged:
+                        (v) => setState(
+                          () => _draft = _draft.copyWith(locationInterval: v),
+                        ),
                   ),
                   const SizedBox(height: 12),
                   // // ── 通知方式 ────────────────────────────────────────────
@@ -189,40 +180,44 @@ class _SegmentedRow<T> extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
-      children: values.map((v) {
-        final isSelected = v == selected;
-        return Expanded(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 2),
-            child: GestureDetector(
-              onTap: () => onChanged(v),
-              child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 6),
-                decoration: BoxDecoration(
-                  color: isSelected ? const Color(0xFF4080FF) : Colors.white,
-                  border: Border.all(
-                    color: isSelected
-                        ? const Color(0xFF4080FF)
-                        : Colors.grey.shade200,
-                  ),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Center(
-                  child: Text(
-                    labelOf(v),
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: isSelected ? Colors.white : Colors.grey.shade800,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
+      children:
+          values.map((v) {
+            final isSelected = v == selected;
+            return Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 2),
+                child: GestureDetector(
+                  onTap: () => onChanged(v),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    decoration: BoxDecoration(
+                      color:
+                          isSelected ? const Color(0xFF4080FF) : Colors.white,
+                      border: Border.all(
+                        color:
+                            isSelected
+                                ? const Color(0xFF4080FF)
+                                : Colors.grey.shade200,
+                      ),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Center(
+                      child: Text(
+                        labelOf(v),
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color:
+                              isSelected ? Colors.white : Colors.grey.shade800,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
-          ),
-        );
-      }).toList(),
+            );
+          }).toList(),
     );
   }
 }
@@ -232,15 +227,10 @@ class _SegmentedRow<T> extends StatelessWidget {
 class _SectionLabel extends StatelessWidget {
   final String label;
 
-  const _SectionLabel({
-    required this.label,
-  });
+  const _SectionLabel({required this.label});
 
   @override
   Widget build(BuildContext context) {
-    return Text(
-      label,
-      style: TextStyle(color: Colors.grey.shade600),
-    );
+    return Text(label, style: TextStyle(color: Colors.grey.shade600));
   }
 }

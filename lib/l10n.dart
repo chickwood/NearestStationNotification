@@ -29,10 +29,7 @@ class L10n {
       if (locale.languageCode == 'en') return const Locale('en');
       if (locale.languageCode == 'zh' &&
           (locale.scriptCode == 'Hans' || locale.countryCode == 'CN')) {
-        return const Locale.fromSubtags(
-          languageCode: 'zh',
-          scriptCode: 'Hans',
-        );
+        return const Locale.fromSubtags(languageCode: 'zh', scriptCode: 'Hans');
       }
     }
     return const Locale('en');
@@ -372,29 +369,26 @@ class L10n {
     return 'Source code published under the MIT License.';
   }
 
-  String licenseStationsDetails(int count, int date, int size) {
-    final ts = date > 0 ? '$date' : '--';
-    final kb = size ~/ 1024;
-
+  String licenseStationsDetails(int count, int date, int pdate, int size) {
     if (_isJa) {
-      return '駅情報詳細\n'
-          '${countStations(count)}\n'
-          'バージョン: $ts\n'
-          'サイズ: $kb KB\n'
-          '駅情報は 駅データ.jp のデータに基づき、加工・生成されたものです。';
-    } else if (_isZhHans) {
-      return '车站信息详情\n'
-          '${countStations(count)}\n'
-          '版本: $ts\n'
-          '大小: $kb KB\n'
-          '车站信息衍生于 ekidata.jp 所公开的数据。';
-    } else {
-      return 'Detail of station information\n'
-          '${countStations(count)}\n'
-          'Version: $ts\n'
-          'Size: $kb KB\n'
-          'Station information based on and derived from the dataset published by ekidata.jp.';
+      return '駅情報詳細'
+          '\n${countStations(count)}'
+          '\nバージョン: ${date > 0 ? '$date${pdate > 0 ? '\nパッチ: $pdate' : ''}' : ''}'
+          '\nサイズ: ${size ~/ 1024} KB'
+          '\n駅情報は 駅データ.jp のデータに基づき、加工・生成されたものです。';
     }
+    if (_isZhHans) {
+      return '车站信息详情'
+          '\n${countStations(count)}'
+          '\n版本: ${date > 0 ? '$date${pdate > 0 ? ' 修订版本: $pdate' : ''}' : ''}'
+          '\n大小: ${size ~/ 1024} KB'
+          '\n车站信息衍生于 ekidata.jp 所公开的数据。';
+    }
+    return 'Detail of station information'
+        '\n${countStations(count)}'
+        '\nVersion: ${date > 0 ? '$date${pdate > 0 ? ' Patch: $pdate' : ''}' : ''}'
+        '\nSize: ${size ~/ 1024} KB'
+        '\nStation information based on and derived from the dataset published by ekidata.jp.';
   }
 }
 

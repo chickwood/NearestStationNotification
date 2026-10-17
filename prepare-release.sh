@@ -21,19 +21,14 @@ if [ -n "$OTHER_CHANGES" ]; then
 fi
 
 VERSION_STR=$(grep '^version:' pubspec.yaml | awk '{print $2}')
-if [[ ! "$VERSION_STR" =~ ^[0-9]+\.[0-9]+\.[0-9]+-([0-9]{8})(-[0-9]+)?\+([0-9]{8})([0-9]{2})$ ]]; then
+if [[ ! "$VERSION_STR" =~ ^[0-9]+\.[0-9]+\.[0-9]+-[0-9]{8}(-[0-9]+)?\+[0-9]{8}[0-9]{2}$ ]]; then
     echo "错误: version 格式无效: ${VERSION_STR}"
     echo "格式应为: X.Y.Z-YYYYMMDD[-N]+YYYYMMDDNN"
     exit 1
 fi
-if [[ "${BASH_REMATCH[1]}" != "${BASH_REMATCH[3]}" ]]; then
-    echo "错误: version 中的两个日期必须一致: ${VERSION_STR}"
-    exit 1
-fi
 
-TAG_NAME="$(echo "$VERSION_STR" | cut -d'+' -f1)"
-RELEASE_BRANCH="release/v${TAG_NAME}"
-TARGET_TAG="v${TAG_NAME}"
+RELEASE_BRANCH="release/v${VERSION_STR}"
+TARGET_TAG="v${VERSION_STR}"
 
 if git show-ref --verify --quiet "refs/heads/${RELEASE_BRANCH}" || \
    git ls-remote --exit-code --heads origin "${RELEASE_BRANCH}" >/dev/null 2>&1; then

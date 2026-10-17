@@ -17,18 +17,13 @@ if [ "$(git rev-parse HEAD)" != "$(git rev-parse origin/main)" ]; then
 fi
 
 VERSION_STR=$(grep '^version:' pubspec.yaml | awk '{print $2}')
-if [[ ! "$VERSION_STR" =~ ^[0-9]+\.[0-9]+\.[0-9]+-([0-9]{8})(-[0-9]+)?\+([0-9]{8})([0-9]{2})$ ]]; then
+if [[ ! "$VERSION_STR" =~ ^[0-9]+\.[0-9]+\.[0-9]+-[0-9]{8}(-[0-9]+)?\+[0-9]{8}[0-9]{2}$ ]]; then
     echo "错误: version 格式无效: ${VERSION_STR}"
     exit 1
 fi
-if [[ "${BASH_REMATCH[1]}" != "${BASH_REMATCH[3]}" ]]; then
-    echo "错误: version 中的两个日期必须一致: ${VERSION_STR}"
-    exit 1
-fi
 
-TAG_NAME="$(echo "$VERSION_STR" | cut -d'+' -f1)"
-RELEASE_BRANCH="release/v${TAG_NAME}"
-TARGET_TAG="v${TAG_NAME}"
+RELEASE_BRANCH="release/v${VERSION_STR}"
+TARGET_TAG="v${VERSION_STR}"
 
 if ! git ls-remote --exit-code --heads origin "$RELEASE_BRANCH" >/dev/null 2>&1; then
     echo "错误: 远程 release 分支不存在: ${RELEASE_BRANCH}"
