@@ -142,12 +142,11 @@ class _LicenseListDialogState extends State<LicenseListDialog> {
                               if (widget.manager.count > 0) ...[
                                 const SizedBox(height: 4),
                                 Text(
-                                  l10n.licenseStationsDetails(
-                                    widget.manager.count,
-                                    widget.manager.date,
-                                    widget.manager.pdate,
-                                    widget.manager.size,
-                                  ),
+                                  '${l10n.licenseStationDetailsTitle}'
+                                  '\n${l10n.infoStations(widget.manager.count)}'
+                                  '\n${l10n.infoVersion(widget.manager.date, widget.manager.pdate)}'
+                                  '\n${l10n.infoSize(widget.manager.size)}'
+                                  '\n${l10n.licenseStationDetailsEkidata}',
                                   style: TextStyle(fontSize: 12),
                                 ),
                               ],
