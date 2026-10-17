@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_styled_toast/flutter_styled_toast.dart';
 
 import 'coordinator.dart';
 import 'settings.dart';
@@ -120,9 +121,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                   _coordinator!.runningStatus == RunningStatus.running
                       ? Icons.stop_circle
                       : Icons.play_circle_filled, // starting/stopped
-                  color: _coordinator!.runningStatus == RunningStatus.starting
-                      ? const Color(0xFFA0C0FF)
-                      : Colors.white,
+                  color:
+                      _coordinator!.runningStatus == RunningStatus.starting
+                          ? const Color(0xFFA0C0FF)
+                          : Colors.white,
                   size: 32,
                 ),
               ),
@@ -131,14 +133,16 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             Padding(
               padding: const EdgeInsets.only(right: 8),
               child: GestureDetector(
-                onTap: _coordinator!.runningStatus == RunningStatus.starting
-                    ? null
-                    : _showSettingsDialog,
+                onTap:
+                    _coordinator!.runningStatus == RunningStatus.starting
+                        ? null
+                        : _showSettingsDialog,
                 child: Icon(
                   Icons.settings,
-                  color: _coordinator!.runningStatus == RunningStatus.starting
-                      ? const Color(0xFFA0C0FF)
-                      : Colors.white,
+                  color:
+                      _coordinator!.runningStatus == RunningStatus.starting
+                          ? const Color(0xFFA0C0FF)
+                          : Colors.white,
                   size: 32,
                 ),
               ),
@@ -147,14 +151,16 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             Padding(
               padding: const EdgeInsets.only(right: 12),
               child: GestureDetector(
-                onTap: _coordinator!.runningStatus == RunningStatus.starting
-                    ? null
-                    : _showInfoDialog,
+                onTap:
+                    _coordinator!.runningStatus == RunningStatus.starting
+                        ? null
+                        : _showInfoDialog,
                 child: Icon(
                   Icons.info,
-                  color: _coordinator!.runningStatus == RunningStatus.starting
-                      ? const Color(0xFFA0C0FF)
-                      : Colors.white,
+                  color:
+                      _coordinator!.runningStatus == RunningStatus.starting
+                          ? const Color(0xFFA0C0FF)
+                          : Colors.white,
                   size: 32,
                 ),
               ),
@@ -197,8 +203,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       _coordinator = coordinator;
 
       // UI handler 登録
-      coordinator.addLocationResultHandler(_handleLocationResultReceived,
-          active: true);
+      coordinator.addLocationResultHandler(
+        _handleLocationResultReceived,
+        active: true,
+      );
       coordinator.addRunningStatusHandler(_handleRunningStatusChanged);
 
       await coordinator.init();
@@ -211,7 +219,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     } catch (e) {
       // 其他错误（文件读取失败等）
       debugPrint(e.toString());
-      _showSnackBar(l10n.errorMsg('$e'), isError: true);
+      _showToast(l10n.errorMsg('$e'), isError: true);
     }
   }
 
@@ -258,33 +266,21 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     });
   }
 
-  // void _showEkidataWebsite() {
-  //   launchUrl(Common.uriEkidata, mode: LaunchMode.externalApplication);
-  // }
+  // ── Toast ──────────────────────────────────────────────────────
 
-  // ── Snack Bar ──────────────────────────────────────────────────
-
-  void _showSnackBar(String message, {bool isError = false}) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          message,
-          style: TextStyle(
-            color: isError ? Colors.white : Colors.grey.shade800,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        backgroundColor: isError
-            ? const Color(0xFFFF4030) // Colors.red.shade700
-            : const Color(0xFFA0C0FF), // Colors.indigo.shade300
-        elevation: 2,
-        behavior: SnackBarBehavior.floating,
-        // action: SnackBarAction(
-        //     label: 'WEBSITE', onPressed: () => _showEkidataWebsite()),
-        // showCloseIcon: !isError,
-        // closeIconColor: Colors.grey.shade800,
-        // persist: true,
+  void _showToast(String message, {bool isError = false}) {
+    showToast(
+      message,
+      backgroundColor:
+          isError
+              ? const Color(0xFFFF4030) // Colors.red.shade700
+              : const Color(0xFFA0C0FF), // Colors.indigo.shade300
+      textStyle: TextStyle(
+        color: isError ? Colors.white : Colors.grey.shade800,
       ),
+      textPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      textAlign: TextAlign.left,
+      borderRadius: BorderRadius.circular(8),
     );
   }
 
@@ -294,18 +290,19 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     showDialog(
       context: context,
       barrierColor: Colors.white.withValues(alpha: 0.5),
-      builder: (context) => SettingsDialog(
-        _settings!,
-        onSave: (settings) async {
-          await settings.save();
-          setState(() {
-            _settings = settings;
-          });
-          // 无论运行状态如何都立即反映
-          // （LocationProcessor 内部会根据 stream 状态自行判断）
-          _coordinator?.changeSettings(settings);
-        },
-      ),
+      builder:
+          (context) => SettingsDialog(
+            _settings!,
+            onSave: (settings) async {
+              await settings.save();
+              setState(() {
+                _settings = settings;
+              });
+              // 无论运行状态如何都立即反映
+              // （LocationProcessor 内部会根据 stream 状态自行判断）
+              _coordinator?.changeSettings(settings);
+            },
+          ),
     );
   }
 
@@ -315,15 +312,16 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     showDialog(
       context: context,
       barrierColor: Colors.white.withValues(alpha: 0.5),
-      builder: (context) => InfoDialog(
-        _manager!,
-        onDataChanged: (manager) {
-          _coordinator?.changeData(manager);
-          setState(() {
-            _manager = manager;
-          });
-        },
-      ),
+      builder:
+          (context) => InfoDialog(
+            _manager!,
+            onDataChanged: (manager) {
+              _coordinator?.changeData(manager);
+              setState(() {
+                _manager = manager;
+              });
+            },
+          ),
     );
   }
 
@@ -364,9 +362,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                         _positionVisibility > 0
                             ? Icons.near_me
                             : Icons.near_me_disabled,
-                        color: _positionVisibility < 2
-                            ? const Color(0xFFA0C0FF)
-                            : const Color(0xFF4080FF),
+                        color:
+                            _positionVisibility < 2
+                                ? const Color(0xFFA0C0FF)
+                                : const Color(0xFF4080FF),
                       ),
                     ),
                 ],
@@ -375,11 +374,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             if (_coordinator!.runningStatus == RunningStatus.running &&
                 _positionVisibility > 0) ...[
               _buildPositionResult(l10n), // 下部可隐藏: 位置信息（リスト外・カード下端）
-              const Divider(
-                height: 8,
-                indent: 8,
-                endIndent: 8,
-              ),
+              const Divider(height: 8, indent: 8, endIndent: 8),
             ],
             const SizedBox(height: 2),
             Expanded(
@@ -401,10 +396,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                l10n.notStarted,
-                style: const TextStyle(color: Colors.grey),
-              ),
+              Text(l10n.notStarted, style: const TextStyle(color: Colors.grey)),
               if (_manager!.isSampleData) ...[
                 const SizedBox(height: 4),
                 Text(
@@ -461,10 +453,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   Widget _buildPositionResult(L10n l10n) {
     return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 8,
-        vertical: 4,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       child: Column(
         children: [
           Row(
@@ -473,9 +462,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 _positionVisibility == 1
                     ? l10n.currentLocation
                     : l10n.currentLocationStatus,
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                ),
+                style: const TextStyle(fontWeight: FontWeight.bold),
               ),
             ],
           ),
@@ -485,8 +472,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               Expanded(
                 child: _PositionRow(
                   label: l10n.latitude,
-                  value:
-                      _coordinator!.positionResult!.latitude.toStringAsFixed(6),
+                  value: _coordinator!.positionResult!.latitude.toStringAsFixed(
+                    6,
+                  ),
                 ),
               ),
               const SizedBox(width: 24),
@@ -524,8 +512,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 Expanded(
                   child: _PositionRow(
                     label: l10n.heading,
-                    value: l10n
-                        .direction(_coordinator!.positionResult!.headingIndex),
+                    value: l10n.direction(
+                      _coordinator!.positionResult!.headingIndex,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 24),
@@ -550,20 +539,14 @@ class _PositionRow extends StatelessWidget {
   final String label;
   final String value;
 
-  const _PositionRow({
-    required this.label,
-    required this.value,
-  });
+  const _PositionRow({required this.label, required this.value});
 
   @override
   Widget build(BuildContext context) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(
-          label,
-          style: TextStyle(color: Colors.grey.shade600),
-        ),
+        Text(label, style: TextStyle(color: Colors.grey.shade600)),
         Text(
           value,
           style: TextStyle(
@@ -619,14 +602,16 @@ class _StationTile extends StatelessWidget {
         vertical: isNearest ? 8 : 6,
       ),
       decoration: BoxDecoration(
-        color: isNearest
-            ? const Color(0xFFFFF0E0) // Colors.orange.shade50
-            : Colors.white,
+        color:
+            isNearest
+                ? const Color(0xFFFFF0E0) // Colors.orange.shade50
+                : Colors.white,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: isNearest
-              ? const Color(0xFFFFC000) // Colors.orange.shade700
-              : _partBorderColors[part]!,
+          color:
+              isNearest
+                  ? const Color(0xFFFFC000) // Colors.orange.shade700
+                  : _partBorderColors[part]!,
         ),
       ),
       child: Row(
@@ -635,9 +620,10 @@ class _StationTile extends StatelessWidget {
             width: 20,
             height: 20,
             decoration: BoxDecoration(
-              color: isNearest
-                  ? const Color(0xFFFFC000) // Colors.orange.shade700
-                  : _partFillColors[part]!,
+              color:
+                  isNearest
+                      ? const Color(0xFFFFC000) // Colors.orange.shade700
+                      : _partFillColors[part]!,
               shape: BoxShape.circle,
             ),
             child: Center(
@@ -667,9 +653,10 @@ class _StationTile extends StatelessWidget {
             width: 40,
             // padding: const EdgeInsets.symmetric(horizontal: 6),
             decoration: BoxDecoration(
-              color: isNearest
-                  ? const Color(0xFFFFC000) // Colors.orange.shade700
-                  : _partFillColors[part]!,
+              color:
+                  isNearest
+                      ? const Color(0xFFFFC000) // Colors.orange.shade700
+                      : _partFillColors[part]!,
               borderRadius: BorderRadius.circular(16),
             ),
             child: Center(
@@ -688,9 +675,10 @@ class _StationTile extends StatelessWidget {
             height: 20,
             padding: const EdgeInsets.symmetric(horizontal: 8),
             decoration: BoxDecoration(
-              color: isNearest
-                  ? const Color(0xFFFFC000) // Colors.orange.shade700
-                  : _partFillColors[part]!,
+              color:
+                  isNearest
+                      ? const Color(0xFFFFC000) // Colors.orange.shade700
+                      : _partFillColors[part]!,
               borderRadius: BorderRadius.circular(16),
             ),
             child: Center(

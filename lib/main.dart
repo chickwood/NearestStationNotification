@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:flutter_styled_toast/flutter_styled_toast.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import 'common.dart';
@@ -35,30 +36,32 @@ class NearestStationNotificationApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = L10n.of(context);
-    return MaterialApp(
-      title: l10n.appTitle,
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF4080FF), // Colors.indigo
+    return StyledToast(
+      child: MaterialApp(
+        title: l10n.appTitle,
+        debugShowCheckedModeBanner: false,
+        theme: ThemeData(
+          colorScheme: ColorScheme.fromSeed(
+            seedColor: const Color(0xFF4080FF), // Colors.indigo
+          ),
+          useMaterial3: true,
         ),
-        useMaterial3: true,
+        // darkTheme: ThemeData(
+        //   brightness: Brightness.dark,
+        //   primarySwatch: Colors.blue,
+        //   scaffoldBackgroundColor: Colors.grey.shade900,
+        // ),
+        // themeMode: ThemeMode.system,
+        localizationsDelegates: const [
+          L10n.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalMaterialLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        supportedLocales: L10n.supportedLocales,
+        localeListResolutionCallback: (locales, _) => L10n.resolve(locales),
+        home: const HomePage(),
       ),
-      // darkTheme: ThemeData(
-      //   brightness: Brightness.dark,
-      //   primarySwatch: Colors.blue,
-      //   scaffoldBackgroundColor: Colors.grey.shade900,
-      // ),
-      // themeMode: ThemeMode.system,
-      localizationsDelegates: const [
-        L10n.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalMaterialLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-      ],
-      supportedLocales: L10n.supportedLocales,
-      localeListResolutionCallback: (locales, _) => L10n.resolve(locales),
-      home: const HomePage(),
     );
   }
 }

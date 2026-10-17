@@ -10,9 +10,6 @@ class Common {
   // イベント情報
   static const eventFileName = 'event_data.json';
 
-  // 駅データ配信 URL（仮値。実 URL 提供後に置換）
-  static const dataUrl = 'https://www.w57.name/release.html?project=c6f7b0e2';
-
   // 示例数据判定阈值（小于该车站数视为示例数据）
   static const sampleThreshold = 50;
 
@@ -21,6 +18,9 @@ class Common {
 
   // // 駅データ.jp へのリンク
   // static final uriEkidata = Uri.parse('https://ekidata.jp/');
+
+  // 駅情報・イベント情報データダウンロードへのリンク
+  static final uriInformation = Uri.parse('https://w57.name/p2.html');
 
   static const flnChannelId = 'notification_fln_channel';
   static const flnNotificationId = 1058;
@@ -115,10 +115,7 @@ class Common {
     ],
   ];
 
-  static bool inside(
-    double latitude,
-    double longitude,
-  ) {
+  static bool inside(double latitude, double longitude) {
     return _insidePolygons.any((polygon) {
       bool inside = false;
       final n = polygon.length;
@@ -128,7 +125,8 @@ class Common {
         final latitudeJ = polygon[j].latitude;
         final longitudeJ = polygon[j].longitude;
 
-        final intersect = ((latitude < latitudeI) != (latitude < latitudeJ)) &&
+        final intersect =
+            ((latitude < latitudeI) != (latitude < latitudeJ)) &&
             (longitude <
                 (longitudeJ - longitudeI) *
                         (latitude - latitudeI) /
@@ -252,9 +250,10 @@ class StationResult {
     return '{index: $index, gcd: $gcd, name: $name, distance: $distance}';
   }
 
-  String get distanceInUnit => distance < 1000.0
-      ? '${distance.toStringAsFixed(1)} m'
-      : '${(distance / 1000.0).toStringAsFixed(2)} km';
+  String get distanceInUnit =>
+      distance < 1000.0
+          ? '${distance.toStringAsFixed(1)} m'
+          : '${(distance / 1000.0).toStringAsFixed(2)} km';
   Direction get bearingIndex => Common.direction(bearing);
 
   // // 序列化（暂存，未来可能用于 Isolate 间通信，当前无调用）
@@ -288,9 +287,10 @@ class PositionResult {
     return '{latitude: $latitude, longitude: $longitude, speed: $speedString, accuracy: $accuracyString, heading: $headingIndex, datetime: $timestampString}';
   }
 
-  String get speedString => speed < SamplingMode.cycling.speed
-      ? '${speed.toStringAsFixed(1)} m/s'
-      : '${(speed * 3.6).toStringAsFixed(2)} km/h';
+  String get speedString =>
+      speed < SamplingMode.cycling.speed
+          ? '${speed.toStringAsFixed(1)} m/s'
+          : '${(speed * 3.6).toStringAsFixed(2)} km/h';
   String get accuracyString => '${accuracy.toStringAsFixed(1)} m';
   Direction get headingIndex => Common.direction(heading, speed: speed);
   String get timestampString =>
@@ -321,11 +321,7 @@ class PositionResult {
   //     );
 }
 
-enum RunningStatus {
-  stopped,
-  starting,
-  running,
-}
+enum RunningStatus { stopped, starting, running }
 
 enum SamplingMode {
   staying(speed: 0, filter: 4), // 静止
@@ -336,10 +332,7 @@ enum SamplingMode {
   final double speed;
   final int filter;
 
-  const SamplingMode({
-    required this.speed,
-    required this.filter,
-  });
+  const SamplingMode({required this.speed, required this.filter});
 
   @override
   String toString() {
@@ -371,26 +364,14 @@ enum Direction {
 // ── 设置项枚举 ────────────────────────────────────────────────────
 
 enum LocationInterval {
-  s1(
-    seconds: 1,
-    milliseconds: 1024,
-  ),
-  s3(
-    seconds: 3,
-    milliseconds: 3072,
-  ),
-  s5(
-    seconds: 5,
-    milliseconds: 5120,
-  );
+  s1(seconds: 1, milliseconds: 1024),
+  s3(seconds: 3, milliseconds: 3072),
+  s5(seconds: 5, milliseconds: 5120);
 
   final int seconds;
   final int milliseconds;
 
-  const LocationInterval({
-    required this.seconds,
-    required this.milliseconds,
-  });
+  const LocationInterval({required this.seconds, required this.milliseconds});
 }
 
 // enum NotificationMode {
@@ -404,18 +385,8 @@ enum LocationInterval {
 // radar: 第一段扩展（+4）
 // natsume: 第二段扩展（+2）
 enum StationCount {
-  game(
-    friend: 12,
-    event: 2,
-    radar: 4,
-    natsume: 2,
-  ),
-  max(
-    friend: 20,
-    event: 0,
-    radar: 0,
-    natsume: 0,
-  );
+  game(friend: 12, event: 2, radar: 4, natsume: 2),
+  max(friend: 20, event: 0, radar: 0, natsume: 0);
 
   final int friend;
   final int event;
@@ -457,9 +428,4 @@ enum StationCount {
   }
 }
 
-enum StationCountPart {
-  friend,
-  event,
-  radar,
-  natsume,
-}
+enum StationCountPart { friend, event, radar, natsume }
