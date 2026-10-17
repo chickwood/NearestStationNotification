@@ -27,7 +27,7 @@
   - `LocationProcessor._manager`：final → 可变；`_engine`：late final → late。
   - Dart 单线程保证换链不与在途 fix 交错；索引与站名成对换新。
 - 语义：流不中断、队列不清、无停止限制，任意状态（stopped / starting / running）可调用；UI 列表与通知在**下一个定位点**（≤ 采样间隔）刷新。
-- 无任何提示（SnackBar 等）。
+- 无任何提示（Toast 等）。
 - 事件数据：`EventManager.isEventPeriod`（getter）读内存缓存；导入后重新加载即时生效（不需要 `changeData`）。
 
 ### 2. 数据操作流程
@@ -69,29 +69,29 @@ event：刷新内存 periods（即时生效）
 ### 5. 入口与交互（info dialog）
 
 - 入口：home AppBar actions 最右侧新增 info 按钮；点击打开新建的 `InfoDialog`。按钮在 `starting` 中禁用，stopped / running 可用（换链本身任意状态安全，禁用仅为与 settings 一致的 UI 策略）。
-- info dialog 结构（自上而下）：标题行 / 许可证框 / 提示框 / 状态行（有内容时）/ 按钮行（取消、导入）。
+- info dialog 结构（自上而下）：标题行（信息）/ 许可证框 / 提示框 / 按钮行（取消、导入）。
 - 删除（已实现部分）：下载按钮与下载进度 / 状态、`_download` / `_fetchData` 方法及 `dart:io`（HttpClient）、超时与大小上限常量（`_connectTimeout` / `_idleTimeout` / `_maxDataBytes`）、下载中禁止关闭相关逻辑（`_downloading` 守卫、`PopScope`）。
-- 许可证框：展示当前 bin 信息（车站数 / 大小 / 版本（= date））与许可证入口（点击打开现有 `LicenseListDialog`，详情子对话框）。
-- 提示框：与许可证框同外观（带小节标签）——提示定期更新 station data / event data；点击框体打开 `Common.dataUrl`（下载网站）。
+- 许可证框：展示当前 bin 信息（已读取 N 个车站 / 大小 / 版本（= date，存在修订时附 + 修订 = pdate））与许可证入口（点击打开现有 `LicenseListDialog`，详情子对话框）。
+- 提示框：与许可证框同外观（小节标签「更新」）——提示定期更新车站信息 / 事件信息数据；点击框体打开 `Common.dataUrl`（下载网站）；并提示下载后点击导入、选择数据文件更新信息。
 - 链接：点击 → `launchUrl(..., mode: LaunchMode.externalApplication)` 调用系统浏览器。
 - settings 对话框：移除「许可证及车站信息」区块；`SettingsDialog` 不再接收 `manager`。
-- 导入：使用 `file_selector` 单选（限 `bin` / `json`），一次只选一个文件（多选可能误选同一数据的多个版本）；按**内容**路由（station 走 `validate`；event 走 JSON 校验；无法识别 → 无效文件）；成功后状态行提示导入的是哪一边，并提示另一侧可再次选择导入；失败 → 状态行红字（统一「无效的文件」）。
+- 导入：使用 `file_selector` 单选（限 `bin` / `json`），一次只选一个文件（多选可能误选同一数据的多个版本）；按**内容**路由（station 走 `validate`；event 走 JSON 校验；无法识别 → 无效文件）；成功 Toast 提示已导入车站信息 / 事件信息数据，并提示另一侧可再次选择导入；失败 → Toast 红字（统一「无效的文件」）。
 - 文案：
-  - 提示框正文：ja `駅データ・イベントデータは定期的に更新してください。\nここをクリックして、ダウンロードサイトを開く。\n\nダウンロード後、インポートをクリックして、データファイルを選択してインポート。` / zh-Hans `请定期更新车站数据与事件数据。\n点击此处打开下载网站。\n\n下载完成后，点击导入，选择数据文件并导入。` / en `Update station data and event data periodically.\nTap here to open download website.\n\nAfter download, tap import, select data file to import.`
+  - 提示框正文：ja `駅情報・イベント情報データは定期的に更新してください。\nここをクリックして、ダウンロードサイトを開く。\n\nダウンロード後、インポートをクリックして、データファイルを選択して情報を更新。` / zh-Hans `请定期更新车站信息与事件信息数据。\n点击此处打开下载网站。\n\n下载后，点击导入，选择数据文件更新信息。` / en `Update station information and event information data periodically.\nTap here to open download website.\n\nAfter download, tap import, select data file to update information.`
   - 导入结果提示：
-    - station：ja `駅データをインポートしました。イベントデータを更新する場合は続けてインポートしてください` / zh-Hans `已导入车站数据。如需更新事件数据，可继续导入` / en `Station data imported. To update event data, import it as well`
-    - event：ja `イベントデータをインポートしました。駅データを更新する場合は続けてインポートしてください` / zh-Hans `已导入事件数据。如需更新车站数据，可继续导入` / en `Event data imported. To update station data, import it as well`
+    - station：ja `駅情報データをインポートしました。イベント情報データを更新する場合は続けてインポートしてください。` / zh-Hans `已导入车站信息数据。如需更新事件信息数据，可继续导入。` / en `Station information data imported. To update event information data, import it as well.`
+    - event：ja `イベント情報データをインポートしました。駅情報データを更新する場合は続けてインポートしてください。` / zh-Hans `已导入事件信息数据。如需更新车站信息数据，可继续导入。` / en `Event information data imported. To update station information data, import it as well.`
   - 导入失败：ja `無効なファイルです` / zh-Hans `无效的文件` / en `Invalid file`
   - 按钮与标题：导入 ja `インポート` / zh `导入` / en `Import`；标题 ja `情報` / zh `信息` / en `Info`
 
 ### 6. HomePage 引导
 
-- 仅 `stopped` 且为示例数据时，在“定位停止中”（`l10n.notStarted`）**下一行**显示引导提示（改为 Column，第二行条件插入）。
+- 仅 `stopped` 且为示例数据时，在「定位停止中...」（`l10n.notStarted`）**下一行**显示引导提示（改为 Column，第二行条件插入）。
 - 导入真实车站数据后自动消失。
 - 文案：
-  - ja：`サンプルデータを使用中です。右上の情報ボタンから実データの入手方法を確認できます`
-  - zh-Hans：`当前为示例数据。可点击右上角信息按钮查看真实数据的获取方法`
-  - en：`Sample data in use. See the Info button (top right) for how to get the full data`
+  - ja：`サンプル駅情報を使用中です。右上の情報ボタンをクリックして駅情報を確認・更新。`
+  - zh-Hans：`当前正在使用示例车站信息。点击右上角的信息按钮查看和更新车站信息。`
+  - en：`Sample data in use. Tap the Info button on the top right to view and update station information.`
 
 ---
 
@@ -118,13 +118,13 @@ event：刷新内存 periods（即时生效）
 |---|---|
 | `lib/station_manager.dart` | 选源激活（documents → assets）、校验拆分、写入方法 |
 | `lib/event_manager.dart`（新增） | 事件数据校验 / 加载 / 写入 / 期间判定 |
-| `lib/info_dialog.dart`（新增） | 删下载相关；info dialog：bin 信息 / 许可证入口 / 提示框（含链接） / 导入（`file_selector` 单选、内容路由、`dart:io` 读取） / 状态行（结果与失败） |
+| `lib/info_dialog.dart`（新增） | 删下载相关；info dialog：bin 信息 / 许可证入口 / 提示框（含链接） / 导入（`file_selector` 单选、内容路由、`dart:io` 读取） / Toast（结果与失败） |
 | `lib/settings_dialog.dart` | 移除「许可证及车站信息」区块；去除 `manager` 参数 |
 | `lib/home_page.dart` | AppBar info 按钮（最右侧、starting 禁用）、`_showInfoDialog`、引导提示、`changeData` 调用 |
 | `lib/common.dart` | URL 常量、示例判定常量；移出 `_eventPeriods` / `isEventPeriod()`（`StationCount` 改经注入判定器消费） |
 | `lib/coordinator.dart` | `changeData` |
 | `lib/location_processor.dart` | `changeData`（换链 + 引擎重建、字段可变性） |
-| `lib/l10n.dart` | 新增文案（info dialog 标题 / 提示框 / 导入结果与失败 / 引导）；删除 `infoDownload` / `infoDownloadFailed`；settingsInfoTitle → infoTitle |
+| `lib/l10n.dart` | 新增文案（info dialog 标题 / 许可证框 / 提示框 / 导入结果与失败 / 引导）；删除 `infoDownload` / `infoDownloadFailed`；settingsInfoTitle → infoTitle |
 | `pubspec.yaml` | 依赖（`file_selector`）、`path_provider` / `url_launcher` 取消注释、assets |
 | `assets/station_data_xyz.bin` | 可选：替换为示例数据（非强制，可保持现状） |
 | `ios/Runner.xcodeproj/project.pbxproj` | deployment target 14.0 → 13.0 |
@@ -146,8 +146,8 @@ event：刷新内存 periods（即时生效）
 - info 按钮：stopped / running 可打开；starting 中禁用；settings 对话框不再含许可证区块；
 - info dialog 许可证入口：打开 LicenseListDialog，原功能无回归；
 - 提示框链接：点击打开系统浏览器；
-- 导入 station 单文件：状态行提示（已导入车站数据 / 另一侧可继续导入）→ bin 信息刷新 → 引导消失 → 下一个定位点列表使用新数据；
-- 导入 event 单文件：状态行提示（已导入事件数据 / 另一侧可继续导入）；`StationCount` 标签与搜索件数即时变化；
+- 导入 station 单文件：Toast 提示（已导入车站信息数据 / 另一侧可继续导入）→ bin 信息刷新 → 引导消失 → 下一个定位点列表使用新数据；
+- 导入 event 单文件：Toast 提示（已导入事件信息数据 / 另一侧可继续导入）；`StationCount` 标签与搜索件数即时变化；
 - 导入无效文件：红色失败文案；取消选择：无变化；
 - 更新失败且此前已更新过：不覆盖现有文件、不生效（station 不换链 / event 不刷新内存），前次版本继续生效（不回落到 assets / 空）；
 - documents 已有数据：冷启动优先加载；读取失败 / 文件不存在静默回退 assets（示例 / 过时数据）；文件损坏（含 0 字节文件）→ 加载后校验失败回退空实例；

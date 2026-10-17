@@ -126,7 +126,7 @@ MainActivity / MethodChannel
 - 设置入口（settings dialog：设置项编辑与保存）
 - StationManager / EventManager 初始化
 - 站点数据管理入口（info dialog：bin 信息 / 提示 / 导入 / 许可证入口）
-- 真实数据获取引导提示（stopped 且为示例数据时）
+- 示例数据引导提示（stopped 且为示例数据时）
 - 创建并持有 Coordinator
 - 通过 Coordinator 的 handler 触发 UI 重建，并通过 getter 读取当前结果和运行状态
 - 向 BackgroundTask 提供 Coordinator.runningStatus != RunningStatus.stopped 的状态（starting/running 时保持后台任务）
@@ -333,11 +333,11 @@ settings dialog：
 
 info dialog：
 
-- 结构：标题行 → 许可证框 → 提示框 → 状态行（有内容时）→ 按钮行（取消 / 导入）
-- 许可证框：小节标签 + bin 信息（车站数 / 大小 / 版本 = date）与许可证入口，点击打开 `LicenseListDialog`
-- 提示框：与许可证框同外观（带小节标签）；正文提示定期更新车站数据 / 事件数据；点击框体打开下载网站（`Common` 常量）
+- 结构：标题行（信息）→ 许可证框 → 提示框 → 按钮行（取消 / 导入）
+- 许可证框：小节标签（许可证及车站信息）+ bin 信息（已读取 N 个车站 / 大小 / 版本 = date，存在修订时附 + 修订 = pdate）与许可证入口，点击打开 `LicenseListDialog`
+- 提示框：与许可证框同外观（小节标签「更新」）；正文提示定期更新车站信息 / 事件信息数据，点击框体打开下载网站（`Common` 常量），并提示下载后点击导入、选择数据文件更新信息
 - 链接：点击经 `launchUrl(..., mode: LaunchMode.externalApplication)` 打开系统浏览器
-- 导入：`file_selector` 单选（限 bin / json）；按内容路由（station 走 `StationManager.validate`，event 走 JSON 校验，无法识别视为无效）；成功后状态行提示导入的是哪一边，失败显示红色文案
+- 导入：`file_selector` 单选（限 bin / json）；按内容路由（station 走 `StationManager.validate`，event 走 JSON 校验，无法识别视为无效）；成功 Toast 提示已导入车站信息 / 事件信息数据并建议继续导入另一侧；失败 Toast 显示「无效的文件」（自动消失，失败为红色）
 
 ---
 
@@ -443,7 +443,7 @@ changeXxx 家族（外部事件驱动的状态更新）：
 
 - 即时生效；任意状态（stopped / starting / running）可调用
 - 不打断当前流程
-- 无任何提示（SnackBar 等）
+- 无任何提示（Toast 等）
 
 ---
 
@@ -532,7 +532,7 @@ info dialog（导入）获取字节
 
 ### HomePage Guide
 
-- 仅 stopped 且为示例数据时，在「定位停止中」下一行显示引导提示；导入真实车站数据后消失
+- 仅 stopped 且为示例数据时，在「定位停止中...」下一行显示「当前正在使用示例车站信息。点击右上角的信息按钮查看和更新车站信息。」；导入真实车站数据后消失
 
 ---
 

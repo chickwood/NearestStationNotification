@@ -335,7 +335,7 @@ class L10n {
   String get infoImportedStation {
     if (_isJa) return '駅情報データをインポートしました。イベント情報データを更新する場合は続けてインポートしてください。';
     if (_isZhHans) return '已导入车站信息数据。如需更新事件信息数据，可继续导入。';
-    return 'Station information data imported. To update event information data, import it as well。';
+    return 'Station information data imported. To update event information data, import it as well.';
   }
 
   String get infoImportedEvent {
