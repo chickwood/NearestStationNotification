@@ -97,16 +97,16 @@ class StationManager {
   /// 尺寸 / 结构校验（加载、写入共用）
   static bool validate(ByteData data) {
     // 数据完整性校验
-    // 总长度应大于尾部长度 (车站数(4) + 日期戳(4))
+    // 总长度应大于尾部长度 (根节点索引(4) + 非叶节点数(4) + 车站数(4) + 日期戳(4) + 修订日期戳(4))
     final size = data.lengthInBytes;
-    if (size > 16) {
+    if (size > 20) {
       // 提取车站数
-      final count = data.getUint32(size - 8, Endian.little);
+      final count = data.getUint32(size - 12, Endian.little);
 
       // 取得 count 后的数据完整性校验
       // 总长度应大于不含车站名的基础长度加尾部长度
-      // (count * (经纬度(16) + XYZ(24) + 车站名偏移(4)) + 根节点索引(4) + 非叶节点数(4) + 车站数(4) + 日期戳(4))
-      if (size > (count * 44) + 16) return true;
+      // (count * (经纬度(16) + XYZ(24) + 车站名偏移(4)) + 根节点索引(4) + 非叶节点数(4) + 车站数(4) + 日期戳(4) + 修订日期戳(4))
+      if (size > (count * 44) + 20) return true;
     }
 
     return false;
@@ -120,10 +120,11 @@ class StationManager {
 
     // 提取车站数和日期戳
     final size = data.lengthInBytes;
-    final root = data.getUint32(size - 16, Endian.little);
-    final mcount = data.getUint32(size - 12, Endian.little);
-    final count = data.getUint32(size - 8, Endian.little);
-    final date = data.getUint32(size - 4, Endian.little);
+    final root = data.getUint32(size - 20, Endian.little);
+    final mcount = data.getUint32(size - 16, Endian.little);
+    final count = data.getUint32(size - 12, Endian.little);
+    final date = data.getUint32(size - 8, Endian.little);
+    final pdate = data.getUint32(size - 4, Endian.little);
 
     return StationManager._manager(
       data.buffer.asFloat64List(data.offsetInBytes, count),
@@ -142,12 +143,13 @@ class StationManager {
       ),
       data.buffer.asUint8List(
         data.offsetInBytes + (count * 44) + (mcount * 8),
-        size - 16 - (count * 44) - (mcount * 8),
+        size - 20 - (count * 44) - (mcount * 8),
       ),
       root: root,
       mcount: mcount,
       count: count,
       date: date,
+      pdate: pdate,
       size: size,
     );
   }
