@@ -2,27 +2,33 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'common.dart';
+import 'event_manager.dart';
 import 'l10n.dart';
 import 'station_manager.dart';
 
 // ── License list dialog ───────────────────────────────────────────
 
 class LicenseListDialog extends StatefulWidget {
-  final StationManager manager;
+  final StationManager stationManager;
+  final EventManager eventManager;
 
-  const LicenseListDialog(this.manager, {super.key});
+  const LicenseListDialog(this.stationManager, this.eventManager, {super.key});
 
   @override
   State<LicenseListDialog> createState() => _LicenseListDialogState();
 }
 
 class _LicenseListDialogState extends State<LicenseListDialog> {
+  late StationManager _stationManager;
+  // late EventManager _eventManager;
   late final Future<List<({String package, List<List<String>> licenses})>>
   _licensesFuture;
 
   @override
   void initState() {
     super.initState();
+    _stationManager = widget.stationManager;
+    // _eventManager = widget.eventManager;
     _licensesFuture = _loadLicenses();
   }
 
@@ -139,20 +145,20 @@ class _LicenseListDialogState extends State<LicenseListDialog> {
                                 l10n.licensePublish,
                                 style: TextStyle(fontSize: 12),
                               ),
-                              if (widget.manager.count > 0) ...[
+                              if (_stationManager.count > 0) ...[
                                 const SizedBox(height: 4),
                                 Text(
                                   '${l10n.licenseStationDetailsTitle}'
-                                  '\n${l10n.infoStations(widget.manager.count)}'
-                                  '\n${l10n.infoVersion(widget.manager.date, widget.manager.pdate)}'
-                                  '\n${l10n.infoSize(widget.manager.size)}'
+                                  '\n${l10n.infoStations(_stationManager.count)}'
+                                  '\n${l10n.infoVersion(_stationManager.date, _stationManager.pdate)}'
+                                  '\n${l10n.infoSize(_stationManager.size)}'
                                   '\n${l10n.licenseStationDetailsEkidata}',
                                   style: TextStyle(fontSize: 12),
                                 ),
                               ],
                               const SizedBox(height: 4),
                               Text(
-                                widget.manager.count > 0
+                                _stationManager.count > 0
                                     ? l10n.licenseCountWithAdditionalNotice(
                                       appLicensesLength,
                                     )
