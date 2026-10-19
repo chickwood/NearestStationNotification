@@ -1,17 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_styled_toast/flutter_styled_toast.dart';
 
-import 'coordinator.dart';
-import 'settings.dart';
+import 'background_task.dart';
 import 'common.dart';
+import 'coordinator.dart';
 import 'event_manager.dart';
+import 'info_dialog.dart';
 import 'info_service.dart';
 import 'l10n.dart';
-import 'info_dialog.dart';
+import 'settings.dart';
 import 'settings_dialog.dart';
 import 'settings_service.dart';
 import 'station_manager.dart';
-import 'background_task.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});

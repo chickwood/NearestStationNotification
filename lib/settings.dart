@@ -70,13 +70,14 @@ class Settings {
 
   // fromTransferable
   factory Settings.fromTransferable(List data) => Settings._(
-        stationCount: StationCount.values.elementAtOrNull(data[0] as int) ??
-            StationCount.game,
-        locationInterval:
-            LocationInterval.values.elementAtOrNull(data[1] as int) ??
-                LocationInterval.s1,
-        // notificationMode:
-        //     NotificationMode.values.elementAtOrNull(data[2] as int) ??
-        //         NotificationMode.location,
-      );
+    stationCount:
+        StationCount.values.elementAtOrNull(data[0] as int) ??
+        StationCount.game,
+    locationInterval:
+        LocationInterval.values.elementAtOrNull(data[1] as int) ??
+        LocationInterval.s1,
+    // notificationMode:
+    //     NotificationMode.values.elementAtOrNull(data[2] as int) ??
+    //         NotificationMode.location,
+  );
 }

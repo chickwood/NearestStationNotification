@@ -81,7 +81,8 @@ class NotificationService {
   Future<bool> requestPermissions() async {
     await _fln
         .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>()
+          AndroidFlutterLocalNotificationsPlugin
+        >()
         ?.requestNotificationsPermission();
     return true; // 留给以后对通知的详细判定
   }

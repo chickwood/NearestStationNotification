@@ -3,16 +3,17 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 
-import 'settings.dart';
 import 'common.dart';
 import 'l10n.dart';
 import 'search_engine.dart';
+import 'settings.dart';
 import 'station_manager.dart';
 
-typedef LocationHandler = void Function(
-  PositionResult positionResult,
-  List<StationResult> stationResults,
-);
+typedef LocationHandler =
+    void Function(
+      PositionResult positionResult,
+      List<StationResult> stationResults,
+    );
 
 /// 位置処理クラス
 /// GPS Stream の購読・位置ズレフィルタ・SearchEngine 呼び出しを担う
@@ -56,7 +57,8 @@ class LocationProcessor {
 
   /// 設定更新
   Future<void> changeSettings(Settings settings) async {
-    final changeInterval = _settings.locationInterval.milliseconds !=
+    final changeInterval =
+        _settings.locationInterval.milliseconds !=
         settings.locationInterval.milliseconds;
     final changeCount =
         _settings.stationCount.count != settings.stationCount.count;
@@ -110,43 +112,44 @@ class LocationProcessor {
   // ── GPS Stream ───────────────────────────────────────────────────
 
   void _startStream() {
-    final distanceFilter = _positionQueue.isNotEmpty
-        ? _positionQueue.last.samplingMode.filter
-        : SamplingMode.staying.filter;
+    final distanceFilter =
+        _positionQueue.isNotEmpty
+            ? _positionQueue.last.samplingMode.filter
+            : SamplingMode.staying.filter;
     final milliseconds = _settings.locationInterval.milliseconds;
 
     final locationSettings = switch (defaultTargetPlatform) {
       TargetPlatform.android => AndroidSettings(
-          accuracy: LocationAccuracy.high,
-          distanceFilter: distanceFilter,
-          intervalDuration: Duration(milliseconds: milliseconds),
-          foregroundNotificationConfig: ForegroundNotificationConfig(
-            notificationChannelName: _l10n.fgtChannelName,
-            notificationTitle: _l10n.fgtNotificationTitle,
-            notificationText: _l10n.fgtNotificationBody,
-            notificationIcon: const AndroidResource(
-              name: Common.flnNotificationIcon,
-              defType: 'drawable',
-            ),
-            enableWakeLock: true,
+        accuracy: LocationAccuracy.high,
+        distanceFilter: distanceFilter,
+        intervalDuration: Duration(milliseconds: milliseconds),
+        foregroundNotificationConfig: ForegroundNotificationConfig(
+          notificationChannelName: _l10n.fgtChannelName,
+          notificationTitle: _l10n.fgtNotificationTitle,
+          notificationText: _l10n.fgtNotificationBody,
+          notificationIcon: const AndroidResource(
+            name: Common.flnNotificationIcon,
+            defType: 'drawable',
           ),
+          enableWakeLock: true,
         ),
+      ),
       TargetPlatform.iOS || TargetPlatform.macOS => AppleSettings(
-          accuracy: LocationAccuracy.bestForNavigation,
-          distanceFilter: distanceFilter,
-          activityType: ActivityType.otherNavigation,
-          showBackgroundLocationIndicator: true,
-        ),
+        accuracy: LocationAccuracy.bestForNavigation,
+        distanceFilter: distanceFilter,
+        activityType: ActivityType.otherNavigation,
+        showBackgroundLocationIndicator: true,
+      ),
       _ => LocationSettings(
-          accuracy: LocationAccuracy.high,
-          distanceFilter: distanceFilter,
-        ),
+        accuracy: LocationAccuracy.high,
+        distanceFilter: distanceFilter,
+      ),
     };
 
     _positionSubscription?.cancel();
-    _positionSubscription =
-        Geolocator.getPositionStream(locationSettings: locationSettings)
-            .listen((position) {
+    _positionSubscription = Geolocator.getPositionStream(
+      locationSettings: locationSettings,
+    ).listen((position) {
       if (_handlePositionUpdated(position) case final positionResult?) {
         _updateSearchResult(positionResult);
       }
@@ -172,14 +175,16 @@ class LocationProcessor {
 
     // 最新采样点先进入队列
     // 再进行可信性判断
-    _positionQueue.add(PositionResult(
-      latitude: userLatitude,
-      longitude: userLongitude,
-      speed: userSpeed,
-      accuracy: position.accuracy,
-      heading: userHeading,
-      timestamp: position.timestamp,
-    ));
+    _positionQueue.add(
+      PositionResult(
+        latitude: userLatitude,
+        longitude: userLongitude,
+        speed: userSpeed,
+        accuracy: position.accuracy,
+        heading: userHeading,
+        timestamp: position.timestamp,
+      ),
+    );
 
     // 采样点已有 2 个以上（亦即添加最新采样点之前已有 1 个以上）
     if (_positionQueue.length > 1) {
@@ -202,7 +207,8 @@ class LocationProcessor {
       // 采样点已有 3 个（亦即添加最新采样点之前已有 2 个）
       // 触发观察者模式检测
       final prevMode = Common.sampling(prevPosition.speed);
-      var isObserving = _positionQueue.length > 2 &&
+      var isObserving =
+          _positionQueue.length > 2 &&
           prevMode == SamplingMode.transit &&
           Common.sampling(_positionQueue[_positionQueue.length - 3].speed) !=
               SamplingMode.transit;

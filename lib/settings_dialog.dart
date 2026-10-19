@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
-import 'settings.dart';
-import 'settings_service.dart';
 import 'common.dart';
 import 'l10n.dart';
+import 'settings.dart';
+import 'settings_service.dart';
 
 // ── Settings Dialog ───────────────────────────────────────────────
 
