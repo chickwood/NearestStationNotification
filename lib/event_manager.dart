@@ -70,13 +70,7 @@ class EventManager {
   /// EventManager インスタンスを生成する
   /// 启动加载：documents 优先，读取失败 / 无效回退空实例（静默）
   static Future<EventManager> load() async {
-    final bytes = await _loadEventJson();
-    final manager = EventManager._manager(_parse(bytes) ?? const []);
-
-    // StationCount 检索件数所需的事件期间判定器注入（幂等）
-    StationCount.eventPeriod = () => manager.isEventPeriod;
-
-    return manager;
+    return EventManager._manager(_parse(await _loadEventJson()) ?? const []);
   }
 
   /// 原子写入私有目录（临时文件 → 改名；失败不覆盖现有文件）

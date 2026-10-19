@@ -107,8 +107,8 @@ MainActivity / MethodChannel
 
 - SearchEngine 是 LocationProcessor 的内部依赖。
 - StationManager 是共享 Repository；HomePage 可直接依赖（Dialog、站点信息显示、站点数据管理）。
-- EventManager 是事件数据来源，独立于定位结果流；HomePage 可直接依赖（初始化、Dialog、事件数据管理）。
-- Coordinator 不负责站点数据的加载与写入实现。
+- EventManager 是事件数据来源，独立于定位结果流；HomePage 可直接依赖（初始化、Dialog、事件数据管理）；Coordinator 通过 `changeEventData` 将事件期间判定注入 StationCount。
+- Coordinator 不负责 StationManager / EventManager 的加载与写入实现。
 
 ---
 
@@ -154,7 +154,8 @@ MainActivity / MethodChannel
 - 生命周期转发（changeActive）
 - locale 更新（changeLocale）
 - settings 更新（changeSettings）
-- station data 更新（changeData）
+- station data 更新（changeStationData）
+- event data 更新（changeEventData）
 - 接收定位结果
 - 根据 StationManager 补全 station metadata
 - 广播完整定位结果
@@ -163,7 +164,7 @@ MainActivity / MethodChannel
 
 - GPS
 - SearchEngine
-- StationManager 的加载与写入实现
+- StationManager / EventManager 的加载与写入实现
 - Notification
 - UI
 
@@ -260,7 +261,7 @@ SearchEngine 只负责计算。
 - 事件数据写入（原子替换：临时文件 → 改名）
 - 事件期间判定
 
-事件期间判定在加载时注入给 StationCount，使 StationCount 不直接依赖 EventManager。
+事件期间判定由 Coordinator.changeEventData 注入给 StationCount，使 StationCount 不直接依赖 EventManager。
 
 当前消费者：
 
@@ -329,7 +330,7 @@ NotificationService 不拥有定位或站点业务的主状态，但会持有通
 
 settings dialog：
 
-- 只负责设置项（无分隔线、保存按钮行位于最下方）；不接收 `manager` 参数
+- 负责设置项编辑与保存（`_save` → `_draft.save()` → `onSaved`；`_saving` 期间禁用保存按钮；无分隔线、保存按钮行位于最下方）；不接收 `manager` 参数
 
 info dialog：
 
@@ -337,7 +338,7 @@ info dialog：
 - 许可证框：小节标签（许可证及车站信息）+ bin 信息（已读取 N 个车站 / 大小 / 版本 = date，存在修订时附 + 修订 = pdate）与许可证入口，点击打开 `LicenseListDialog`
 - 提示框：与许可证框同外观（小节标签「更新」）；正文提示定期更新车站信息 / 事件信息数据，点击框体打开下载网站（`Common` 常量），并提示下载后点击导入、选择数据文件更新信息
 - 链接：点击经 `launchUrl(..., mode: LaunchMode.externalApplication)` 打开系统浏览器
-- 导入：`file_selector` 单选（限 bin / json）；按内容路由（station 走 `StationManager.validate`，event 走 JSON 校验，无法识别视为无效）；成功 Toast 提示已导入车站信息 / 事件信息数据并建议继续导入另一侧；失败 Toast 显示「无效的文件」（自动消失，失败为红色）
+- 导入：由 `_import` 执行；`file_selector` 单选（限 zip）；解压后按实际存在的 `station_data_xyz.bin` / `event_data.json` 分别以 `SHA256SUMS` 校验 SHA-256，再分别用 `StationManager.validate` / `EventManager.validate` 校验格式；分别写入 documents 并重新加载；允许仅 bin、仅 event 或两者都有；成功后 `onImported` 回传 station / event，HomePage 调用 `Coordinator.changeStationData` / `changeEventData`；Toast 按实际导入内容提示（车站及活动信息 / 车站信息 / 活动信息）；失败为「无效的文件」（自动消失，失败为红色）
 
 ---
 
@@ -435,9 +436,13 @@ changeXxx 家族（外部事件驱动的状态更新）：
 - changeLocale：l10n 更新（系统语言变化；传播至 LocationProcessor 与 NotificationService）
 - changeActive：active 更新（前后台切换；LocationProcessor 切换搜索件数）
 - changeSettings：settings 更新（设置项保存）
-- changeData：站点数据更新（导入）
+- changeStationData：站点数据更新（导入）
   - `Coordinator._manager`、`LocationProcessor._manager`、`_engine`（重建为 `SearchEngine(新 manager)`）在同一同步块内成对替换；流不中断、队列不清
+  - Coordinator 调用 `LocationProcessor.changeData(...)` 完成换链
   - Dart 单线程保证换链不与在途 fix 交错；索引与站名成对换新；UI 列表与通知在下一个定位点（≤ 采样间隔）刷新
+- changeEventData：事件数据更新（导入）
+  - Coordinator 将 EventManager 的事件期间判定注入 `StationCount.eventPeriod`
+  - 下一次定位 / UI 读取即时生效，无需换链
 
 共通语义：
 
@@ -503,7 +508,7 @@ event schema：
 
 - 先校验（station 复用加载校验 / event JSON 校验），再写临时文件
 - 原子替换（临时文件 → 改名）；失败不覆盖现有私有文件
-- 失败不执行 `Coordinator.changeData()` / 不刷新 event 内存；此前更新过的版本继续生效（从未更新过则仍为 assets / 空）
+- 失败不执行 `Coordinator.changeStationData()` / `Coordinator.changeEventData()`；此前更新过的版本继续生效（从未更新过则仍为 assets / 空）
 
 ```text
 info dialog（导入）获取字节
@@ -517,12 +522,18 @@ info dialog（导入）获取字节
         ├─ station → StationManager.load()
         │              │
         │              ▼
-        │        info dialog 刷新 bin 信息 + 回调 HomePage
+        │        info dialog 刷新 station 信息 + 回调 HomePage
         │              │
         │              ▼
-        │        Coordinator.changeData() + HomePage setState
+        │        Coordinator.changeStationData() + HomePage setState
         │
-        └─ event → 刷新内存 periods（即时生效）
+        └─ event → EventManager.load()
+                       │
+                       ▼
+                 info dialog 刷新 event 状态 + 回调 HomePage
+                       │
+                       ▼
+                 Coordinator.changeEventData() + HomePage setState
 ```
 
 ### Hosting

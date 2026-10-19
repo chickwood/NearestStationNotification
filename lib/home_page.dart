@@ -20,7 +20,8 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Settings? _settings;
-  StationManager? _manager;
+  StationManager? _stationManager;
+  EventManager? _eventManager;
 
   Coordinator? _coordinator;
 
@@ -73,7 +74,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    if (_coordinator == null || _settings == null || _manager == null) {
+    if (_coordinator == null ||
+        _settings == null ||
+        _stationManager == null ||
+        _eventManager == null) {
       return const Scaffold();
     }
 
@@ -192,14 +196,21 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
     try {
       late Settings settings;
-      late StationManager manager;
+      late StationManager stationManager;
+      late EventManager eventManager;
       await Future.wait([
         Settings.load().then((value) => settings = value),
-        StationManager.load().then((value) => manager = value),
-        EventManager.load(),
+        StationManager.load().then((value) => stationManager = value),
+        EventManager.load().then((value) => eventManager = value),
       ]);
 
-      final coordinator = Coordinator(l10n, active, settings, manager);
+      final coordinator = Coordinator(
+        l10n,
+        active,
+        settings,
+        stationManager,
+        eventManager,
+      );
       _coordinator = coordinator;
 
       // UI handler 登録
@@ -214,7 +225,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       if (!mounted) return;
       setState(() {
         _settings = settings;
-        _manager = manager;
+        _stationManager = stationManager;
+        _eventManager = eventManager;
       });
     } catch (e) {
       // 其他错误（文件读取失败等）
@@ -293,8 +305,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       builder:
           (context) => SettingsDialog(
             _settings!,
-            onSave: (settings) async {
-              await settings.save();
+            onSaved: (settings) {
               setState(() {
                 _settings = settings;
               });
@@ -314,11 +325,22 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       barrierColor: Colors.white.withValues(alpha: 0.5),
       builder:
           (context) => InfoDialog(
-            _manager!,
-            onDataChanged: (manager) {
-              _coordinator?.changeData(manager);
+            _stationManager!,
+            _eventManager!,
+            onImported: (result) {
+              final stationManager = result.s;
+              final eventManager = result.e;
+
+              if (stationManager != null) {
+                _coordinator?.changeStationData(stationManager);
+              }
+              if (eventManager != null) {
+                _coordinator?.changeEventData(eventManager);
+              }
               setState(() {
-                _manager = manager;
+                if (stationManager != null) {
+                  _stationManager = stationManager;
+                }
               });
             },
           ),
@@ -389,7 +411,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   // ── Station results (expanded) ────────────────────────────────────────────────
 
   Widget _buildStationResultsExpanded(L10n l10n) {
-    if (_manager!.count > 0) {
+    if (_stationManager!.count > 0) {
       if (_coordinator!.runningStatus == RunningStatus.stopped) {
         return Align(
           alignment: Alignment.topCenter,
@@ -397,7 +419,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(l10n.notStarted, style: const TextStyle(color: Colors.grey)),
-              if (_manager!.isSampleData) ...[
+              if (_stationManager!.isSampleData) ...[
                 const SizedBox(height: 4),
                 Text(
                   l10n.sampleDataGuide,

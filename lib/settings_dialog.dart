@@ -8,9 +8,9 @@ import 'l10n.dart';
 
 class SettingsDialog extends StatefulWidget {
   final Settings settings;
-  final Future<void> Function(Settings) onSave;
+  final ValueChanged<Settings> onSaved;
 
-  const SettingsDialog(this.settings, {super.key, required this.onSave});
+  const SettingsDialog(this.settings, {super.key, required this.onSaved});
 
   @override
   State<SettingsDialog> createState() => _SettingsDialogState();
@@ -18,6 +18,7 @@ class SettingsDialog extends StatefulWidget {
 
 class _SettingsDialogState extends State<SettingsDialog> {
   late Settings _draft;
+  bool _saving = false;
 
   @override
   void initState() {
@@ -25,6 +26,25 @@ class _SettingsDialogState extends State<SettingsDialog> {
 
     // 弹窗内操作的临时副本，取消则丢弃
     _draft = widget.settings.copyWith();
+  }
+
+  /// 保存草稿并通知调用方（持久化在对话框内完成）
+  Future<void> _save() async {
+    if (_saving) return;
+    setState(() => _saving = true);
+
+    try {
+      await _draft.save();
+    } catch (e, st) {
+      debugPrint('error: $e\n$st');
+      if (!mounted) return;
+      setState(() => _saving = false);
+      return;
+    }
+
+    if (!mounted) return;
+    Navigator.of(context).pop();
+    widget.onSaved(_draft);
   }
 
   @override
@@ -134,10 +154,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
                 ),
                 GestureDetector(
                   behavior: HitTestBehavior.opaque,
-                  onTap: () async {
-                    Navigator.of(context).pop();
-                    await widget.onSave(_draft);
-                  },
+                  onTap: _saving ? null : _save,
                   child: Padding(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 12,
@@ -145,8 +162,11 @@ class _SettingsDialogState extends State<SettingsDialog> {
                     ),
                     child: Text(
                       l10n.settingsSave,
-                      style: const TextStyle(
-                        color: Color(0xFF4080FF),
+                      style: TextStyle(
+                        color:
+                            _saving
+                                ? const Color(0xFFA0C0FF)
+                                : const Color(0xFF4080FF),
                         fontSize: 14,
                         fontWeight: FontWeight.w500,
                       ),
