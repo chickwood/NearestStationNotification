@@ -5,9 +5,11 @@ import 'coordinator.dart';
 import 'settings.dart';
 import 'common.dart';
 import 'event_manager.dart';
+import 'info_service.dart';
 import 'l10n.dart';
 import 'info_dialog.dart';
 import 'settings_dialog.dart';
+import 'settings_service.dart';
 import 'station_manager.dart';
 import 'background_task.dart';
 
@@ -25,11 +27,19 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   Coordinator? _coordinator;
 
+  late final InfoService _infoService;
+  late final SettingsService _settingsService;
+
   int _positionVisibility = 0; // 坐标显示/关闭
 
   @override
   void initState() {
     super.initState();
+
+    _infoService = InfoService();
+    _settingsService = SettingsService();
+    _infoService.lastResult.addListener(_handleImportResult);
+    _settingsService.lastResult.addListener(_handleSettingsResult);
 
     WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -41,6 +51,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+
+    _infoService.lastResult.removeListener(_handleImportResult);
+    _settingsService.lastResult.removeListener(_handleSettingsResult);
+    _infoService.dispose();
+    _settingsService.dispose();
 
     _coordinator?.removeLocationResultHandler(_handleLocationResultReceived);
     _coordinator?.removeRunningStatusHandler(_handleRunningStatusChanged);
@@ -296,6 +311,61 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     );
   }
 
+  // ── Service results ──────────────────────────────────────────────
+
+  void _handleImportResult() {
+    final result = _infoService.lastResult.value;
+    if (!mounted || result == null) return;
+
+    final l10n = L10n.of(context);
+    switch (result) {
+      case InfoImportSucceeded(:final station, :final event):
+        if (station != null) {
+          _coordinator?.changeStationData(station);
+        }
+        if (event != null) {
+          _coordinator?.changeEventData(event);
+        }
+        setState(() {
+          if (station != null) {
+            _stationManager = station;
+          }
+          if (event != null) {
+            _eventManager = event;
+          }
+        });
+
+        if (station != null && event != null) {
+          _showToast(l10n.infoImportedStationAndEvent);
+        } else if (station != null) {
+          _showToast(l10n.infoImportedStation);
+        } else {
+          _showToast(l10n.infoImportedEvent);
+        }
+      case InfoImportFailed():
+        _showToast(l10n.infoInvalidFile, isError: true);
+    }
+  }
+
+  void _handleSettingsResult() {
+    final result = _settingsService.lastResult.value;
+    if (!mounted || result == null) return;
+
+    final l10n = L10n.of(context);
+    switch (result) {
+      case SettingsSaved(:final settings):
+        setState(() {
+          _settings = settings;
+        });
+        // 无论运行状态如何都立即反映
+        // （LocationProcessor 内部会根据 stream 状态自行判断）
+        _coordinator?.changeSettings(settings);
+        _showToast(l10n.settingsSaveSucceeded);
+      case SettingsSaveFailed():
+        _showToast(l10n.settingsSaveFailed, isError: true);
+    }
+  }
+
   // ── Settings Dialog ───────────────────────────────────────────────────
 
   void _showSettingsDialog() {
@@ -303,17 +373,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       context: context,
       barrierColor: Colors.white.withValues(alpha: 0.5),
       builder:
-          (context) => SettingsDialog(
-            _settings!,
-            onSaved: (settings) {
-              setState(() {
-                _settings = settings;
-              });
-              // 无论运行状态如何都立即反映
-              // （LocationProcessor 内部会根据 stream 状态自行判断）
-              _coordinator?.changeSettings(settings);
-            },
-          ),
+          (context) =>
+              SettingsDialog(_settings!, settingsService: _settingsService),
     );
   }
 
@@ -327,22 +388,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           (context) => InfoDialog(
             _stationManager!,
             _eventManager!,
-            onImported: (result) {
-              final stationManager = result.s;
-              final eventManager = result.e;
-
-              if (stationManager != null) {
-                _coordinator?.changeStationData(stationManager);
-              }
-              if (eventManager != null) {
-                _coordinator?.changeEventData(eventManager);
-              }
-              setState(() {
-                if (stationManager != null) {
-                  _stationManager = stationManager;
-                }
-              });
-            },
+            infoService: _infoService,
           ),
     );
   }

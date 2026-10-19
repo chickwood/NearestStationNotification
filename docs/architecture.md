@@ -128,6 +128,8 @@ MainActivity / MethodChannel
 - 站点数据管理入口（info dialog：bin 信息 / 提示 / 导入 / 许可证入口）
 - 示例数据引导提示（stopped 且为示例数据时）
 - 创建并持有 Coordinator
+- 创建并持有 InfoService / SettingsService（生命周期跟随 HomePage；dispose 时释放）
+- 订阅 Service 结果：按结果执行 Toast、Coordinator 热加载与 setState
 - 通过 Coordinator 的 handler 触发 UI 重建，并通过 getter 读取当前结果和运行状态
 - 向 BackgroundTask 提供 Coordinator.runningStatus != RunningStatus.stopped 的状态（starting/running 时保持后台任务）
 
@@ -319,6 +321,39 @@ NotificationService 不拥有定位或站点业务的主状态，但会持有通
 
 ---
 
+### InfoService
+
+职责：
+
+- 选择 zip（`file_selector` 单选）
+- 解压、读取 `SHA256SUMS` 并校验实际存在的 station / event 文件
+- 以 `StationManager.validate` / `EventManager.validate` 校验格式
+- 原子写入 documents（临时文件 → 改名）并重新加载
+- 单飞：`busy` 为 true 时忽略新请求
+- 通过 `ValueNotifier<InfoImportResult?> lastResult` 发布 `InfoImportSucceeded` / `InfoImportFailed`
+
+不负责：
+
+- UI、Toast、Coordinator 热加载
+- 判断当前运行状态
+
+---
+
+### SettingsService
+
+职责：
+
+- 执行 `Settings.save()`
+- 单飞：`busy` 为 true 时忽略新请求
+- 通过 `ValueNotifier<SettingsSaveResult?> lastResult` 发布 `SettingsSaved` / `SettingsSaveFailed`
+
+不负责：
+
+- 对话框编辑草稿
+- UI、Toast、Coordinator 热加载
+
+---
+
 ## Entry and Interaction
 
 对话框入口（HomePage AppBar 右侧）：
@@ -330,15 +365,23 @@ NotificationService 不拥有定位或站点业务的主状态，但会持有通
 
 settings dialog：
 
-- 负责设置项编辑与保存（`_save` → `_draft.save()` → `onSaved`；`_saving` 期间禁用保存按钮；无分隔线、保存按钮行位于最下方）；不接收 `manager` 参数
+- 负责设置项编辑（本地草稿 `_draft`）；保存时调用 `SettingsService.save(_draft)`
+- 订阅 `SettingsService.busy`：busy 期间禁用保存按钮；X、关闭按钮、系统返回、点击遮罩均允许关闭
+- 订阅 `SettingsService.lastResult` 仅用于刷新自身状态；成功/失败都不自动关闭
+- 左下按钮为「关闭」（`dialogClose`），行为与 X 相同（`Navigator.pop`）
+- 不执行持久化、不弹 Toast、不接收 `manager` 参数
 
 info dialog：
 
-- 结构：标题行（信息）→ 许可证框 → 提示框 → 按钮行（取消 / 导入）
+- 结构：标题行（信息）→ 许可证框 → 提示框 → 按钮行（关闭 / 导入）
 - 许可证框：小节标签（许可证及车站信息）+ bin 信息（已读取 N 个车站 / 大小 / 版本 = date，存在修订时附 + 修订 = pdate）与许可证入口，点击打开 `LicenseListDialog`
 - 提示框：与许可证框同外观（小节标签「更新」）；正文提示定期更新车站信息 / 事件信息数据，点击框体打开下载网站（`Common` 常量），并提示下载后点击导入、选择数据文件更新信息
 - 链接：点击经 `launchUrl(..., mode: LaunchMode.externalApplication)` 打开系统浏览器
-- 导入：由 `_import` 执行；`file_selector` 单选（限 zip）；解压后按实际存在的 `station_data_xyz.bin` / `event_data.json` 分别以 `SHA256SUMS` 校验 SHA-256，再分别用 `StationManager.validate` / `EventManager.validate` 校验格式；分别写入 documents 并重新加载；允许仅 bin、仅 event 或两者都有；成功后 `onImported` 回传 station / event，HomePage 调用 `Coordinator.changeStationData` / `changeEventData`；Toast 按实际导入内容提示（车站及活动信息 / 车站信息 / 活动信息）；失败为「无效的文件」（自动消失，失败为红色）
+- 导入：按钮调用 `InfoService.import()`；Service 内部完成 zip 选择、解析、SHA-256 / 格式校验、写入与加载；`file_selector` 单选（限 zip），允许仅 bin、仅 event 或两者都有
+- 订阅 `InfoService.busy`：busy 期间禁用导入按钮
+- 订阅 `InfoService.lastResult`：仅刷新自身 bin 信息；成功/失败都不自动关闭
+- Toast 由 HomePage 统一显示（成功按实际导入内容，失败为「无效的文件」）
+- 不执行写盘、不弹 Toast
 
 ---
 
@@ -448,7 +491,7 @@ changeXxx 家族（外部事件驱动的状态更新）：
 
 - 即时生效；任意状态（stopped / starting / running）可调用
 - 不打断当前流程
-- 无任何提示（Toast 等）
+- changeXxx 本身不显示提示；导入 / 设置保存的结果由 HomePage 在调用 changeXxx 之外统一 Toast
 
 ---
 
@@ -489,7 +532,7 @@ Coordinator
 
 - 车站数据文件：`station_data_xyz.bin`（assets 与 documents 同名、路径不同）
   - assets：随应用发布的示例 / 过时数据
-  - documents（私有目录）：真实数据，由导入写入
+  - documents（私有目录）：真实数据，由 InfoService 写入
 - 事件数据文件：`event_data.json`（documents）；缺失 / 无效时为空（无事件期间）
 - station 启动选源：只依据 documents 文件（含此前更新版本）的读取结果——读取成功则使用；读取异常 / 文件不存在回退 assets（示例 / 过时数据）；加载后校验失败（含 assets 数据损坏）回退空实例（静默回退策略）
 - event 启动加载：与 StationManager 初始化同阶段；documents 优先，读取失败 / 无效回退空实例（静默）
@@ -511,29 +554,38 @@ event schema：
 - 失败不执行 `Coordinator.changeStationData()` / `Coordinator.changeEventData()`；此前更新过的版本继续生效（从未更新过则仍为 assets / 空）
 
 ```text
-info dialog（导入）获取字节
+HomePage（对话框触发）→ InfoService.import()
         │
-        ▼
-校验（station 复用加载校验 / event JSON 校验）
+        ├─ file_selector 选择 zip
+        ├─ 解析 zip + SHA256SUMS 校验
+        └─ 格式校验（station 复用加载校验 / event JSON 校验）
         │
         ▼
 原子写 documents（临时文件 → 改名）
         │
         ├─ station → StationManager.load()
-        │              │
-        │              ▼
-        │        info dialog 刷新 station 信息 + 回调 HomePage
-        │              │
-        │              ▼
-        │        Coordinator.changeStationData() + HomePage setState
+        └─ event   → EventManager.load()
         │
-        └─ event → EventManager.load()
-                       │
-                       ▼
-                 info dialog 刷新 event 状态 + 回调 HomePage
-                       │
-                       ▼
-                 Coordinator.changeEventData() + HomePage setState
+        ▼
+InfoService.lastResult = InfoImportSucceeded
+        │
+        ├─ InfoDialog：仅刷新 bin 信息
+        └─ HomePage：Coordinator.changeStationData/changeEventData + setState + Toast
+```
+
+设置保存：
+
+```text
+SettingsDialog → SettingsService.save(_draft)
+        │
+        ▼
+Settings.save()
+        │
+        ▼
+SettingsService.lastResult = SettingsSaved / SettingsSaveFailed
+        │
+        ├─ SettingsDialog：仅刷新自身状态（不关闭）
+        └─ HomePage：setState + Coordinator.changeSettings + Toast
 ```
 
 ### Hosting

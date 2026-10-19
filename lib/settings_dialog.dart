@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'settings.dart';
+import 'settings_service.dart';
 import 'common.dart';
 import 'l10n.dart';
 
@@ -8,9 +9,13 @@ import 'l10n.dart';
 
 class SettingsDialog extends StatefulWidget {
   final Settings settings;
-  final ValueChanged<Settings> onSaved;
+  final SettingsService settingsService;
 
-  const SettingsDialog(this.settings, {super.key, required this.onSaved});
+  const SettingsDialog(
+    this.settings, {
+    super.key,
+    required this.settingsService,
+  });
 
   @override
   State<SettingsDialog> createState() => _SettingsDialogState();
@@ -18,33 +23,32 @@ class SettingsDialog extends StatefulWidget {
 
 class _SettingsDialogState extends State<SettingsDialog> {
   late Settings _draft;
-  bool _saving = false;
 
   @override
   void initState() {
     super.initState();
 
-    // 弹窗内操作的临时副本，取消则丢弃
+    // 弹窗内操作的临时副本，关闭则丢弃
     _draft = widget.settings.copyWith();
+    widget.settingsService.lastResult.addListener(_handleResult);
+    widget.settingsService.busy.addListener(_handleBusyChanged);
   }
 
-  /// 保存草稿并通知调用方（持久化在对话框内完成）
-  Future<void> _save() async {
-    if (_saving) return;
-    setState(() => _saving = true);
+  @override
+  void dispose() {
+    widget.settingsService.lastResult.removeListener(_handleResult);
+    widget.settingsService.busy.removeListener(_handleBusyChanged);
+    super.dispose();
+  }
 
-    try {
-      await _draft.save();
-    } catch (e, st) {
-      debugPrint('error: $e\n$st');
-      if (!mounted) return;
-      setState(() => _saving = false);
-      return;
-    }
-
+  void _handleResult() {
     if (!mounted) return;
-    Navigator.of(context).pop();
-    widget.onSaved(_draft);
+    setState(() {});
+  }
+
+  void _handleBusyChanged() {
+    if (!mounted) return;
+    setState(() {});
   }
 
   @override
@@ -143,7 +147,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
                       vertical: 8,
                     ),
                     child: Text(
-                      l10n.settingsCancel,
+                      l10n.dialogClose,
                       style: const TextStyle(
                         color: Color(0xFF4080FF),
                         fontSize: 14,
@@ -154,7 +158,10 @@ class _SettingsDialogState extends State<SettingsDialog> {
                 ),
                 GestureDetector(
                   behavior: HitTestBehavior.opaque,
-                  onTap: _saving ? null : _save,
+                  onTap:
+                      widget.settingsService.busy.value
+                          ? null
+                          : () => widget.settingsService.save(_draft),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 12,
@@ -164,7 +171,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
                       l10n.settingsSave,
                       style: TextStyle(
                         color:
-                            _saving
+                            widget.settingsService.busy.value
                                 ? const Color(0xFFA0C0FF)
                                 : const Color(0xFF4080FF),
                         fontSize: 14,

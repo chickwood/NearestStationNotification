@@ -262,10 +262,22 @@ class L10n {
     return 'Save';
   }
 
-  String get settingsCancel {
-    if (_isJa) return 'キャンセル';
-    if (_isZhHans) return '取消';
-    return 'Cancel';
+  String get settingsSaveSucceeded {
+    if (_isJa) return '設定を保存しました。';
+    if (_isZhHans) return '设置已保存。';
+    return 'Settings saved.';
+  }
+
+  String get settingsSaveFailed {
+    if (_isJa) return '設定の保存に失敗しました';
+    if (_isZhHans) return '保存设置失败';
+    return 'Failed to save settings';
+  }
+
+  String get dialogClose {
+    if (_isJa) return '閉じる';
+    if (_isZhHans) return '关闭';
+    return 'Close';
   }
 
   // ── Info Dialog ──────────────────────────────────────────────────
