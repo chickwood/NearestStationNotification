@@ -332,16 +332,22 @@ class L10n {
     return 'Import';
   }
 
+  String get infoImportedStationAndEvent {
+    if (_isJa) return '駅情報・イベント情報をインポートしました。';
+    if (_isZhHans) return '已导入车站及活动信息。';
+    return 'Station and event information imported.';
+  }
+
   String get infoImportedStation {
-    if (_isJa) return '駅情報データをインポートしました。イベント情報データを更新する場合は続けてインポートしてください。';
-    if (_isZhHans) return '已导入车站信息数据。如需更新事件信息数据，可继续导入。';
-    return 'Station information data imported. To update event information data, import it as well.';
+    if (_isJa) return '駅情報をインポートしました。';
+    if (_isZhHans) return '已导入车站信息。';
+    return 'Station information imported.';
   }
 
   String get infoImportedEvent {
-    if (_isJa) return 'イベント情報データをインポートしました。駅情報データを更新する場合は続けてインポートしてください。';
-    if (_isZhHans) return '已导入事件信息数据。如需更新车站信息数据，可继续导入。';
-    return 'Event information data imported. To update station information data, import it as well.';
+    if (_isJa) return 'イベント情報をインポートしました。';
+    if (_isZhHans) return '已导入活动信息。';
+    return 'Event information imported.';
   }
 
   String get infoInvalidFile {

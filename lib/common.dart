@@ -10,10 +10,17 @@ class Common {
   // イベント情報
   static const eventFileName = 'event_data.json';
 
+  // ── 导入 zip 限制 ──────────────────────────────────────────────
+  static const maxZipBytes = 20 * 1024 * 1024;
+  static const maxZipTotalUncompressedBytes = 50 * 1024 * 1024;
+  static const maxZipEntryBytes = 10 * 1024 * 1024;
+  static const maxSumsBytes = 1024 * 1024;
+  static const maxZipEntries = 100;
+
   // 示例数据判定阈值（小于该车站数视为示例数据）
   static const sampleThreshold = 50;
 
-  // 駅ID解析
+  // 駅 ID 解析
   static final namePattern = RegExp(r'^(\d{1,7}),(.*)$');
 
   // // 駅データ.jp へのリンク
@@ -29,7 +36,7 @@ class Common {
   // // 距离过远检测
   // // 单位为经纬度差值平方 / 弦长平方
   // // 约等于 Equirectangular 和 Haversine 计算距离 99.55 km
-  // // 二进制对应 2^-12
+  // // 二进制对应 2 ^ -12
   // static const farScore = 2.44140625e-4;
 
   // 最少搜索站数
@@ -38,7 +45,7 @@ class Common {
 
   // GPS 漂移（距离过近）检测
   // 单位为经纬度差值
-  // 二进制对应 2^-15
+  // 二进制对应 2 ^ -15
   static const nearCoord = 3.0517578125e-5;
 
   // int(UInt32) 最大值
