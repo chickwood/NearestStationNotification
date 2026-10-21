@@ -81,7 +81,7 @@ if ! git merge-base --is-ancestor "origin/${RELEASE_BRANCH}" HEAD; then
 fi
 
 # 校验 main 与 release 分支中的版本一致，避免 tag 名与打包内容不符
-if ! BRANCH_PUBSPEC=$(git --no-pager show "origin/${RELEASE_BRANCH}:pubspec.yaml" 2>/dev/null); then
+if ! BRANCH_PUBSPEC=$(git --no-pager show "origin/${RELEASE_BRANCH}:pubspec.yaml"); then
     echo "错误: 无法读取 release 分支的 pubspec.yaml: ${RELEASE_BRANCH}"
     exit 1
 fi
