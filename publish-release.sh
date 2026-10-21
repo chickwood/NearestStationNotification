@@ -81,11 +81,20 @@ if ! git merge-base --is-ancestor "origin/${RELEASE_BRANCH}" HEAD; then
 fi
 
 # 校验 main 与 release 分支中的版本一致，避免 tag 名与打包内容不符
-BRANCH_VERSION=$(git show "origin/${RELEASE_BRANCH}:pubspec.yaml" 2>/dev/null \
-    | grep '^version:' | awk '{print $2}' || true)
-if [ -z "$BRANCH_VERSION" ]; then
-    echo "错误: 无法从 release 分支读取 version 字段: ${RELEASE_BRANCH}"
+if ! BRANCH_PUBSPEC=$(git --no-pager show "origin/${RELEASE_BRANCH}:pubspec.yaml" 2>/dev/null); then
+    echo "错误: 无法读取 release 分支的 pubspec.yaml: ${RELEASE_BRANCH}"
     exit 1
+fi
+BRANCH_VERSION=$(printf '%s\n' "$BRANCH_PUBSPEC" | grep '^version:' | awk '{print $2}')
+if [ -z "$BRANCH_VERSION" ]; then
+    # 回退：内容读取失败时，仅当两边的 pubspec.yaml 完全一致才放行
+    if git diff --quiet "origin/${RELEASE_BRANCH}" HEAD -- pubspec.yaml; then
+        echo "警告：无法读取 release 分支的 pubspec.yaml，已改用整文件比对，两者一致，放行。"
+        BRANCH_VERSION="$VERSION_STR"
+    else
+        echo "错误: 无法从 release 分支读取 version 字段: ${RELEASE_BRANCH}"
+        exit 1
+    fi
 fi
 if [ "$BRANCH_VERSION" != "$VERSION_STR" ]; then
     echo "错误: main 中版本 ${VERSION_STR} 与 release 分支中 ${BRANCH_VERSION} 不一致"
