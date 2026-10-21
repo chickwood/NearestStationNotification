@@ -43,12 +43,12 @@ HomePage
 InfoService
   ├─ import()        // 选择 zip → 解析 → SHA-256 → 写入 → load
   ├─ busy / lastResult
-  └─ InfoImportSucceeded / InfoImportFailed
+  └─ success / failure
 
 SettingsService
   ├─ save()     // Settings.save()
   ├─ busy / lastResult
-  └─ SettingsSaved / SettingsSaveFailed
+  └─ success / failure
 
 Dialog
   ├─ 触发 service.import() / service.save(draft)
@@ -59,23 +59,31 @@ Dialog
 ### 结果模型（实现）
 
 ```dart
-sealed class InfoImportResult {}
-class InfoImportSucceeded extends InfoImportResult {
+class InfoImportResult {
   final StationManager? station;
   final EventManager? event;
-}
-class InfoImportFailed extends InfoImportResult {
-  final Object error;
+  final Object? error;
+
+  const InfoImportResult._({this.station, this.event, this.error});
+  factory InfoImportResult.success({...}) => ...;
+  factory InfoImportResult.failure(Object error) => ...;
+
+  bool get succeeded => error == null;
 }
 
-sealed class SettingsSaveResult {}
-class SettingsSaved extends SettingsSaveResult {
-  final Settings settings;
-}
-class SettingsSaveFailed extends SettingsSaveResult {
-  final Object error;
+class SettingsSaveResult {
+  final Settings? settings;
+  final Object? error;
+
+  const SettingsSaveResult._({this.settings, this.error});
+  factory SettingsSaveResult.success(Settings settings) => ...;
+  factory SettingsSaveResult.failure(Object error) => ...;
+
+  bool get succeeded => error == null;
 }
 ```
+
+私有构造函数 + `success` / `failure` 工厂保证成功与失败互斥；`InfoImportResult` 的断言同时保证 success 至少带 station / event 之一、failure 不带数据。
 
 Service 对外暴露：
 
@@ -91,27 +99,27 @@ Service 对外暴露：
 
 ## 3. 任务列表
 
-1. **新增 `lib/info_service.dart`**
-   - 定义 `InfoImportResult` / `InfoImportSucceeded` / `InfoImportFailed`。
+1. **在 `lib/info_dialog.dart` 内定义 `InfoService`**
+   - 定义 `InfoImportResult`（私有构造 + `success` / `failure` 工厂 + `succeeded`）。
    - 持有 `ValueNotifier<InfoImportResult?> lastResult`、`ValueNotifier<bool> busy`。
    - 实现 `import()`：`file_selector`、zip 解压、`SHA256SUMS` 校验、`StationManager.write/load`、`EventManager.write/load`。
    - 单飞：`busy` 为 true 时忽略并返回。
-   - 异常转为 `InfoImportFailed`，`debugPrint` 细节，不直接显示 UI。
+   - 异常转为 `InfoImportResult.failure`，`debugPrint` 细节，不直接显示 UI。
 
-2. **新增 `lib/settings_service.dart`**
-   - 定义 `SettingsSaveResult` / `SettingsSaved` / `SettingsSaveFailed`。
+2. **在 `lib/settings_dialog.dart` 内定义 `SettingsService`**
+   - 定义 `SettingsSaveResult`（私有构造 + `success` / `failure` 工厂 + `succeeded`）。
    - 持有 `ValueNotifier<SettingsSaveResult?> lastResult`、`ValueNotifier<bool> busy`。
    - 实现 `save(Settings)`：`await settings.save()`。
    - 单飞与异常处理同 `InfoService`。
 
 3. **迁移 zip 处理逻辑**
-   - 把 `info_dialog.dart` 中的 `_parseImportArchive`、`_ImportArchive`、`_InvalidImportException`、`_uniqueEntry`、`_readEntry`、`_verifyChecksum`、`_read`、`_basename`、`_isSafeName`、`_lookupChecksum` 移到 `info_service.dart`。
+   - 把 `info_dialog.dart` 中的 `_parseImportArchive`、`_ImportArchive`、`_InvalidImportException`、`_readUniqueEntry`、`_verifyChecksum`、`_lookupChecksum` 保留在 `info_dialog.dart`，与 `InfoService` 同文件。
    - `InfoDialog` 不再 import `archive` / `crypto` / `dart:typed_data` / `dart:io` / `file_selector`。
 
 4. **改造 `InfoDialog`**
    - 构造函数改为 `InfoDialog(stationManager, eventManager, {required this.infoService})`。
    - Import 按钮调用 `infoService.import()`，按 `busy` 置灰。
-   - 订阅 `infoService.lastResult`：收到 `InfoImportSucceeded` 时更新 bin 信息；不弹 Toast。
+   - 订阅 `infoService.lastResult`：`result.succeeded` 时更新 bin 信息；不弹 Toast。
    - `dispose` 取消订阅。
    - 删除 `onImported` 与对话框内全部导入写盘逻辑。
 
@@ -125,10 +133,10 @@ Service 对外暴露：
    - `late final InfoService _infoService; late final SettingsService _settingsService;` 在 `initState` 创建并订阅。
    - `dispose` 取消订阅并释放 Service。
    - 结果处理：
-     - `InfoImportSucceeded`：`changeStationData/changeEventData` + `setState` + 按实际内容 Toast。
-     - `InfoImportFailed`：红色「无效的文件」Toast。
-     - `SettingsSaved`：`setState(_settings)` + `changeSettings` + `settingsSaveSucceeded` Toast。
-     - `SettingsSaveFailed`：红色 `settingsSaveFailed` Toast。
+      - `InfoImportResult.success`：`changeStationData/changeEventData` + `setState` + 按实际内容 Toast。
+      - `InfoImportResult.failure`：红色「无效的文件」Toast。
+      - `SettingsSaveResult.success`：`setState(_settings)` + `changeSettings` + `settingsSaveSucceeded` Toast。
+      - `SettingsSaveResult.failure`：红色 `settingsSaveFailed` Toast。
    - `_showInfoDialog` / `_showSettingsDialog` 传入 Service，移除 `onImported` / `onSaved` 回调。
 
 7. **l10n**

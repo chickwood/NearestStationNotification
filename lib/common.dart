@@ -4,17 +4,15 @@ class Common {
   // ── 动态包名常驻内存（由 main 在冷启动时注入） ───────────────────────
   static late final String appName;
 
-  // 駅情報
+  // 駅情報・イベント情報
   static const binFileName = 'station_data_xyz.bin';
-
-  // イベント情報
   static const eventFileName = 'event_data.json';
+  static const sumsFileName = 'SHA256SUMS';
 
   // ── 导入 zip 限制 ──────────────────────────────────────────────
-  static const maxZipBytes = 20 * 1024 * 1024;
-  static const maxZipTotalUncompressedBytes = 50 * 1024 * 1024;
-  static const maxZipEntryBytes = 10 * 1024 * 1024;
-  static const maxSumsBytes = 1024 * 1024;
+  static const maxZipSize = 20 * 1024 * 1024;
+  static const maxZipTotalUnzipSize = 50 * 1024 * 1024;
+  static const maxZipEntrySize = 10 * 1024 * 1024;
   static const maxZipEntries = 100;
 
   // 示例数据判定阈值（小于该车站数视为示例数据）

@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'common.dart';
 import 'l10n.dart';
 import 'settings.dart';
-import 'settings_service.dart';
 
 // ── Settings Dialog ───────────────────────────────────────────────
 
@@ -259,5 +258,53 @@ class _SectionLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Text(label, style: TextStyle(color: Colors.grey.shade600));
+  }
+}
+
+// ── Settings Service ───────────────────────────────────────────────
+
+class SettingsSaveResult {
+  final Settings? settings;
+  final Object? error;
+
+  const SettingsSaveResult._({this.settings, this.error})
+    : assert(
+        (settings == null) != (error == null),
+        'exactly one of settings / error must be set',
+      );
+
+  factory SettingsSaveResult.success(Settings settings) =>
+      SettingsSaveResult._(settings: settings);
+
+  factory SettingsSaveResult.failure(Object error) =>
+      SettingsSaveResult._(error: error);
+
+  bool get succeeded => error == null;
+}
+
+/// Settings.save() 的异步执行与结果持有者，
+/// 生命周期独立于 SettingsDialog。
+class SettingsService {
+  final ValueNotifier<SettingsSaveResult?> lastResult = ValueNotifier(null);
+  final ValueNotifier<bool> busy = ValueNotifier(false);
+
+  Future<void> save(Settings settings) async {
+    if (busy.value) return;
+
+    busy.value = true;
+    try {
+      await settings.save();
+      lastResult.value = SettingsSaveResult.success(settings);
+    } catch (e, st) {
+      debugPrint('error: $e\n$st');
+      lastResult.value = SettingsSaveResult.failure(e);
+    } finally {
+      busy.value = false;
+    }
+  }
+
+  void dispose() {
+    lastResult.dispose();
+    busy.dispose();
   }
 }

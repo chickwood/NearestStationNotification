@@ -321,16 +321,17 @@ NotificationService 不拥有定位或站点业务的主状态，但会持有通
 
 ---
 
-### InfoService
+### InfoService（定义于 `info_dialog.dart`）
 
 职责：
 
 - 选择 zip（`file_selector` 单选）
 - 解压、读取 `SHA256SUMS` 并校验实际存在的 station / event 文件
+- 零字节或读取结果不可用的条目视为不存在；仅对实际存在的文件执行 SHA-256 校验
 - 以 `StationManager.validate` / `EventManager.validate` 校验格式
 - 原子写入 documents（临时文件 → 改名）并重新加载
 - 单飞：`busy` 为 true 时忽略新请求
-- 通过 `ValueNotifier<InfoImportResult?> lastResult` 发布 `InfoImportSucceeded` / `InfoImportFailed`
+- 通过 `ValueNotifier<InfoImportResult?> lastResult` 发布 `InfoImportResult.success` / `InfoImportResult.failure`
 
 不负责：
 
@@ -339,13 +340,13 @@ NotificationService 不拥有定位或站点业务的主状态，但会持有通
 
 ---
 
-### SettingsService
+### SettingsService（定义于 `settings_dialog.dart`）
 
 职责：
 
 - 执行 `Settings.save()`
 - 单飞：`busy` 为 true 时忽略新请求
-- 通过 `ValueNotifier<SettingsSaveResult?> lastResult` 发布 `SettingsSaved` / `SettingsSaveFailed`
+- 通过 `ValueNotifier<SettingsSaveResult?> lastResult` 发布 `SettingsSaveResult.success` / `SettingsSaveResult.failure`
 
 不负责：
 
@@ -567,7 +568,7 @@ HomePage（对话框触发）→ InfoService.import()
         └─ event   → EventManager.load()
         │
         ▼
-InfoService.lastResult = InfoImportSucceeded
+InfoService.lastResult = InfoImportResult.success
         │
         ├─ InfoDialog：仅刷新 bin 信息
         └─ HomePage：Coordinator.changeStationData/changeEventData + setState + Toast
@@ -582,7 +583,7 @@ SettingsDialog → SettingsService.save(_draft)
 Settings.save()
         │
         ▼
-SettingsService.lastResult = SettingsSaved / SettingsSaveFailed
+SettingsService.lastResult = SettingsSaveResult.success / failure
         │
         ├─ SettingsDialog：仅刷新自身状态（不关闭）
         └─ HomePage：setState + Coordinator.changeSettings + Toast

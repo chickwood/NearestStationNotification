@@ -49,7 +49,7 @@ InfoService.import()
         └─ event   → EventManager.load()
         │
         ▼
-InfoService.lastResult = InfoImportSucceeded / InfoImportFailed
+InfoService.lastResult = InfoImportResult.success / InfoImportResult.failure
         │
         ├─ InfoDialog：刷新 bin 信息，不关闭、不弹 Toast
         └─ HomePage：changeStationData / changeEventData + setState + Toast
@@ -67,7 +67,7 @@ SettingsService.save(_draft)
 Settings.save()
         │
         ▼
-SettingsService.lastResult = SettingsSaved / SettingsSaveFailed
+SettingsService.lastResult = SettingsSaveResult.success / SettingsSaveResult.failure
         │
         ├─ SettingsDialog：刷新自身状态，不关闭、不弹 Toast
         └─ HomePage：setState + changeSettings + Toast
@@ -90,7 +90,7 @@ SettingsService.lastResult = SettingsSaved / SettingsSaveFailed
 - 校验：
   - station：尺寸 / 结构校验在加载后与写入前执行，复用同一 `validate`；
   - event：JSON 可解析、`periods` 为数组、各元素 `start` / `end` 为可解析的本地时间且 start ≤ end，空数组合法；
-  - zip：限制文件数、压缩 / 解压尺寸、条目名，`SHA256SUMS` 必须存在，实际存在的 bin / json 必须校验通过。
+  - zip：读取前按文件长度检查 `maxZipSize`，读取后要求实际字节长度与文件长度严格一致；限制文件数、压缩 / 解压尺寸，仅匹配根目录固定文件名，`SHA256SUMS` 必须存在且非空；零字节或读取结果不可用的条目视为不存在，仅对实际存在的 bin / json 执行 SHA-256 与格式校验。
 - 文件 IO：documents 读取、导入文件读取（`file_selector` 取 `XFile.path` 后 `File(path).readAsBytes()`）、documents 写入（临时文件 → 改名）均由 `dart:io` 承担；assets 读取保持 `rootBundle`。
 
 ### 4. 托管与发布（手动下载）
@@ -111,7 +111,7 @@ SettingsService.lastResult = SettingsSaved / SettingsSaveFailed
   - 按钮调用 `InfoService.import()`，`busy` 期间禁用；
   - `file_selector` 单选 zip，允许仅 bin、仅 event 或两者都有；
   - Service 内部完成解析、`SHA256SUMS` 校验、格式校验、原子写入与加载；
-  - 订阅 `InfoService.lastResult`：`InfoImportSucceeded` 时刷新 bin 信息；成功 / 失败都不自动关闭；
+  - 订阅 `InfoService.lastResult`：`result.succeeded` 时刷新 bin 信息；成功 / 失败都不自动关闭；
   - Toast 由 HomePage 统一显示。
 - 关闭：X、左下「关闭」、系统返回、点击遮罩均允许；关闭不影响 Service 继续执行与结果处理。
 
@@ -152,8 +152,9 @@ SettingsService.lastResult = SettingsSaved / SettingsSaveFailed
 - HomePage 创建并持有 `InfoService` / `SettingsService`，`dispose` 取消订阅并释放。
 - 两个 Service 各自持有 `ValueNotifier lastResult` 与 `ValueNotifier busy`；busy 时忽略新请求（单飞）。
 - 结果类型：
-  - `InfoImportResult` → `InfoImportSucceeded` / `InfoImportFailed`
-  - `SettingsSaveResult` → `SettingsSaved` / `SettingsSaveFailed`
+  - `InfoImportResult.success(...)` / `InfoImportResult.failure(error)`
+  - `SettingsSaveResult.success(settings)` / `SettingsSaveResult.failure(error)`
+  - 私有构造 + 工厂保证成功 / 失败互斥；`succeeded` 判定成功
 - Dialog 只触发 Service、订阅结果刷新自身；写盘、持久化、全局 Toast 均由 Service / HomePage 承担。
 - 订阅方忽略订阅前的旧值；HomePage 在 `initState` 即订阅，不会漏掉新结果。
 
@@ -183,10 +184,8 @@ SettingsService.lastResult = SettingsSaved / SettingsSaveFailed
 |---|---|
 | `lib/station_manager.dart` | 选源（documents → assets）、校验拆分、原子写入 |
 | `lib/event_manager.dart` | 事件数据校验 / 加载 / 写入 / 期间判定 |
-| `lib/info_service.dart`（新增） | `import()`：zip 选择 / 解析 / SHA256SUMS 校验 / 格式校验 / 原子写入 / 加载；`lastResult` + `busy` 单飞 |
-| `lib/settings_service.dart`（新增） | `save()`：`Settings.save()`；`lastResult` + `busy` 单飞 |
-| `lib/info_dialog.dart` | info dialog：bin 信息 / 许可证入口 / 提示框 / 导入按钮（触发 `InfoService`） / 结果订阅 / 关闭按钮 |
-| `lib/settings_dialog.dart` | 移除许可证区块；通过 `SettingsService.save()` 保存；关闭按钮；不自动关闭 |
+| `lib/info_dialog.dart` | info dialog：bin 信息 / 许可证入口 / 提示框 / 导入按钮 / 结果订阅 / 关闭按钮；同文件内定义 `InfoService`（zip 选择 / 解析 / SHA256SUMS 校验 / 格式校验 / 原子写入 / 加载；`lastResult` + `busy` 单飞） |
+| `lib/settings_dialog.dart` | 移除许可证区块；关闭按钮；不自动关闭；同文件内定义 `SettingsService`（`Settings.save()`；`lastResult` + `busy` 单飞） |
 | `lib/home_page.dart` | info 按钮、`_showInfoDialog`、引导提示、持有并订阅两个 Service、Toast 与热加载 |
 | `lib/common.dart` | URL 常量、示例判定常量、zip 限制常量 |
 | `lib/coordinator.dart` | `changeStationData` / `changeEventData` |
@@ -219,7 +218,8 @@ SettingsService.lastResult = SettingsSaved / SettingsSaveFailed
 - 导入 zip（仅 bin）：成功 Toast → bin 信息刷新 → 引导消失 → 下一个定位点列表使用新数据；
 - 导入 zip（仅 event）：成功 Toast；`StationCount` 标签与搜索件数即时变化；
 - 导入 zip（bin + event）：同时更新两侧，Toast 为「车站及活动信息」；
-- 导入无效数据：错误 zip、缺失 / 错误 `SHA256SUMS`、格式非法 → 红色「无效的文件」Toast，不生效；
+- 导入无效数据：错误 zip、缺失 / 空 / 错误 `SHA256SUMS`、格式非法 → 红色「无效的文件」Toast，不生效；
+- 导入零字节条目：station 或 event 为零字节 / 读取结果不可用时视为缺失；两者均如此或清单为空时导入无效；仅实际存在的文件参与校验；
 - 取消文件选择：无变化、无 Toast；
 - 导入进行中关闭对话框：结果仍由 HomePage 接收并 Toast / 热加载；X、关闭按钮、系统返回、遮罩均可用；
 - 设置保存成功 / 失败：Toast 与导入同配色；保存后对话框不关闭，可继续编辑或点击关闭；

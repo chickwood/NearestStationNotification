@@ -6,11 +6,9 @@ import 'common.dart';
 import 'coordinator.dart';
 import 'event_manager.dart';
 import 'info_dialog.dart';
-import 'info_service.dart';
 import 'l10n.dart';
 import 'settings.dart';
 import 'settings_dialog.dart';
-import 'settings_service.dart';
 import 'station_manager.dart';
 
 class HomePage extends StatefulWidget {
@@ -318,32 +316,35 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     if (!mounted || result == null) return;
 
     final l10n = L10n.of(context);
-    switch (result) {
-      case InfoImportSucceeded(:final station, :final event):
-        if (station != null) {
-          _coordinator?.changeStationData(station);
-        }
-        if (event != null) {
-          _coordinator?.changeEventData(event);
-        }
-        setState(() {
-          if (station != null) {
-            _stationManager = station;
-          }
-          if (event != null) {
-            _eventManager = event;
-          }
-        });
+    if (!result.succeeded) {
+      _showToast(l10n.infoInvalidFile, isError: true);
+      return;
+    }
 
-        if (station != null && event != null) {
-          _showToast(l10n.infoImportedStationAndEvent);
-        } else if (station != null) {
-          _showToast(l10n.infoImportedStation);
-        } else {
-          _showToast(l10n.infoImportedEvent);
-        }
-      case InfoImportFailed():
-        _showToast(l10n.infoInvalidFile, isError: true);
+    final station = result.station;
+    final event = result.event;
+
+    if (station != null) {
+      _coordinator?.changeStationData(station);
+    }
+    if (event != null) {
+      _coordinator?.changeEventData(event);
+    }
+    setState(() {
+      if (station != null) {
+        _stationManager = station;
+      }
+      if (event != null) {
+        _eventManager = event;
+      }
+    });
+
+    if (station != null && event != null) {
+      _showToast(l10n.infoImportedStationAndEvent);
+    } else if (station != null) {
+      _showToast(l10n.infoImportedStation);
+    } else {
+      _showToast(l10n.infoImportedEvent);
     }
   }
 
@@ -352,18 +353,19 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     if (!mounted || result == null) return;
 
     final l10n = L10n.of(context);
-    switch (result) {
-      case SettingsSaved(:final settings):
-        setState(() {
-          _settings = settings;
-        });
-        // 无论运行状态如何都立即反映
-        // （LocationProcessor 内部会根据 stream 状态自行判断）
-        _coordinator?.changeSettings(settings);
-        _showToast(l10n.settingsSaveSucceeded);
-      case SettingsSaveFailed():
-        _showToast(l10n.settingsSaveFailed, isError: true);
+    if (!result.succeeded) {
+      _showToast(l10n.settingsSaveFailed, isError: true);
+      return;
     }
+
+    final settings = result.settings!;
+    setState(() {
+      _settings = settings;
+    });
+    // 无论运行状态如何都立即反映
+    // （LocationProcessor 内部会根据 stream 状态自行判断）
+    _coordinator?.changeSettings(settings);
+    _showToast(l10n.settingsSaveSucceeded);
   }
 
   // ── Settings Dialog ───────────────────────────────────────────────────
