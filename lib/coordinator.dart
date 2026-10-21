@@ -1,19 +1,20 @@
 import 'dart:async';
 
-import 'package:flutter/widgets.dart';
 import 'package:geolocator/geolocator.dart';
 
-import 'settings.dart';
 import 'common.dart';
+import 'event_manager.dart';
 import 'l10n.dart';
 import 'location_processor.dart';
 import 'notification_service.dart';
+import 'settings.dart';
 import 'station_manager.dart';
 
-typedef LocationResultHandler = void Function(
-  PositionResult? positionResult,
-  List<StationResult>? stationResults,
-);
+typedef LocationResultHandler =
+    void Function(
+      PositionResult? positionResult,
+      List<StationResult>? stationResults,
+    );
 typedef RunningStatusHandler = void Function(RunningStatus runningStatus);
 
 /// アプリ全体を協調する Coordinator
@@ -25,7 +26,8 @@ class Coordinator {
   L10n _l10n;
   bool _active;
   Settings _settings;
-  final StationManager _manager;
+  StationManager _stationManager;
+  EventManager _eventManager;
 
   late final LocationProcessor _locationProcessor;
   late final NotificationService _notificationService;
@@ -45,7 +47,13 @@ class Coordinator {
   final Set<LocationResultHandler> _onLocationResultReceivedActive = {};
   final Set<RunningStatusHandler> _onRunningStatusChanged = {};
 
-  Coordinator(this._l10n, this._active, this._settings, this._manager) {
+  Coordinator(
+    this._l10n,
+    this._active,
+    this._settings,
+    this._stationManager,
+    this._eventManager,
+  ) {
     _notificationService = NotificationService(_l10n);
     addLocationResultHandler(_notificationService.handleLocationResultReceived);
 
@@ -53,15 +61,20 @@ class Coordinator {
       _l10n,
       _active,
       _settings,
-      _manager,
+      _stationManager,
     );
     _locationProcessor.setLocationHandler(_handleLocationUpdated);
+
+    // 初期イベント期間判定の注入（起動時に一度）
+    StationCount.eventPeriod = () => _eventManager.isEventPeriod;
   }
 
   // ── イベント購読・コールバック ────────────────────────────────────────────
 
-  void addLocationResultHandler(LocationResultHandler handler,
-      {bool active = false}) {
+  void addLocationResultHandler(
+    LocationResultHandler handler, {
+    bool active = false,
+  }) {
     removeLocationResultHandler(handler);
 
     if (active) {
@@ -77,15 +90,19 @@ class Coordinator {
   }
 
   void _notifyLocationResultReceived(
-      PositionResult? positionResult, List<StationResult>? stationResults,
-      {bool forceNotify = false}) {
-    for (final handler
-        in List<LocationResultHandler>.of(_onLocationResultReceived)) {
+    PositionResult? positionResult,
+    List<StationResult>? stationResults, {
+    bool forceNotify = false,
+  }) {
+    for (final handler in List<LocationResultHandler>.of(
+      _onLocationResultReceived,
+    )) {
       handler(positionResult, stationResults);
     }
     if (_active || forceNotify) {
-      for (final handler
-          in List<LocationResultHandler>.of(_onLocationResultReceivedActive)) {
+      for (final handler in List<LocationResultHandler>.of(
+        _onLocationResultReceivedActive,
+      )) {
         handler(positionResult, stationResults);
       }
     }
@@ -100,8 +117,9 @@ class Coordinator {
   }
 
   void _notifyRunningStatusChanged(RunningStatus runningStatus) {
-    for (final handler
-        in List<RunningStatusHandler>.of(_onRunningStatusChanged)) {
+    for (final handler in List<RunningStatusHandler>.of(
+      _onRunningStatusChanged,
+    )) {
       handler(runningStatus);
     }
   }
@@ -152,7 +170,7 @@ class Coordinator {
     _notifyLocationResultReceived(null, null, forceNotify: true);
   }
 
-  // ── 設定・Locale・Lifecycle ───────────────────────────────────────
+  // ── 設定・Locale・Lifecycle・Data ─────────────────────────────────
 
   Future<void> changeSettings(Settings settings) async {
     _settings = settings;
@@ -168,13 +186,7 @@ class Coordinator {
 
   /// UI の前台/后台状態が変わった時
   /// LocationProcessor に active を伝え、search 件数を切り替える
-  void changeLifecycleState(AppLifecycleState state) {
-    final active = switch (state) {
-      AppLifecycleState.paused => false,
-      AppLifecycleState.resumed => true,
-      _ => _active,
-    };
-
+  void changeActive(bool active) {
     if (active != _active) {
       _active = active;
 
@@ -187,6 +199,20 @@ class Coordinator {
         _notifyLocationResultReceived(_positionResult, _stationResults);
       }
     }
+  }
+
+  /// 站点数据更新（hot reload）
+  /// manager 与 SearchEngine 在 LocationProcessor 内成对替换（同一同步块）
+  void changeStationData(StationManager manager) {
+    _stationManager = manager;
+    _locationProcessor.changeData(manager);
+  }
+
+  /// 活动数据更新
+  void changeEventData(EventManager manager) {
+    _eventManager = manager;
+    // StationCount 检索件数所需的事件期间判定器注入（幂等）
+    StationCount.eventPeriod = () => manager.isEventPeriod;
   }
 
   // ── 権限 ────────────────────────────────────────────────────────
@@ -220,16 +246,18 @@ class Coordinator {
     _positionResult = positionResult;
 
     // index → gcd と name を補完して完全な StationResult を組立
-    _stationResults = stationResults.map((result) {
-      final (gcd, name) = _manager.getStationName(result.index);
-      return StationResult(
-        index: result.index,
-        gcd: gcd,
-        name: name,
-        distance: result.distance,
-        bearing: result.bearing,
-      );
-    }).toList(growable: false);
+    _stationResults = stationResults
+        .map((result) {
+          final (gcd, name) = _stationManager.getStationName(result.index);
+          return StationResult(
+            index: result.index,
+            gcd: gcd,
+            name: name,
+            distance: result.distance,
+            bearing: result.bearing,
+          );
+        })
+        .toList(growable: false);
 
     // 最初の定位結果を受信した時点で starting から running へ遷移する
     if (_runningStatus == RunningStatus.starting) {

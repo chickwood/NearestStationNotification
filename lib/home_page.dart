@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_styled_toast/flutter_styled_toast.dart';
 
-import 'coordinator.dart';
-import 'settings.dart';
+import 'background_task.dart';
 import 'common.dart';
+import 'coordinator.dart';
+import 'event_manager.dart';
+import 'info_dialog.dart';
 import 'l10n.dart';
+import 'settings.dart';
 import 'settings_dialog.dart';
 import 'station_manager.dart';
-import 'background_task.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -17,15 +20,24 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Settings? _settings;
-  StationManager? _manager;
+  StationManager? _stationManager;
+  EventManager? _eventManager;
 
   Coordinator? _coordinator;
+
+  late final InfoService _infoService;
+  late final SettingsService _settingsService;
 
   int _positionVisibility = 0; // 坐标显示/关闭
 
   @override
   void initState() {
     super.initState();
+
+    _infoService = InfoService();
+    _settingsService = SettingsService();
+    _infoService.lastResult.addListener(_handleImportResult);
+    _settingsService.lastResult.addListener(_handleSettingsResult);
 
     WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -38,6 +50,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
 
+    _infoService.lastResult.removeListener(_handleImportResult);
+    _settingsService.lastResult.removeListener(_handleSettingsResult);
+    _infoService.dispose();
+    _settingsService.dispose();
+
     _coordinator?.removeLocationResultHandler(_handleLocationResultReceived);
     _coordinator?.removeRunningStatusHandler(_handleRunningStatusChanged);
     _coordinator?.stop();
@@ -48,7 +65,16 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
-    _coordinator?.changeLifecycleState(state);
+
+    // inactive などの過渡状態は無視し、paused / resumed のみ伝達する
+    switch (state) {
+      case AppLifecycleState.paused:
+        _coordinator?.changeActive(false);
+      case AppLifecycleState.resumed:
+        _coordinator?.changeActive(true);
+      default:
+        break;
+    }
   }
 
   @override
@@ -61,7 +87,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    if (_coordinator == null || _settings == null || _manager == null) {
+    if (_coordinator == null ||
+        _settings == null ||
+        _stationManager == null ||
+        _eventManager == null) {
       return const Scaffold();
     }
 
@@ -81,35 +110,21 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               //   fit: BoxFit.contain,
               // ),
               // const SizedBox(width: 4),
-              Text(
-                l10n.appTitle,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w500,
+              Flexible(
+                child: Text(
+                  l10n.appTitle,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ),
             ],
           ),
           backgroundColor: const Color(0xFF4080FF),
           actions: [
-            // 定位详细显示切换
-            if (_coordinator!.runningStatus == RunningStatus.running)
-              Padding(
-                padding: const EdgeInsets.only(right: 10),
-                child: GestureDetector(
-                  onTap: _switchPositionVisibility,
-                  child: Icon(
-                    _positionVisibility == 0
-                        ? Icons.visibility_off
-                        : Icons.visibility,
-                    color: _positionVisibility == 1
-                        ? const Color(0xFFA0C0FF)
-                        : Colors.white,
-                    size: 32,
-                  ),
-                ),
-              ),
             // 开始/停止
             Padding(
               padding: const EdgeInsets.only(right: 8),
@@ -123,25 +138,46 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                   _coordinator!.runningStatus == RunningStatus.running
                       ? Icons.stop_circle
                       : Icons.play_circle_filled, // starting/stopped
-                  color: _coordinator!.runningStatus == RunningStatus.starting
-                      ? const Color(0xFFA0C0FF)
-                      : Colors.white,
+                  color:
+                      _coordinator!.runningStatus == RunningStatus.starting
+                          ? const Color(0xFFA0C0FF)
+                          : Colors.white,
                   size: 32,
                 ),
               ),
             ),
             // 设置（starting 中は無効化）
             Padding(
-              padding: const EdgeInsets.only(right: 12),
+              padding: const EdgeInsets.only(right: 8),
               child: GestureDetector(
-                onTap: _coordinator!.runningStatus == RunningStatus.starting
-                    ? null
-                    : _showSettingsDialog,
+                onTap:
+                    _coordinator!.runningStatus == RunningStatus.starting
+                        ? null
+                        : _showSettingsDialog,
                 child: Icon(
                   Icons.settings,
-                  color: _coordinator!.runningStatus == RunningStatus.starting
-                      ? const Color(0xFFA0C0FF)
-                      : Colors.white,
+                  color:
+                      _coordinator!.runningStatus == RunningStatus.starting
+                          ? const Color(0xFFA0C0FF)
+                          : Colors.white,
+                  size: 32,
+                ),
+              ),
+            ),
+            // 情報（starting 中は無効化）
+            Padding(
+              padding: const EdgeInsets.only(right: 12),
+              child: GestureDetector(
+                onTap:
+                    _coordinator!.runningStatus == RunningStatus.starting
+                        ? null
+                        : _showInfoDialog,
+                child: Icon(
+                  Icons.info,
+                  color:
+                      _coordinator!.runningStatus == RunningStatus.starting
+                          ? const Color(0xFFA0C0FF)
+                          : Colors.white,
                   size: 32,
                 ),
               ),
@@ -153,13 +189,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
             child: Column(
               children: [
-                if (_coordinator!.runningStatus == RunningStatus.running &&
-                    _positionVisibility > 0) ...[
-                  _buildPositionCard(l10n), // 上部可隐藏: 位置信息
-                  const SizedBox(height: 4),
-                ],
                 Expanded(
-                  child: _buildStationResultsCard(l10n), // 中部可滚动: 车站列表
+                  child: _buildStationResultsCard(l10n), // 车站列表 + 下部可隐藏: 位置信息
                 ),
               ],
             ),
@@ -177,19 +208,29 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     final active = true; // 应用启动时 active 必然为 true
 
     try {
-      final results = await Future.wait([
-        Settings.load(),
-        StationManager.load(),
+      late Settings settings;
+      late StationManager stationManager;
+      late EventManager eventManager;
+      await Future.wait([
+        Settings.load().then((value) => settings = value),
+        StationManager.load().then((value) => stationManager = value),
+        EventManager.load().then((value) => eventManager = value),
       ]);
-      final settings = results[0] as Settings;
-      final manager = results[1] as StationManager;
 
-      final coordinator = Coordinator(l10n, active, settings, manager);
+      final coordinator = Coordinator(
+        l10n,
+        active,
+        settings,
+        stationManager,
+        eventManager,
+      );
       _coordinator = coordinator;
 
       // UI handler 登録
-      coordinator.addLocationResultHandler(_handleLocationResultReceived,
-          active: true);
+      coordinator.addLocationResultHandler(
+        _handleLocationResultReceived,
+        active: true,
+      );
       coordinator.addRunningStatusHandler(_handleRunningStatusChanged);
 
       await coordinator.init();
@@ -197,12 +238,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       if (!mounted) return;
       setState(() {
         _settings = settings;
-        _manager = manager;
+        _stationManager = stationManager;
+        _eventManager = eventManager;
       });
     } catch (e) {
       // 其他错误（文件读取失败等）
       debugPrint(e.toString());
-      _showSnackBar(l10n.errorMsg('$e'), isError: true);
+      _showToast(l10n.errorMsg('$e'), isError: true);
     }
   }
 
@@ -249,34 +291,81 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     });
   }
 
-  // void _showEkidataWebsite() {
-  //   launchUrl(Common.uriEkidata, mode: LaunchMode.externalApplication);
-  // }
+  // ── Toast ──────────────────────────────────────────────────────
 
-  // ── Snack Bar ──────────────────────────────────────────────────
-
-  void _showSnackBar(String message, {bool isError = false}) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          message,
-          style: TextStyle(
-            color: isError ? Colors.white : Colors.grey.shade800,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        backgroundColor: isError
-            ? const Color(0xFFFF4030) // Colors.red.shade700
-            : const Color(0xFFA0C0FF), // Colors.indigo.shade300
-        elevation: 2,
-        behavior: SnackBarBehavior.floating,
-        // action: SnackBarAction(
-        //     label: 'WEBSITE', onPressed: () => _showEkidataWebsite()),
-        // showCloseIcon: !isError,
-        // closeIconColor: Colors.grey.shade800,
-        // persist: true,
+  void _showToast(String message, {bool isError = false}) {
+    showToast(
+      message,
+      backgroundColor:
+          isError
+              ? const Color(0xFFFF4030) // Colors.red.shade700
+              : const Color(0xFFA0C0FF), // Colors.indigo.shade300
+      textStyle: TextStyle(
+        color: isError ? Colors.white : Colors.grey.shade800,
       ),
+      textPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      textAlign: TextAlign.left,
+      borderRadius: BorderRadius.circular(8),
     );
+  }
+
+  // ── Service results ──────────────────────────────────────────────
+
+  void _handleImportResult() {
+    final result = _infoService.lastResult.value;
+    if (!mounted || result == null) return;
+
+    final l10n = L10n.of(context);
+    if (!result.succeeded) {
+      _showToast(l10n.infoInvalidFile, isError: true);
+      return;
+    }
+
+    final station = result.station;
+    final event = result.event;
+
+    if (station != null) {
+      _coordinator?.changeStationData(station);
+    }
+    if (event != null) {
+      _coordinator?.changeEventData(event);
+    }
+    setState(() {
+      if (station != null) {
+        _stationManager = station;
+      }
+      if (event != null) {
+        _eventManager = event;
+      }
+    });
+
+    if (station != null && event != null) {
+      _showToast(l10n.infoImportedStationAndEvent);
+    } else if (station != null) {
+      _showToast(l10n.infoImportedStation);
+    } else {
+      _showToast(l10n.infoImportedEvent);
+    }
+  }
+
+  void _handleSettingsResult() {
+    final result = _settingsService.lastResult.value;
+    if (!mounted || result == null) return;
+
+    final l10n = L10n.of(context);
+    if (!result.succeeded) {
+      _showToast(l10n.settingsSaveFailed, isError: true);
+      return;
+    }
+
+    final settings = result.settings!;
+    setState(() {
+      _settings = settings;
+    });
+    // 无论运行状态如何都立即反映
+    // （LocationProcessor 内部会根据 stream 状态自行判断）
+    _coordinator?.changeSettings(settings);
+    _showToast(l10n.settingsSaveSucceeded);
   }
 
   // ── Settings Dialog ───────────────────────────────────────────────────
@@ -285,25 +374,30 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     showDialog(
       context: context,
       barrierColor: Colors.white.withValues(alpha: 0.5),
-      builder: (context) => SettingsDialog(
-        _settings!,
-        _manager!,
-        onSave: (settings) async {
-          await settings.save();
-          setState(() {
-            _settings = settings;
-          });
-          // 无论运行状态如何都立即反映
-          // （LocationProcessor 内部会根据 stream 状态自行判断）
-          _coordinator?.changeSettings(settings);
-        },
-      ),
+      builder:
+          (context) =>
+              SettingsDialog(_settings!, settingsService: _settingsService),
     );
   }
 
-  // ── Position card ────────────────────────────────────────────────
+  // ── Info Dialog ─────────────────────────────────────────────────────
 
-  Widget _buildPositionCard(L10n l10n) {
+  void _showInfoDialog() {
+    showDialog(
+      context: context,
+      barrierColor: Colors.white.withValues(alpha: 0.5),
+      builder:
+          (context) => InfoDialog(
+            _stationManager!,
+            _eventManager!,
+            infoService: _infoService,
+          ),
+    );
+  }
+
+  // ── Service results card ─────────────────────────────────────────
+
+  Widget _buildStationResultsCard(L10n l10n) {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -318,42 +412,139 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               child: Row(
                 children: [
                   Icon(
-                    Icons.my_location,
-                    color: const Color(0xFF4080FF), // Colors.indigo.shade700
+                    Icons.radar,
+                    color: const Color(0xFFFFC000), // Colors.orange.shade700
                   ),
                   const SizedBox(width: 4),
                   Text(
-                    _positionVisibility == 1
-                        ? l10n.currentLocation
-                        : l10n.currentLocationStatus,
+                    l10n.nearbyStations,
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
+                  const Spacer(),
+                  // 定位详细显示切换
+                  if (_coordinator!.runningStatus == RunningStatus.running)
+                    GestureDetector(
+                      onTap: _switchPositionVisibility,
+                      child: Icon(
+                        _positionVisibility > 0
+                            ? Icons.near_me
+                            : Icons.near_me_disabled,
+                        color:
+                            _positionVisibility < 2
+                                ? const Color(0xFFA0C0FF)
+                                : const Color(0xFF4080FF),
+                      ),
+                    ),
                 ],
               ),
             ),
-            const SizedBox(height: 4),
-            _buildPositionResult(l10n),
+            if (_coordinator!.runningStatus == RunningStatus.running &&
+                _positionVisibility > 0) ...[
+              _buildPositionResult(l10n), // 下部可隐藏: 位置信息（リスト外・カード下端）
+              const Divider(height: 8, indent: 8, endIndent: 8),
+            ],
+            const SizedBox(height: 2),
+            Expanded(
+              child: _buildStationResultsExpanded(l10n), // リスト部分のみスクロール
+            ),
           ],
         ),
       ),
     );
   }
 
+  // ── Station results (expanded) ────────────────────────────────────────────────
+
+  Widget _buildStationResultsExpanded(L10n l10n) {
+    if (_stationManager!.count > 0) {
+      if (_coordinator!.runningStatus == RunningStatus.stopped) {
+        return Align(
+          alignment: Alignment.topCenter,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(l10n.notStarted, style: const TextStyle(color: Colors.grey)),
+              if (_stationManager!.isSampleData) ...[
+                const SizedBox(height: 4),
+                Text(
+                  l10n.sampleDataGuide,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.grey),
+                ),
+              ],
+            ],
+          ),
+        );
+      } else if (_coordinator!.runningStatus == RunningStatus.starting) {
+        return Align(
+          alignment: Alignment.topCenter,
+          child: Text(
+            l10n.waitingForLocation,
+            style: const TextStyle(color: Colors.grey),
+          ),
+        );
+      } else {
+        return Padding(
+          padding: const EdgeInsets.all(4),
+          child: ListView.separated(
+            itemCount: _coordinator!.stationResults!.length,
+            itemBuilder: (context, index) {
+              final stationResult = _coordinator!.stationResults![index];
+
+              return _StationTile(
+                index: index,
+                name: stationResult.name ?? '',
+                distance: stationResult.distanceInUnit,
+                direction: l10n.direction(stationResult.bearingIndex),
+                part: _settings!.stationCount.part(index),
+              );
+            },
+            separatorBuilder: (BuildContext context, int index) {
+              return const SizedBox(height: 4);
+            },
+          ),
+        );
+      }
+    } else {
+      return Align(
+        alignment: Alignment.topCenter,
+        child: Text(
+          l10n.countStations(0),
+          style: const TextStyle(color: Colors.grey),
+        ),
+      );
+    }
+  }
+
+  // ── Position result ────────────────────────────────────────────────
+
   Widget _buildPositionResult(L10n l10n) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       child: Column(
         children: [
+          Row(
+            children: [
+              Text(
+                _positionVisibility == 1
+                    ? l10n.currentLocation
+                    : l10n.currentLocationStatus,
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
           Row(
             children: [
               Expanded(
                 child: _PositionRow(
                   label: l10n.latitude,
-                  value:
-                      _coordinator!.positionResult!.latitude.toStringAsFixed(6),
+                  value: _coordinator!.positionResult!.latitude.toStringAsFixed(
+                    6,
+                  ),
                 ),
               ),
               const SizedBox(width: 24),
@@ -391,8 +582,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 Expanded(
                   child: _PositionRow(
                     label: l10n.heading,
-                    value: l10n
-                        .direction(_coordinator!.positionResult!.headingIndex),
+                    value: l10n.direction(
+                      _coordinator!.positionResult!.headingIndex,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 24),
@@ -409,93 +601,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       ),
     );
   }
-
-  // ── Service results card ─────────────────────────────────────────
-
-  Widget _buildStationResultsCard(L10n l10n) {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(8),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // タイトル行
-            Padding(
-              padding: const EdgeInsets.all(4),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.radar,
-                    color: const Color(0xFFFFC000), // Colors.orange.shade700
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    l10n.nearbyStations,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 4),
-            Expanded(
-              child: _buildStationResultsExpanded(l10n), // リスト部分のみスクロール
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStationResultsExpanded(L10n l10n) {
-    if (_manager!.count > 0) {
-      if (_coordinator!.runningStatus == RunningStatus.stopped) {
-        return Align(
-          alignment: Alignment.topCenter,
-          child: Text(
-            l10n.notStarted,
-            style: const TextStyle(color: Colors.grey),
-          ),
-        );
-      } else if (_coordinator!.runningStatus == RunningStatus.starting) {
-        return Align(
-          alignment: Alignment.topCenter,
-          child: Text(
-            l10n.waitingForLocation,
-            style: const TextStyle(color: Colors.grey),
-          ),
-        );
-      } else {
-        return ListView.builder(
-          padding: const EdgeInsets.fromLTRB(6, 4, 6, 0),
-          itemCount: _coordinator!.stationResults!.length,
-          itemBuilder: (context, index) {
-            final stationResult = _coordinator!.stationResults![index];
-
-            return _StationTile(
-              index: index,
-              name: stationResult.name ?? '',
-              distance: stationResult.distanceInUnit,
-              direction: l10n.direction(stationResult.bearingIndex),
-              part: _settings!.stationCount.part(index),
-            );
-          },
-        );
-      }
-    } else {
-      return Align(
-        alignment: Alignment.topCenter,
-        child: Text(
-          l10n.countStations(0),
-          style: const TextStyle(color: Colors.grey),
-        ),
-      );
-    }
-  }
 }
 
 // ── Position row ─────────────────────────────────────────────────
@@ -504,20 +609,14 @@ class _PositionRow extends StatelessWidget {
   final String label;
   final String value;
 
-  const _PositionRow({
-    required this.label,
-    required this.value,
-  });
+  const _PositionRow({required this.label, required this.value});
 
   @override
   Widget build(BuildContext context) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(
-          label,
-          style: TextStyle(color: Colors.grey.shade600),
-        ),
+        Text(label, style: TextStyle(color: Colors.grey.shade600)),
         Text(
           value,
           style: TextStyle(
@@ -567,20 +666,22 @@ class _StationTile extends StatelessWidget {
     final isNearest = index == 0;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 4),
+      // margin: const EdgeInsets.only(bottom: 4),
       padding: EdgeInsets.symmetric(
         horizontal: 12,
         vertical: isNearest ? 8 : 6,
       ),
       decoration: BoxDecoration(
-        color: isNearest
-            ? const Color(0xFFFFF0E0) // Colors.orange.shade50
-            : Colors.white,
+        color:
+            isNearest
+                ? const Color(0xFFFFF0E0) // Colors.orange.shade50
+                : Colors.white,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: isNearest
-              ? const Color(0xFFFFC000) // Colors.orange.shade700
-              : _partBorderColors[part]!,
+          color:
+              isNearest
+                  ? const Color(0xFFFFC000) // Colors.orange.shade700
+                  : _partBorderColors[part]!,
         ),
       ),
       child: Row(
@@ -589,9 +690,10 @@ class _StationTile extends StatelessWidget {
             width: 20,
             height: 20,
             decoration: BoxDecoration(
-              color: isNearest
-                  ? const Color(0xFFFFC000) // Colors.orange.shade700
-                  : _partFillColors[part]!,
+              color:
+                  isNearest
+                      ? const Color(0xFFFFC000) // Colors.orange.shade700
+                      : _partFillColors[part]!,
               shape: BoxShape.circle,
             ),
             child: Center(
@@ -621,9 +723,10 @@ class _StationTile extends StatelessWidget {
             width: 40,
             // padding: const EdgeInsets.symmetric(horizontal: 6),
             decoration: BoxDecoration(
-              color: isNearest
-                  ? const Color(0xFFFFC000) // Colors.orange.shade700
-                  : _partFillColors[part]!,
+              color:
+                  isNearest
+                      ? const Color(0xFFFFC000) // Colors.orange.shade700
+                      : _partFillColors[part]!,
               borderRadius: BorderRadius.circular(16),
             ),
             child: Center(
@@ -642,9 +745,10 @@ class _StationTile extends StatelessWidget {
             height: 20,
             padding: const EdgeInsets.symmetric(horizontal: 8),
             decoration: BoxDecoration(
-              color: isNearest
-                  ? const Color(0xFFFFC000) // Colors.orange.shade700
-                  : _partFillColors[part]!,
+              color:
+                  isNearest
+                      ? const Color(0xFFFFC000) // Colors.orange.shade700
+                      : _partFillColors[part]!,
               borderRadius: BorderRadius.circular(16),
             ),
             child: Center(

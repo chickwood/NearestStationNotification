@@ -17,7 +17,11 @@ class SearchEngine {
   /// 搜索最近的 K 个节点
   /// 返回包含索引、距离（弦长平方）、方位角的 StationResult
   List<StationResult> locate(
-      double userLatitude, double userLongitude, int count, bool active) {
+    double userLatitude,
+    double userLongitude,
+    int count,
+    bool active,
+  ) {
     if (!_manager.isLoaded || // 数据未加载完成时返回空列表
         count <= 0) {
       return [];
@@ -69,16 +73,10 @@ class SearchEngine {
       // final score = Common.degua(...);
       final score = dXcoord * dXcoord + dYcoord * dYcoord + dZcoord * dZcoord;
       if (bestNodes.length < search) {
-        bestNodes.add((
-          index: node,
-          score: score,
-        ));
+        bestNodes.add((index: node, score: score));
         bestNodes.sort((a, b) => a.score.compareTo(b.score));
       } else if (score < bestNodes.last.score) {
-        bestNodes[bestNodes.length - 1] = (
-          index: node,
-          score: score,
-        );
+        bestNodes[bestNodes.length - 1] = (index: node, score: score);
         bestNodes.sort((a, b) => a.score.compareTo(b.score));
       }
 
@@ -92,12 +90,14 @@ class SearchEngine {
         _ => 0,
       };
 
-      final int nearChild = diff < 0
-          ? _manager.getStationLeft(node)
-          : _manager.getStationRight(node);
-      final int farChild = diff < 0
-          ? _manager.getStationRight(node)
-          : _manager.getStationLeft(node);
+      final int nearChild =
+          diff < 0
+              ? _manager.getStationLeft(node)
+              : _manager.getStationRight(node);
+      final int farChild =
+          diff < 0
+              ? _manager.getStationRight(node)
+              : _manager.getStationLeft(node);
 
       // 递归
       // 在函数开头检查 NULL_PTR
@@ -120,15 +120,14 @@ class SearchEngine {
       double stSinLatRad,
       double dCosLonRad,
       double dSinLonRad,
-    }) transferNode(
-        ({
-          int index,
-          double score,
-        }) result) {
-      final stLatRad =
-          Common.radians(_manager.getStationLatitude(result.index));
-      final stLonRad =
-          Common.radians(_manager.getStationLongitude(result.index));
+    })
+    transferNode(({int index, double score}) result) {
+      final stLatRad = Common.radians(
+        _manager.getStationLatitude(result.index),
+      );
+      final stLonRad = Common.radians(
+        _manager.getStationLongitude(result.index),
+      );
       final dLatRad = inside ? stLatRad - userLatRad : double.nan;
       final dLonRad = stLonRad - userLonRad;
 
@@ -138,10 +137,11 @@ class SearchEngine {
       final dSinLonRad = sin(dLonRad);
 
       // inside 时计算 pythagorean
-      final score = inside
-          // ? Common.pythagorean(userCosLatRad, stCosLatRad, dLatRad, dLonRad)
-          ? Common.pythagorean(dLatRad, dLonRad)
-          : result.score;
+      final score =
+          inside
+              // ? Common.pythagorean(userCosLatRad, stCosLatRad, dLatRad, dLonRad)
+              ? Common.pythagorean(dLatRad, dLonRad)
+              : result.score;
 
       return (
         index: result.index,
@@ -153,29 +153,33 @@ class SearchEngine {
       );
     }
 
-    final transferNodes = inside
-        ? (bestNodes.map((result) => transferNode(result)).toList()
-              ..sort((a, b) => a.score.compareTo(b.score)))
-            .take(take)
-        : bestNodes.take(take).map((result) => transferNode(result));
+    final transferNodes =
+        inside
+            ? (bestNodes.map((result) => transferNode(result)).toList()
+                  ..sort((a, b) => a.score.compareTo(b.score)))
+                .take(take)
+            : bestNodes.take(take).map((result) => transferNode(result));
 
-    return transferNodes.map((result) {
-      final distance = inside
-          ? Common.equirectangular(result.score)
-          : Common.haversine(result.score);
+    return transferNodes
+        .map((result) {
+          final distance =
+              inside
+                  ? Common.equirectangular(result.score)
+                  : Common.haversine(result.score);
 
-      return StationResult(
-        index: result.index,
-        distance: distance,
-        bearing: Common.bearing(
-          userCosLatRad,
-          userSinLatRad,
-          result.stCosLatRad,
-          result.stSinLatRad,
-          result.dCosLonRad,
-          result.dSinLonRad,
-        ),
-      );
-    }).toList(growable: false);
+          return StationResult(
+            index: result.index,
+            distance: distance,
+            bearing: Common.bearing(
+              userCosLatRad,
+              userSinLatRad,
+              result.stCosLatRad,
+              result.stSinLatRad,
+              result.dCosLonRad,
+              result.dSinLonRad,
+            ),
+          );
+        })
+        .toList(growable: false);
   }
 }

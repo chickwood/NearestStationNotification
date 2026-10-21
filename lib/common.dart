@@ -4,14 +4,28 @@ class Common {
   // ── 动态包名常驻内存（由 main 在冷启动时注入） ───────────────────────
   static late final String appName;
 
-  // 駅情報
+  // 駅情報・イベント情報
   static const binFileName = 'station_data_xyz.bin';
+  static const eventFileName = 'event_data.json';
+  static const sumsFileName = 'SHA256SUMS';
 
-  // 駅ID解析
+  // ── 导入 zip 限制 ──────────────────────────────────────────────
+  static const maxZipSize = 20 * 1024 * 1024;
+  static const maxZipTotalUnzipSize = 50 * 1024 * 1024;
+  static const maxZipEntrySize = 10 * 1024 * 1024;
+  static const maxZipEntries = 100;
+
+  // 示例数据判定阈值（小于该车站数视为示例数据）
+  static const sampleThreshold = 50;
+
+  // 駅 ID 解析
   static final namePattern = RegExp(r'^(\d{1,7}),(.*)$');
 
   // // 駅データ.jp へのリンク
   // static final uriEkidata = Uri.parse('https://ekidata.jp/');
+
+  // 駅情報・イベント情報データダウンロードへのリンク
+  static final uriInformation = Uri.parse('https://w57.name/p2.html');
 
   static const flnChannelId = 'notification_fln_channel';
   static const flnNotificationId = 1058;
@@ -20,7 +34,7 @@ class Common {
   // // 距离过远检测
   // // 单位为经纬度差值平方 / 弦长平方
   // // 约等于 Equirectangular 和 Haversine 计算距离 99.55 km
-  // // 二进制对应 2^-12
+  // // 二进制对应 2 ^ -12
   // static const farScore = 2.44140625e-4;
 
   // 最少搜索站数
@@ -29,7 +43,7 @@ class Common {
 
   // GPS 漂移（距离过近）检测
   // 单位为经纬度差值
-  // 二进制对应 2^-15
+  // 二进制对应 2 ^ -15
   static const nearCoord = 3.0517578125e-5;
 
   // int(UInt32) 最大值
@@ -106,10 +120,7 @@ class Common {
     ],
   ];
 
-  static bool inside(
-    double latitude,
-    double longitude,
-  ) {
+  static bool inside(double latitude, double longitude) {
     return _insidePolygons.any((polygon) {
       bool inside = false;
       final n = polygon.length;
@@ -119,7 +130,8 @@ class Common {
         final latitudeJ = polygon[j].latitude;
         final longitudeJ = polygon[j].longitude;
 
-        final intersect = ((latitude < latitudeI) != (latitude < latitudeJ)) &&
+        final intersect =
+            ((latitude < latitudeI) != (latitude < latitudeJ)) &&
             (longitude <
                 (longitudeJ - longitudeI) *
                         (latitude - latitudeI) /
@@ -128,17 +140,6 @@ class Common {
         if (intersect) inside = !inside;
       }
       return inside;
-    });
-  }
-
-  static final _eventPeriods = [
-    (start: DateTime(2026, 5, 1, 15), end: DateTime(2026, 5, 31, 23, 59, 59)),
-  ];
-
-  static bool isEventPeriod() {
-    final now = DateTime.now();
-    return _eventPeriods.any((period) {
-      return !now.isBefore(period.start) && !now.isAfter(period.end);
     });
   }
 
@@ -254,9 +255,10 @@ class StationResult {
     return '{index: $index, gcd: $gcd, name: $name, distance: $distance}';
   }
 
-  String get distanceInUnit => distance < 1000.0
-      ? '${distance.toStringAsFixed(1)} m'
-      : '${(distance / 1000.0).toStringAsFixed(2)} km';
+  String get distanceInUnit =>
+      distance < 1000.0
+          ? '${distance.toStringAsFixed(1)} m'
+          : '${(distance / 1000.0).toStringAsFixed(2)} km';
   Direction get bearingIndex => Common.direction(bearing);
 
   // // 序列化（暂存，未来可能用于 Isolate 间通信，当前无调用）
@@ -290,9 +292,10 @@ class PositionResult {
     return '{latitude: $latitude, longitude: $longitude, speed: $speedString, accuracy: $accuracyString, heading: $headingIndex, datetime: $timestampString}';
   }
 
-  String get speedString => speed < SamplingMode.cycling.speed
-      ? '${speed.toStringAsFixed(1)} m/s'
-      : '${(speed * 3.6).toStringAsFixed(2)} km/h';
+  String get speedString =>
+      speed < SamplingMode.cycling.speed
+          ? '${speed.toStringAsFixed(1)} m/s'
+          : '${(speed * 3.6).toStringAsFixed(2)} km/h';
   String get accuracyString => '${accuracy.toStringAsFixed(1)} m';
   Direction get headingIndex => Common.direction(heading, speed: speed);
   String get timestampString =>
@@ -323,11 +326,7 @@ class PositionResult {
   //     );
 }
 
-enum RunningStatus {
-  stopped,
-  starting,
-  running,
-}
+enum RunningStatus { stopped, starting, running }
 
 enum SamplingMode {
   staying(speed: 0, filter: 4), // 静止
@@ -338,10 +337,7 @@ enum SamplingMode {
   final double speed;
   final int filter;
 
-  const SamplingMode({
-    required this.speed,
-    required this.filter,
-  });
+  const SamplingMode({required this.speed, required this.filter});
 
   @override
   String toString() {
@@ -373,26 +369,14 @@ enum Direction {
 // ── 设置项枚举 ────────────────────────────────────────────────────
 
 enum LocationInterval {
-  s1(
-    seconds: 1,
-    milliseconds: 1024,
-  ),
-  s3(
-    seconds: 3,
-    milliseconds: 3072,
-  ),
-  s5(
-    seconds: 5,
-    milliseconds: 5120,
-  );
+  s1(seconds: 1, milliseconds: 1024),
+  s3(seconds: 3, milliseconds: 3072),
+  s5(seconds: 5, milliseconds: 5120);
 
   final int seconds;
   final int milliseconds;
 
-  const LocationInterval({
-    required this.seconds,
-    required this.milliseconds,
-  });
+  const LocationInterval({required this.seconds, required this.milliseconds});
 }
 
 // enum NotificationMode {
@@ -402,21 +386,12 @@ enum LocationInterval {
 
 // StationCount 的四个预设
 // friend: 传入 engine 的基础数量
+// event: 事件期间追加的数量
 // radar: 第一段扩展（+4）
 // natsume: 第二段扩展（+2）
 enum StationCount {
-  game(
-    friend: 12,
-    event: 2,
-    radar: 4,
-    natsume: 2,
-  ),
-  max(
-    friend: 20,
-    event: 0,
-    radar: 0,
-    natsume: 0,
-  );
+  game(friend: 12, event: 2, radar: 4, natsume: 2),
+  max(friend: 20, event: 0, radar: 0, natsume: 0);
 
   final int friend;
   final int event;
@@ -430,15 +405,17 @@ enum StationCount {
     required this.natsume,
   });
 
+  /// 事件期间判定器（由 EventManager 初始化时注入；默认 false）
+  static bool Function() eventPeriod = () => false;
+
   // 传入 engine 的实际 count
-  int get count =>
-      friend + (Common.isEventPeriod() ? event : 0) + radar + natsume;
+  int get count => friend + (eventPeriod() ? event : 0) + radar + natsume;
 
   StationCountPart part(int index) {
     if (index < friend) {
       return StationCountPart.friend;
     } else {
-      if (Common.isEventPeriod()) {
+      if (eventPeriod()) {
         if (index < friend + event) return StationCountPart.event;
         if (index < friend + event + radar) return StationCountPart.radar;
         return StationCountPart.natsume;
@@ -451,14 +428,9 @@ enum StationCount {
 
   // 显示标签，例如 "12"、"12 + 4"、"12 + 4 + 2"
   String get label {
-    return '$friend${(event > 0 && Common.isEventPeriod() ? ' + $event' : '')}'
+    return '$friend${(event > 0 && eventPeriod() ? ' + $event' : '')}'
         '${(radar > 0 ? ' + $radar' : '')}${(natsume > 0 ? ' + $natsume' : '')}';
   }
 }
 
-enum StationCountPart {
-  friend,
-  event,
-  radar,
-  natsume,
-}
+enum StationCountPart { friend, event, radar, natsume }

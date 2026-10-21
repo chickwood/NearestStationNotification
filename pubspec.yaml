@@ -13,12 +13,16 @@ dependencies:
     sdk: flutter
   flutter_localizations:
     sdk: flutter
+  archive: ^4.5.2
+  crypto: ^3.0.7
+  file_selector: ^1.1.0
   flutter_local_notifications: ^22.3.2
-  geolocator: ^14.1.1
+  flutter_styled_toast: ^2.3.0
+  geolocator: ^14.1.2
   package_info_plus: ^10.2.2
-  # path_provider: ^2.1.6
+  path_provider: ^2.1.6
   shared_preferences: ^2.5.6
-  # url_launcher: ^6.3.3
+  url_launcher: ^6.3.3
 
 dev_dependencies:
   flutter_lints: ^6.0.0

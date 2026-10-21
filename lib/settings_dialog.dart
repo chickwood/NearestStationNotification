@@ -1,23 +1,19 @@
 import 'package:flutter/material.dart';
 
-import 'settings.dart';
 import 'common.dart';
 import 'l10n.dart';
-import 'license_dialog.dart';
-import 'station_manager.dart';
+import 'settings.dart';
 
 // ── Settings Dialog ───────────────────────────────────────────────
 
 class SettingsDialog extends StatefulWidget {
   final Settings settings;
-  final StationManager manager;
-  final Future<void> Function(Settings) onSave;
+  final SettingsService settingsService;
 
   const SettingsDialog(
-    this.settings,
-    this.manager, {
+    this.settings, {
     super.key,
-    required this.onSave,
+    required this.settingsService,
   });
 
   @override
@@ -31,8 +27,27 @@ class _SettingsDialogState extends State<SettingsDialog> {
   void initState() {
     super.initState();
 
-    // 弹窗内操作的临时副本，取消则丢弃
+    // 弹窗内操作的临时副本，关闭则丢弃
     _draft = widget.settings.copyWith();
+    widget.settingsService.lastResult.addListener(_handleResult);
+    widget.settingsService.busy.addListener(_handleBusyChanged);
+  }
+
+  @override
+  void dispose() {
+    widget.settingsService.lastResult.removeListener(_handleResult);
+    widget.settingsService.busy.removeListener(_handleBusyChanged);
+    super.dispose();
+  }
+
+  void _handleResult() {
+    if (!mounted) return;
+    setState(() {});
+  }
+
+  void _handleBusyChanged() {
+    if (!mounted) return;
+    setState(() {});
   }
 
   @override
@@ -115,51 +130,6 @@ class _SettingsDialogState extends State<SettingsDialog> {
                   //       setState(() => _draft = _draft.copyWith(notificationMode: v)),
                   // ),
                   // const SizedBox(height: 12),
-                  // ── 駅情報 ────────────────────────────────────────────
-                  _SectionLabel(label: l10n.settingsInfoTitle),
-                  const SizedBox(height: 8),
-                  Container(
-                    width: double.infinity,
-                    alignment: Alignment.centerLeft,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFE8F8FF),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: const Color(0xFF60A0FF)),
-                    ),
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTap:
-                          () => showDialog<void>(
-                            context: context,
-                            barrierColor: Colors.transparent,
-                            builder: (_) => LicenseListDialog(widget.manager),
-                          ),
-                      // onTap: () => showLicensePage(context: context),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.info, color: Color(0xFF4080FF)),
-                            const SizedBox(width: 8),
-                            Flexible(
-                              child: Text(
-                                '${l10n.countStations(widget.manager.count)}\n${l10n.settingsLicense}',
-                                style: TextStyle(
-                                  color: Colors.grey.shade600,
-                                  fontSize: 12,
-                                ),
-                                softWrap: true,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
                 ],
               ),
             ),
@@ -176,7 +146,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
                       vertical: 8,
                     ),
                     child: Text(
-                      l10n.settingsCancel,
+                      l10n.dialogClose,
                       style: const TextStyle(
                         color: Color(0xFF4080FF),
                         fontSize: 14,
@@ -187,10 +157,10 @@ class _SettingsDialogState extends State<SettingsDialog> {
                 ),
                 GestureDetector(
                   behavior: HitTestBehavior.opaque,
-                  onTap: () async {
-                    Navigator.of(context).pop();
-                    await widget.onSave(_draft);
-                  },
+                  onTap:
+                      widget.settingsService.busy.value
+                          ? null
+                          : () => widget.settingsService.save(_draft),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 12,
@@ -198,8 +168,11 @@ class _SettingsDialogState extends State<SettingsDialog> {
                     ),
                     child: Text(
                       l10n.settingsSave,
-                      style: const TextStyle(
-                        color: Color(0xFF4080FF),
+                      style: TextStyle(
+                        color:
+                            widget.settingsService.busy.value
+                                ? const Color(0xFFA0C0FF)
+                                : const Color(0xFF4080FF),
                         fontSize: 14,
                         fontWeight: FontWeight.w500,
                       ),
@@ -285,5 +258,53 @@ class _SectionLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Text(label, style: TextStyle(color: Colors.grey.shade600));
+  }
+}
+
+// ── Settings Service ───────────────────────────────────────────────
+
+class SettingsSaveResult {
+  final Settings? settings;
+  final Object? error;
+
+  const SettingsSaveResult._({this.settings, this.error})
+    : assert(
+        (settings == null) != (error == null),
+        'exactly one of settings / error must be set',
+      );
+
+  factory SettingsSaveResult.success(Settings settings) =>
+      SettingsSaveResult._(settings: settings);
+
+  factory SettingsSaveResult.failure(Object error) =>
+      SettingsSaveResult._(error: error);
+
+  bool get succeeded => error == null;
+}
+
+/// Settings.save() 的异步执行与结果持有者，
+/// 生命周期独立于 SettingsDialog。
+class SettingsService {
+  final ValueNotifier<SettingsSaveResult?> lastResult = ValueNotifier(null);
+  final ValueNotifier<bool> busy = ValueNotifier(false);
+
+  Future<void> save(Settings settings) async {
+    if (busy.value) return;
+
+    busy.value = true;
+    try {
+      await settings.save();
+      lastResult.value = SettingsSaveResult.success(settings);
+    } catch (e, st) {
+      debugPrint('error: $e\n$st');
+      lastResult.value = SettingsSaveResult.failure(e);
+    } finally {
+      busy.value = false;
+    }
+  }
+
+  void dispose() {
+    lastResult.dispose();
+    busy.dispose();
   }
 }

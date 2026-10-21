@@ -133,7 +133,13 @@ class L10n {
     return '${count > 0 ? '$count' : 'No'} station${count == 1 ? '' : 's'} loaded.';
   }
 
-  // ── SnackBar ───────────────────────────────────────────────
+  String get sampleDataGuide {
+    if (_isJa) return 'サンプル駅情報を使用中です。右上の情報ボタンをクリックして駅情報を確認・更新。';
+    if (_isZhHans) return '当前正在使用示例车站信息。点击右上角的信息按钮查看和更新车站信息。';
+    return 'Sample data in use. Tap the Info button on the top right to view and update station information.';
+  }
+
+  // ── Toast ──────────────────────────────────────────────────
   String errorMsg(String message) {
     if (_isJa) return '読み込み失敗: $message';
     if (_isZhHans) return '读取失败: $message';
@@ -251,33 +257,119 @@ class L10n {
     return '$seconds s';
   }
 
-  String get settingsInfoTitle {
-    if (_isJa) return 'ライセンス・駅情報';
-    if (_isZhHans) return '许可证及车站信息';
-    return 'Licenses and Station Information';
-  }
-
-  String get settingsLicense {
-    if (_isJa) return 'ここをクリックして、ライセンス・駅情報詳細を表示。';
-    if (_isZhHans) return '点击此处以显示许可证及车站信息详情。';
-    return 'Tap here to view licenses and station information details.';
-  }
-
-  String settingsStations(int count) => countStations(count); // 定义别名区分使用位置
-
   String get settingsSave {
     if (_isJa || _isZhHans) return '保存';
     return 'Save';
   }
 
-  String get settingsCancel {
-    if (_isJa) return 'キャンセル';
-    if (_isZhHans) return '取消';
-    return 'Cancel';
+  String get settingsSaveSucceeded {
+    if (_isJa) return '設定を保存しました。';
+    if (_isZhHans) return '设置已保存。';
+    return 'Settings saved.';
+  }
+
+  String get settingsSaveFailed {
+    if (_isJa) return '設定の保存に失敗しました';
+    if (_isZhHans) return '保存设置失败';
+    return 'Failed to save settings';
+  }
+
+  String get dialogClose {
+    if (_isJa) return '閉じる';
+    if (_isZhHans) return '关闭';
+    return 'Close';
+  }
+
+  // ── Info Dialog ──────────────────────────────────────────────────
+  String get infoDialogTitle {
+    if (_isJa) return '情報';
+    if (_isZhHans) return '信息';
+    return 'Info';
+  }
+
+  String get infoTitle {
+    if (_isJa) return 'ライセンス・駅情報';
+    if (_isZhHans) return '许可证及车站信息';
+    return 'Licenses and Station Information';
+  }
+
+  String infoStations(int count) => countStations(count); // 定义别名区分使用位置
+
+  String infoVersion(int date, int pdate) {
+    if (_isJa) {
+      return 'バージョン: ${date > 0 ? '$date${pdate > 0 ? ' + パッチ: $pdate' : ''}' : ''}';
+    }
+    if (_isZhHans) {
+      return '版本: ${date > 0 ? '$date${pdate > 0 ? ' + 修订: $pdate' : ''}' : ''}';
+    }
+    return 'Version: ${date > 0 ? '$date${pdate > 0 ? ' + Patch: $pdate' : ''}' : ''}';
+  }
+
+  String infoSize(int size) {
+    if (_isJa) return 'サイズ: ${size ~/ 1024} KB';
+    if (_isZhHans) return '大小: ${size ~/ 1024} KB';
+    return 'Size: ${size ~/ 1024} KB';
+  }
+
+  String get infoLicense {
+    if (_isJa) return 'ここをクリックして、ライセンス・駅情報詳細を表示。';
+    if (_isZhHans) return '点击此处显示许可证及车站信息详情。';
+    return 'Tap here to view licenses and station information details.';
+  }
+
+  String get infoUpdateTitle {
+    if (_isJa || _isZhHans) return '更新';
+    return 'Update';
+  }
+
+  String get infoUpdateNotice {
+    if (_isJa) {
+      return '駅情報・イベント情報データは定期的に更新してください。'
+          '\nここをクリックして、ダウンロードサイトを開く。'
+          '\n\nダウンロード後、インポートをクリックして、データファイルを選択して情報を更新。';
+    }
+    if (_isZhHans) {
+      return '请定期更新车站信息与事件信息数据。'
+          '\n点击此处打开下载网站。'
+          '\n\n下载后，点击导入，选择数据文件更新信息。';
+    }
+    return 'Update station information and event information data periodically.'
+        '\nTap here to open download website.'
+        '\n\nAfter download, tap import, select data file to update information.';
+  }
+
+  String get infoImport {
+    if (_isJa) return 'インポート';
+    if (_isZhHans) return '导入';
+    return 'Import';
+  }
+
+  String get infoImportedStationAndEvent {
+    if (_isJa) return '駅情報・イベント情報をインポートしました。';
+    if (_isZhHans) return '已导入车站及活动信息。';
+    return 'Station and event information imported.';
+  }
+
+  String get infoImportedStation {
+    if (_isJa) return '駅情報をインポートしました。';
+    if (_isZhHans) return '已导入车站信息。';
+    return 'Station information imported.';
+  }
+
+  String get infoImportedEvent {
+    if (_isJa) return 'イベント情報をインポートしました。';
+    if (_isZhHans) return '已导入活动信息。';
+    return 'Event information imported.';
+  }
+
+  String get infoInvalidFile {
+    if (_isJa) return '無効なファイルです';
+    if (_isZhHans) return '无效的文件';
+    return 'Invalid file';
   }
 
   // ── License Dialog ───────────────────────────────────────────────────────────
-  String get licensesDialogTitle => settingsInfoTitle;
+  String get licensesDialogTitle => infoTitle;
 
   String licenseCount(int count) {
     if (_isJa) return '$count 件ライセンス';
@@ -297,26 +389,16 @@ class L10n {
     return 'Source code published under the MIT License.';
   }
 
-  String licenseStationsDetails(int count, int date, int pdate, int size) {
-    if (_isJa) {
-      return '駅情報詳細'
-          '\n${countStations(count)}'
-          '\nバージョン: ${date > 0 ? '$date${pdate > 0 ? '\nパッチ: $pdate' : ''}' : ''}'
-          '\nサイズ: ${size ~/ 1024} KB'
-          '\n駅情報は 駅データ.jp のデータに基づき、加工・生成されたものです。';
-    }
-    if (_isZhHans) {
-      return '车站信息详情'
-          '\n${countStations(count)}'
-          '\n版本: ${date > 0 ? '$date${pdate > 0 ? ' 修订版本: $pdate' : ''}' : ''}'
-          '\n大小: ${size ~/ 1024} KB'
-          '\n车站信息衍生于 ekidata.jp 所公开的数据。';
-    }
-    return 'Detail of station information'
-        '\n${countStations(count)}'
-        '\nVersion: ${date > 0 ? '$date${pdate > 0 ? ' Patch: $pdate' : ''}' : ''}'
-        '\nSize: ${size ~/ 1024} KB'
-        '\nStation information based on and derived from the dataset published by ekidata.jp.';
+  String get licenseStationDetailsTitle {
+    if (_isJa) return '駅情報詳細';
+    if (_isZhHans) return '车站信息详情';
+    return 'Station information details';
+  }
+
+  String get licenseStationDetailsEkidata {
+    if (_isJa) return '駅情報は 駅データ.jp のデータに基づき、加工・生成されたものです。';
+    if (_isZhHans) return '车站信息衍生于 ekidata.jp 所公开的数据。';
+    return 'Station information based on and derived from the dataset published by ekidata.jp.';
   }
 }
 

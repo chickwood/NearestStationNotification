@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:path_provider/path_provider.dart';
 
 import 'common.dart';
 
@@ -39,6 +41,9 @@ class StationManager {
       (_offsets.isNotEmpty) &&
       (_names.isNotEmpty);
 
+  /// 示例数据判定（count 阈值）
+  bool get isSampleData => count > 0 && count < Common.sampleThreshold;
+
   StationManager._manager(
     this._latitudes,
     this._longitudes,
@@ -67,107 +72,105 @@ class StationManager {
 
   // ── BIN 文件读写 ────────────────────────────────────────────────
 
-  /// BIN ファイルを読み込み StationManager インスタンスを生成する
+  /// BIN ファイルを読み込み
   /// 读取（资产加载）失败时抛出异常
-  /// 解析校验失败时返回空实例降级
-  /// 将来的には documents → assets の順に試み
-  static Future<StationManager> load() async {
-    final data = await _loadStationBin();
-
-    // 数据完整性校验
-    // 总长度应大于尾部长度 (根节点索引(4) + 非叶节点数(4) + 车站数(4) + 日期戳(4) + 修订日期戳(4))
-    final size = data.lengthInBytes;
-    if (size > 20) {
-      // 提取车站数和日期戳
-      final root = data.getUint32(size - 20, Endian.little);
-      final mcount = data.getUint32(size - 16, Endian.little);
-      final count = data.getUint32(size - 12, Endian.little);
-      final date = data.getUint32(size - 8, Endian.little);
-      final patchDate = data.getUint32(size - 4, Endian.little);
-
-      // 取得 _count 后的数据完整性校验
-      // 总长度应大于不含车站名的基础长度加尾部长度
-      // (_count * (经纬度(16) + XYZ(24) + 车站名偏移(4)) + 根节点索引(4) + 非叶节点数(4) + 车站数(4) + 日期戳(4) + 修订日期戳(4))
-      if (size > (count * 44) + 20) {
-        return StationManager._manager(
-          data.buffer.asFloat64List(data.offsetInBytes, count),
-          data.buffer.asFloat64List(data.offsetInBytes + (count * 8), count),
-          data.buffer.asFloat64List(data.offsetInBytes + (count * 16), count),
-          data.buffer.asFloat64List(data.offsetInBytes + (count * 24), count),
-          data.buffer.asFloat64List(data.offsetInBytes + (count * 32), count),
-          data.buffer.asUint32List(data.offsetInBytes + (count * 40), mcount),
-          data.buffer.asUint32List(
-            data.offsetInBytes + (count * 40) + (mcount * 4),
-            mcount,
-          ),
-          data.buffer.asUint32List(
-            data.offsetInBytes + (count * 40) + (mcount * 8),
-            count,
-          ),
-          data.buffer.asUint8List(
-            data.offsetInBytes + (count * 44) + (mcount * 8),
-            size - 20 - (count * 44) - (mcount * 8),
-          ),
-          root: root,
-          mcount: mcount,
-          count: count,
-          date: date,
-          pdate: patchDate,
-          size: size,
-        );
-      }
-    }
-
-    return StationManager._info();
-  }
-
-  // static Future<StationManager> loadInfo() async {
-  //   final data = await _loadStationBin();
-
-  //   // 数据完整性校验
-  //   // 总长度应大于尾部长度 (根节点索引(4) + 非叶节点数(4) + 车站数(4) + 日期戳(4) + 修订日期戳(4))
-  //   final size = data.lengthInBytes;
-  //   if (size > 20) {
-  //     // 提取车站数和日期戳
-  //     final root = data.getUint32(size - 20, Endian.little);
-  //     final mcount = data.getUint32(size - 16, Endian.little);
-  //     final count = data.getUint32(size - 12, Endian.little);
-  //     final date = data.getUint32(size - 8, Endian.little);
-  //     final patchDate = data.getUint32(size - 4, Endian.little);
-
-  //     // 提取车站数和日期戳
-  //     return StationManager._info(
-  //       root: root,
-  //       mcount: mcount,
-  //       count: count,
-  //       date: date,
-  //       patchDate: patchDate,
-  //       size: size,
-  //     );
-  //   }
-
-  //   return StationManager._info();
-  // }
-
   static Future<ByteData> _loadStationBin() async {
     ByteData? data;
 
-    // // 先尝试从私有目录加载
-    // final path =
-    //     await PathProviderPlatform.instance.getApplicationDocumentsPath();
-    // if (path != null) {
-    //   final dir = Directory(path);
-    //   final file = File('${dir.path}/${Common.binFileName}');
-    //   if (await file.exists()) {
-    //     final bytes = await file.readAsBytes();
-    //     if (bytes.length > 8) data = bytes.buffer.asByteData();
-    //   }
-    // }
+    // 先尝试从私有目录加载
+    try {
+      final dir = await getApplicationDocumentsDirectory();
+      final file = File('${dir.path}/${Common.binFileName}');
+      if (await file.exists()) {
+        data = ByteData.sublistView(await file.readAsBytes());
+      }
+    } catch (e, st) {
+      debugPrint('error: $e\n$st');
+    }
 
     // 私有目录没有有效数据时尝试从 assets 加载
     data ??= await rootBundle.load('assets/${Common.binFileName}');
 
     return data;
+  }
+
+  /// 尺寸 / 结构校验（加载、写入共用）
+  static bool validate(ByteData data) {
+    // 数据完整性校验
+    // 总长度应大于尾部长度 (根节点索引(4) + 非叶节点数(4) + 车站数(4) + 日期戳(4) + 修订日期戳(4))
+    final size = data.lengthInBytes;
+    if (size > 20) {
+      // 提取车站数
+      final count = data.getUint32(size - 12, Endian.little);
+
+      // 取得 count 后的数据完整性校验
+      // 总长度应大于不含车站名的基础长度加尾部长度
+      // (count * (经纬度(16) + XYZ(24) + 车站名偏移(4)) + 根节点索引(4) + 非叶节点数(4) + 车站数(4) + 日期戳(4) + 修订日期戳(4))
+      if (size > (count * 44) + 20) return true;
+    }
+
+    return false;
+  }
+
+  /// StationManager インスタンスを生成する
+  /// 解析校验失败时返回空实例
+  static Future<StationManager> load() async {
+    final data = await _loadStationBin();
+    if (!validate(data)) return StationManager._info();
+
+    // 提取车站数和日期戳
+    final size = data.lengthInBytes;
+    final root = data.getUint32(size - 20, Endian.little);
+    final mcount = data.getUint32(size - 16, Endian.little);
+    final count = data.getUint32(size - 12, Endian.little);
+    final date = data.getUint32(size - 8, Endian.little);
+    final pdate = data.getUint32(size - 4, Endian.little);
+
+    return StationManager._manager(
+      data.buffer.asFloat64List(data.offsetInBytes, count),
+      data.buffer.asFloat64List(data.offsetInBytes + (count * 8), count),
+      data.buffer.asFloat64List(data.offsetInBytes + (count * 16), count),
+      data.buffer.asFloat64List(data.offsetInBytes + (count * 24), count),
+      data.buffer.asFloat64List(data.offsetInBytes + (count * 32), count),
+      data.buffer.asUint32List(data.offsetInBytes + (count * 40), mcount),
+      data.buffer.asUint32List(
+        data.offsetInBytes + (count * 40) + (mcount * 4),
+        mcount,
+      ),
+      data.buffer.asUint32List(
+        data.offsetInBytes + (count * 40) + (mcount * 8),
+        count,
+      ),
+      data.buffer.asUint8List(
+        data.offsetInBytes + (count * 44) + (mcount * 8),
+        size - 20 - (count * 44) - (mcount * 8),
+      ),
+      root: root,
+      mcount: mcount,
+      count: count,
+      date: date,
+      pdate: pdate,
+      size: size,
+    );
+  }
+
+  /// 原子写入私有目录（临时文件 → 改名；失败不覆盖现有文件）
+  static Future<void> write(Uint8List bytes) async {
+    final dir = await getApplicationDocumentsDirectory();
+    final target = File('${dir.path}/${Common.binFileName}');
+    final temp = File('${target.path}.tmp');
+
+    try {
+      await temp.writeAsBytes(bytes, flush: true);
+      await temp.rename(target.path);
+    } catch (e) {
+      try {
+        await temp.delete();
+      } catch (_) {
+        // 清理失败时忽略，保留原始异常
+      }
+      rethrow;
+    }
   }
 
   // ── 数据访问 ────────────────────────────────────────────────────
