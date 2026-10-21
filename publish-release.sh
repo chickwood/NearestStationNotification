@@ -89,7 +89,6 @@ BRANCH_VERSION=$(printf '%s\n' "$BRANCH_PUBSPEC" | grep '^version:' | awk '{prin
 if [ -z "$BRANCH_VERSION" ]; then
     # 回退：内容读取失败时，仅当两边的 pubspec.yaml 完全一致才放行
     if git diff --quiet "origin/${RELEASE_BRANCH}" HEAD -- pubspec.yaml; then
-        echo "警告：无法读取 release 分支的 pubspec.yaml，已改用整文件比对，两者一致，放行。"
         BRANCH_VERSION="$VERSION_STR"
     else
         echo "错误: 无法从 release 分支读取 version 字段: ${RELEASE_BRANCH}"

@@ -114,7 +114,6 @@ foreach ($line in $branchPubspec) {
 if (-not $branchVersionStr) {
     # 回退：内容读取失败时，仅当两边的 pubspec.yaml 完全一致才放行
     if (Test-GitRef diff --quiet "origin/${releaseBranch}" HEAD -- pubspec.yaml) {
-        Write-Warning "警告：无法读取 release 分支的 pubspec.yaml，已改用整文件比对，两者一致，放行。"
         $branchVersionStr = $versionStr
     }
     else {
