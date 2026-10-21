@@ -97,13 +97,20 @@ if (-not (Test-GitAncestor "origin/$releaseBranch" HEAD)) {
 }
 
 # 8. 校验 main 与 release 分支中的版本一致，避免 tag 名与打包内容不符
-$branchVersionLine = git show "origin/${releaseBranch}:pubspec.yaml" |
-    Select-String -Pattern "^version:" | Select-Object -First 1
-if (-not $branchVersionLine) {
-    Write-Error "错误: 无法从 release 分支读取 version 字段: $releaseBranch"
+$branchPubspec = & git show "origin/${releaseBranch}:pubspec.yaml"
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "错误: 无法读取 release 分支的 pubspec.yaml: $releaseBranch"
     exit 1
 }
-$branchVersionStr = ($branchVersionLine.Line -split ":", 2)[1].Trim()
+$branchText = [string]::Join("`n", $branchPubspec)
+$branchVersionStr = $null
+if ($branchText -match '(?m)^version:\s*(\S+)\s*$') {
+    $branchVersionStr = $Matches[1]
+}
+if (-not $branchVersionStr) {
+    Write-Error "错误: release 分支的 pubspec.yaml 中缺少 version 字段: $releaseBranch"
+    exit 1
+}
 if ($branchVersionStr -ne $versionStr) {
     Write-Error "错误: main 中版本 $versionStr 与 release 分支中 $branchVersionStr 不一致"
     exit 1
