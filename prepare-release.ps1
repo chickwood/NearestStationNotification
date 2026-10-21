@@ -39,16 +39,51 @@ if (-not $versionLine) {
     exit 1
 }
 $versionStr = ($versionLine.Line -split ":", 2)[1].Trim()
-if ($versionStr -notmatch '^[0-9]+\.[0-9]+\.[0-9]+-[0-9]{8}(-[0-9]+)?\+[0-9]{8}[0-9]{2}$') {
+if ($versionStr -notmatch '^[0-9]+\.[0-9]+\.[0-9]+\+[0-9]{10}$') {
     Write-Error "错误: version 格式无效: $versionStr"
-    Write-Error "格式应为: X.Y.Z-YYYYMMDD[-N]+YYYYMMDDNN"
+    Write-Error "格式应为: X.Y.Z+YYYYMMDDNN"
     exit 1
 }
-# 4. 生成 release 分支名和 Tag 名
+
+# 4. 校验构建号中的日期部分（YYYYMMDD）是否为真实存在的日期
+$buildNumber = $versionStr.Substring($versionStr.LastIndexOf('+') + 1)
+$buildDate = $buildNumber.Substring(0, 8)
+$buildDateValue = [datetime]::MinValue
+$dateValid = [datetime]::TryParseExact(
+    $buildDate,
+    'yyyyMMdd',
+    [System.Globalization.CultureInfo]::InvariantCulture,
+    [System.Globalization.DateTimeStyles]::None,
+    [ref]$buildDateValue
+)
+if (-not $dateValid) {
+    Write-Error "错误: 构建日期无效: $buildDate"
+    exit 1
+}
+
+# 5. 校验 versionCode 严格大于远端已发布 Tag 中的最大值
+$remoteTags = & git ls-remote --tags --refs origin 'refs/tags/v*'
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "错误: 无法读取远端 Tag 列表，versionCode 单调性校验中止。"
+    exit 1
+}
+$maxCode = [int64]0
+foreach ($line in $remoteTags) {
+    if ($line -match '\s+refs/tags/v\S*\+([0-9]{10})$') {
+        $code = [int64]($Matches[1])
+        if ($code -gt $maxCode) { $maxCode = $code }
+    }
+}
+if ([int64]$buildNumber -le $maxCode) {
+    Write-Error "错误: versionCode $buildNumber 不大于已发布最大值 $maxCode"
+    exit 1
+}
+
+# 6. 生成 release 分支名和 Tag 名
 $releaseBranch = "release/v$versionStr"
 $targetTag = "v$versionStr"
 
-# 5. 检查目标分支和 Tag 是否已存在
+# 7. 检查目标分支和 Tag 是否已存在
 if ((Test-GitRef show-ref --verify --quiet "refs/heads/$releaseBranch") -or
     (Test-GitRef ls-remote --exit-code --heads origin $releaseBranch)) {
     Write-Error "错误: release 分支已存在: $releaseBranch"
@@ -60,7 +95,7 @@ if ((Test-GitRef show-ref --verify --quiet "refs/tags/$targetTag") -or
     exit 1
 }
 
-# 6. 用户确认
+# 8. 用户确认
 Write-Host "========== 发布准备 ==========" -ForegroundColor Cyan
 Write-Host "将创建并推送: $releaseBranch"
 Write-Host "之后请创建 PR: $releaseBranch -> main"
@@ -71,7 +106,7 @@ if ($confirmation -notmatch "^[yY]$") {
     exit 0
 }
 
-# 7. 创建并推送 release 分支
+# 9. 创建并推送 release 分支
 Write-Host "1. 创建并切换到 release 分支..." -ForegroundColor Green
 Invoke-Git checkout -b $releaseBranch
 
