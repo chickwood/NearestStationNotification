@@ -5,8 +5,9 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'common.dart';
 import 'l10n.dart';
 
-/// 業務通知専用サービス（純粋な FLN ラッパー）
-/// 状態を持たず、呼び出し側（Coordinator）から渡されたデータで通知を表示する
+/// 業務通知専用サービス（FLN ラッパー）
+/// 呼び出し側（Coordinator）から渡されたデータで通知を表示する
+/// 通知表示に必要な内部状態（現在言語 / 最近の定位結果 / 最近通知した駅 / 更新ロック）を保持する
 class NotificationService {
   L10n _l10n;
 
