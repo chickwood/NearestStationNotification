@@ -32,9 +32,35 @@ Test
 - SearchEngine 保持纯算法
 - NotificationService 保持纯通知
 - StationManager 是唯一站点数据来源（Single Source of Truth）
+- EventManager 是唯一事件数据来源
 - Coordinator 只负责协调，不负责业务实现
+- 持久化与导入的异步执行从 Dialog 生命周期中解耦（InfoService / SettingsService）
 - 不为了设计而设计
 - 当前项目规模优先保持职责清晰、依赖简单、易维护
+
+---
+
+## Project Layout
+
+| 文件 | 职责 |
+|---|---|
+| `lib/main.dart` | 应用引导：注入包名、注册 ADDITIONAL_NOTICE 许可证、创建 `StyledToast` / `MaterialApp` |
+| `lib/home_page.dart` | 主 UI、生命周期、初始化编排、Service 持有与结果处理、对话框入口 |
+| `lib/coordinator.dart` | 业务流程协调、权限请求、定位结果补全与广播、运行状态机 |
+| `lib/location_processor.dart` | GPS 流、采样策略、漂移过滤、SearchEngine 调用 |
+| `lib/search_engine.dart` | KD-Tree 最近车站搜索、距离与方位角计算 |
+| `lib/station_manager.dart` | 车站 BIN 数据校验、加载、原子写入、按索引访问 |
+| `lib/event_manager.dart` | 事件 JSON 数据校验、加载、原子写入、事件期间判定 |
+| `lib/notification_service.dart` | Flutter Local Notifications 封装与业务通知显示 |
+| `lib/background_task.dart` | Android 返回键拦截与 moveTaskToBack |
+| `lib/settings.dart` | `Settings` 模型与 SharedPreferences 持久化 |
+| `lib/settings_dialog.dart` | 设置对话框与 `SettingsService` |
+| `lib/info_dialog.dart` | 信息对话框、`InfoService`、ZIP 导入解析与校验 |
+| `lib/license_dialog.dart` | 许可证列表与详情对话框 |
+| `lib/l10n.dart` | 中 / 日 / 英文本、locale 严格解析 |
+| `lib/common.dart` | 常量、几何计算、数据类与枚举 |
+
+注：`lib/*.dart.old` 为遗留文件，不参与 Dart 编译，也不属于运行时结构。
 
 ---
 
@@ -43,17 +69,20 @@ Test
 区分「构造函数传参」与「方法执行时传参」的判断基准：
 
 - **构造函数传参（位置参数 + `this.x` 直接赋值）**：
-  - 对象生命周期内代表其依赖关系的值（如回调函数）
+  - 对象生命周期内代表其依赖关系的值（如回调函数、管理器、设置、语言）
   - 判断标准不是「是否会变」，而是「变化的来源是否属于该对象所处的环境状态」；此类值变化后即代表「当前状态」、并被对象内部多处方法读取
-  - 例：`l10n`（系统语言变化）、`active`（前后台切换）、`settings`（设置项保存）、`manager`（站点数据管理）均属此类，四者生命周期模式相同：HomePage 初始化产生初值 → 传入 → 运行期间由外部事件驱动变化 → 通知更新
+  - 例：`l10n`（系统语言变化）、`active`（前后台切换）、`settings`（设置项保存）、`manager`（站点数据管理）、`eventManager`（事件数据管理）均属此类，生命周期模式相同：HomePage 初始化产生初值 → 传入 → 运行期间由外部事件驱动变化 → 通知更新
   - 私有字段（下划线开头）不能使用命名参数（Dart 语言限制），故统一使用位置参数
 
 - **方法参数传参**：
   - 与某次具体操作绑定、操作结束后该值即完成使命的数据
   - 不需要被对象在多处内部方法间保存和复用
 
-- 更新「当前状态」类字段时，使用专门的 `changeXxx()` 方法，不通过构造函数重新赋值
-- `start()` / `stop()` 等生命周期方法尽量保持无参数、成对存在，所需状态在构造函数或 `changeXxx()` 中已经就绪
+- **Service 与 Widget 的传参**：
+  - `InfoService` / `SettingsService` 由 HomePage 创建并持有，经命名参数传给对话框；其公开字段为 `final`
+  - Widget 为不可变描述，字段公开且 `final`；可变性由配套 `State` 承接
+  - 更新「当前状态」类字段时，使用专门的 `changeXxx()` 方法，不通过构造函数重新赋值
+  - `start()` / `stop()` 等生命周期方法尽量保持无参数、成对存在，所需状态在构造函数或 `changeXxx()` 中已经就绪
 
 ---
 
@@ -61,54 +90,66 @@ Test
 
 「构造传参」只约束参数的传递方式，不规定字段可见性。字段可见性按对象类型区分：
 
-- **普通/服务类**（如 `Coordinator`、`LocationProcessor`、`NotificationService`）：字段是内部状态，私有且可重新赋值，只能经 `changeXxx()` 等专用方法变更
-- **UI 组件（Widget）**：Widget 为不可变描述（immutable），字段须 `final` 且公开（`State` 经 `widget.x` 读取）；可变性由配套的 `State` 承接并反映到 UI
+- **协调 / 处理类**（`Coordinator`、`LocationProcessor`、`NotificationService`）：字段是内部状态，私有且可重新赋值，只能经 `changeXxx()` 等专用方法变更
+- **数据快照**（`StationManager`、`EventManager`）：加载后只读；`StationManager` 的数组与元数据、`EventManager` 的 periods 均不再修改
+- **可变设置**（`Settings`）：字段公开可写；对话框使用 `copyWith()` 生成草稿，保存后由 Service 持久化
+- **结果服务**（`InfoService`、`SettingsService`）：对外暴露 `final ValueNotifier lastResult` 与 `final ValueNotifier<bool> busy`，内部不使用 `changeXxx`
+- **UI 组件（Widget）**：字段须 `final` 且公开（`State` 经 `widget.x` 读取）；可变性由配套的 `State` 承接并反映到 UI
 
 ---
 
 ## Dependency
 
 ```text
-                 main.dart
-                     │
-                     ▼
-                 HomePage
-                 │      ▲
-                 │      │
-                 ▼      │
-            Coordinator
-                 │
-        ┌────────┴────────┐
-        ▼                 ▼
-LocationProcessor   NotificationService
+                        main.dart
+                            │
+                            ▼
+                        HomePage
+        ┌───────────────┬───────────────┬───────────────┐
+        ▼               ▼               ▼               ▼
+   Coordinator   StationManager   EventManager   InfoService / SettingsService
+        │               ▲               ▲               │
+        │               │               │               ▼
+        │               │               │        InfoDialog / SettingsDialog
+        │               │               │
+        ├───────────────┘               │
+        │                               │
+        ▼                               │
+ LocationProcessor ──► SearchEngine ──► StationManager
         │
         ▼
- SearchEngine
-        │
-        ▼
-  StationManager
-        ▲
-        │
-        └────────────── HomePage
+   NotificationService
 
-后台任务适配链：
-
-```text
-HomePage
-   │
-   ▼
-BackgroundTask
-   │ Android only
-   ▼
-MainActivity / MethodChannel
+HomePage 另持有 Settings，并将其传入 Coordinator / LocationProcessor；
+BackgroundTask 包裹 HomePage（Android only）。
 ```
 
 约束：
 
 - SearchEngine 是 LocationProcessor 的内部依赖。
-- StationManager 是共享 Repository；HomePage 可直接依赖（Dialog、站点信息显示、站点数据管理）。
-- EventManager 是事件数据来源，独立于定位结果流；HomePage 可直接依赖（初始化、Dialog、事件数据管理）；Coordinator 通过 `changeEventData` 将事件期间判定注入 StationCount。
+- StationManager 是共享 Repository；HomePage、LocationProcessor、SearchEngine、Coordinator、InfoService、InfoDialog、LicenseListDialog 均可依赖。
+- EventManager 是事件数据来源，独立于定位结果流；HomePage、Coordinator、InfoDialog、LicenseListDialog 可直接依赖。
+- Coordinator 通过 `changeEventData` 将事件期间判定注入 `StationCount.eventPeriod`。
 - Coordinator 不负责 StationManager / EventManager 的加载与写入实现。
+- InfoService / SettingsService 不依赖 UI，不直接调用 Coordinator 或 Toast。
+- Dialog 只依赖其显示所需的管理器与 Service。
+
+---
+
+## App Bootstrap
+
+`main()`：
+
+- 调用 `WidgetsFlutterBinding.ensureInitialized()`。
+- 通过 `PackageInfo.fromPlatform()` 取包名最后一段写入 `Common.appName`。
+- 注册 `ADDITIONAL_NOTICE`（车站数据免责声明）到 `LicenseRegistry`；`LICENSE` 本体已打包但注册代码当前注释停用。
+- `runApp()` 启动 `StyledToast(child: MaterialApp(...))`，因此 Toast 渲染在应用级 Overlay，层级高于 Dialog 路由。
+
+`MaterialApp`：
+
+- 标题、主题、语言委托、`supportedLocales` 由 `L10n` 提供。
+- `localeListResolutionCallback` 与 HomePage 共用 `L10n.resolve()`，保证 UI 与通知语言一致。
+- 首页固定为 `HomePage`。
 
 ---
 
@@ -118,24 +159,25 @@ MainActivity / MethodChannel
 
 职责：
 
-- UI
-- WidgetsBindingObserver
-- 生命周期
-- locale 更新
-- Settings 加载
+- UI 与 WidgetsBindingObserver
+- 生命周期（paused / resumed → `changeActive`；locale 变化 → `changeLocale`）
+- 初始化编排：`initState` 注册 Service 监听与观察者，首帧后执行 `_initialize()`
+- 并行加载 Settings / StationManager / EventManager（`Future.wait`）
+- 创建 Coordinator，注册定位结果 / 运行状态 handler，调用 `coordinator.init()`
+- 创建并持有 InfoService / SettingsService（生命周期跟随 HomePage；dispose 时释放）
+- 订阅 Service 结果：导入 / 设置保存的 Toast、Coordinator 热加载与 `setState`
 - 设置入口（settings dialog：设置项编辑与保存）
-- StationManager / EventManager 初始化
 - 站点数据管理入口（info dialog：bin 信息 / 提示 / 导入 / 许可证入口）
 - 示例数据引导提示（stopped 且为示例数据时）
-- 创建并持有 Coordinator
-- 创建并持有 InfoService / SettingsService（生命周期跟随 HomePage；dispose 时释放）
-- 订阅 Service 结果：按结果执行 Toast、Coordinator 热加载与 setState
 - 通过 Coordinator 的 handler 触发 UI 重建，并通过 getter 读取当前结果和运行状态
-- 向 BackgroundTask 提供 Coordinator.runningStatus != RunningStatus.stopped 的状态（starting/running 时保持后台任务）
+- 向 BackgroundTask 提供 `Coordinator.runningStatus != RunningStatus.stopped` 的 keepBackgroundTask
+- 坐标详情三态显示切换（隐藏 / 经纬度 / 经纬度 + 速度、精度、方向、时刻）
+- 初始化失败时 `debugPrint` 并显示错误 Toast
 
 可直接使用：
 
 - StationManager / EventManager（站点信息显示、站点与事件数据管理）
+- Settings（站点显示数量、定位间隔）
 
 不负责：
 
@@ -143,6 +185,7 @@ MainActivity / MethodChannel
 - 搜索
 - Notification
 - 权限
+- 数据解析与写盘
 
 ---
 
@@ -151,6 +194,8 @@ MainActivity / MethodChannel
 职责：
 
 - 协调业务流程
+- 创建 LocationProcessor / NotificationService，并注册 NotificationService 的常驻定位结果 handler
+- 注入事件期间判定到 `StationCount.eventPeriod`
 - start()
 - stop()
 - 生命周期转发（changeActive）
@@ -158,16 +203,19 @@ MainActivity / MethodChannel
 - settings 更新（changeSettings）
 - station data 更新（changeStationData）
 - event data 更新（changeEventData）
-- 接收定位结果
-- 根据 StationManager 补全 station metadata
-- 广播完整定位结果
+- 请求定位权限与通知权限
+- 接收定位结果、丢弃停止后到达的延迟结果
+- 根据 StationManager 补全 station metadata（gcd / name）
+- 维护 PositionResult / StationResults / RunningStatus
+- 通过 handler 集合广播完整定位结果与运行状态
+- 停止时清空状态、取消通知并广播 `(null, null)`
 
 不负责：
 
-- GPS
+- GPS 流实现
 - SearchEngine
 - StationManager / EventManager 的加载与写入实现
-- Notification
+- 本地通知内容与样式
 - UI
 
 Coordinator 只负责协调（Coordinate），不负责业务实现（Implement）。
@@ -178,13 +226,17 @@ Coordinator 只负责协调（Coordinate），不负责业务实现（Implement�
 
 职责：
 
-- Geolocator Stream
-- 定位过滤
+- Geolocator Stream 的建立、重启与停止
+- 按速度选择 distanceFilter，并按更新频率切换采样参数
+- GPS 漂移过滤（近距过滤 + 1 秒间隔下的观察者模式）
 - 调用 SearchEngine
+- 向 Coordinator 返回 PositionResult 与算法结果（index / distance / bearing）
 
 必须：
 
 - 仅返回算法结果
+- 维护长度上限为 3 的采样队列
+- 在 locale / 定位间隔 / 采样模式变化时按需重启流
 
 不负责：
 
@@ -196,6 +248,12 @@ Coordinator 只负责协调（Coordinate），不负责业务实现（Implement�
 
 SearchEngine 属于 LocationProcessor 的内部依赖。
 
+平台参数：
+
+- Android：`AndroidSettings`，高精度、`intervalDuration`、自适应 distanceFilter、Geolocator 前台服务通知、wake lock
+- iOS / macOS：`AppleSettings`，`bestForNavigation`、`otherNavigation`、显示后台定位指示
+- 其他平台：`LocationSettings`，高精度
+
 ---
 
 ### SearchEngine
@@ -203,17 +261,26 @@ SearchEngine 属于 LocationProcessor 的内部依赖。
 必须：
 
 - 保持纯算法
-- XYZ 初筛
-- 距离计算
+- 使用单位球面 XYZ 与 KD-Tree 粗筛
+- 距离计算（日本全境及近海区域：等距长方投影；区域外：Haversine）
 - 方位角计算
 
 不得：
 
 - 查询 station name
 - 查询 gcd
-- 查询 metadata
+- 查询 metadata 字符串
 - 更新 Notification
 - 更新 UI
+
+`locate()` 行为：
+
+- 数据未加载或 `count <= 0` 时返回空列表
+- 前台且位于日本全境 / 近海轮廓内：粗筛 `count * 2`，精算后取 `count`
+- 前台但在轮廓外：粗筛 `count`，精算取 `count`
+- 后台 / 非活跃：粗筛至少 `leastCount`（5），精算取 `leastCountInactive`（1）
+- 所有情况下粗筛量都不低于 `leastCount`（5）
+- 递归深度上限 64；无效索引直接返回
 
 SearchEngine 只负责计算。
 
@@ -224,17 +291,28 @@ SearchEngine 只负责计算。
 职责：
 
 - BIN 校验（尺寸 / 结构；加载与写入共用；加载校验失败后回退空实例）
-- BIN 加载（documents 优先；读取失败 / 文件不存在回退 assets（示例 / 过时数据））
+- BIN 加载（documents 优先；读取异常 / 文件不存在回退 assets（示例 / 过时数据））
 - BIN 写入（原子替换：临时文件 → 改名）
-- XYZ
-- 经纬度
+- XYZ、经纬度
 - station metadata（name、gcd）
+- 示例数据判定（`count > 0 && count < sampleThreshold`，阈值 50）
+- 加载状态判定（`isLoaded`）
+
+BIN 布局：
+
+- `Float64List`：纬度、经度、X、Y、Z（各 `count` 项）
+- `Uint32List`：KD-Tree 左 / 右子节点（各 `mcount` 项）、车站名偏移（`count` 项）
+- `Uint8List`：车站名原始数据（变长）
+- 尾部 20 字节：root、mcount、count、date、pdate
+
+选择规则：
+
+- documents 文件读取成功 → 使用其字节；若校验失败 → 空实例（不回退 assets）
+- documents 读取异常 / 文件不存在 → 读取 assets；assets 校验失败 → 空实例
 
 当前消费者：
 
-- HomePage
-- SearchEngine
-- Coordinator
+- HomePage、Coordinator、LocationProcessor、SearchEngine、InfoService、InfoDialog、LicenseListDialog
 
 未来消费者：
 
@@ -261,13 +339,16 @@ SearchEngine 只负责计算。
 - 事件数据校验（JSON 可解析 / periods 数组 / start ≤ end；加载与写入共用）
 - 事件数据加载（documents 优先；读取失败 / 无效回退空实例）
 - 事件数据写入（原子替换：临时文件 → 改名）
-- 事件期间判定
+- 事件期间判定（当前时间落在任一 period 内，含端点）
 
-事件期间判定由 Coordinator.changeEventData 注入给 StationCount，使 StationCount 不直接依赖 EventManager。
+schema：
 
-当前消费者：
+```json
+{"periods": [{"start": "2026-05-01T15:00:00", "end": "2026-05-31T23:59:59"}]}
+```
 
-- StationCount
+- 空数组合法；无事件数据时视为不在事件期间。
+- 当前消费者：Coordinator、HomePage、InfoDialog、LicenseListDialog；`StationCount` 通过注入的判定器消费。
 
 必须：
 
@@ -282,26 +363,57 @@ SearchEngine 只负责计算。
 
 ---
 
+### Settings
+
+职责：
+
+- 保存站点检出数量（`StationCount`）与定位间隔（`LocationInterval`）
+- 通过 SharedPreferences 持久化：
+
+| 键 | 值 |
+|---|---|
+| `settings_station_count` | `StationCount.index` |
+| `settings_location_interval` | `LocationInterval.index` |
+
+- 读取时对越界索引回退默认值（`StationCount.game` / `LocationInterval.s1`）
+- `copyWith()` 生成对话框草稿；`save()` 写入全部键
+
+默认值：`StationCount.game`、`LocationInterval.s1`。
+
+---
+
 ### NotificationService
 
 职责：
 
 - Flutter Local Notifications 初始化
-- Notification 权限
-- 作为 Coordinator 的普通定位结果消费者
+- Notification 权限（Android；返回值当前恒为 true）
+- 作为 Coordinator 的普通定位结果消费者（前后台均接收）
 - show()
 - cancelAll()
+- changeLocale()：已有结果时强制刷新通知
+
+内部状态：
+
+- 当前语言
+- 最近一次定位结果列表
+- 最近一次通知的车站（按 `gcd` 判定切换）
+- 通知更新锁（单飞）
+
+显示规则：
+
+- 收到 null 结果 → `cancelAll()`
+- 最近车站切换 → 取消当前通知后重新显示
+- 仅在 `forceUpdate` 或最近车站变化时调用 show
+- 静音、无振动、`onlyAlertOnce`、`autoCancel: false`、高 importance / priority
+- iOS 不播放声音、不显示 badge
 
 不得：
 
 - 管理 UI
 - 管理 GPS
 - 查询站点数据
-- 持有业务逻辑
-
-NotificationService 不拥有定位或站点业务的主状态，但会持有通知显示所需的内部状态：当前语言、最近一次站点结果、通知更新锁及最近结果缓存。
-定位结果通常通过 handleLocationResultReceived() 进入 NotificationService；Coordinator 当前仍直接调用其 cancelAll() 和 changeLocale()。NotificationService.changeLocale() 在已有结果时负责刷新通知。
-收到定位结果时 show()，收到 null 结果时 cancelAll()。
+- 持有定位或站点业务的主状态
 
 ---
 
@@ -311,7 +423,7 @@ NotificationService 不拥有定位或站点业务的主状态，但会持有通
 
 - 隔离平台返回行为的差异
 - 仅在原生 Android 环境注册根路由 `PopScope`
-- 定位流程进行中（runningStatus 为 starting/running）时拦截 Android 返回，并请求 Android 将任务移至后台
+- 定位流程进行中（runningStatus 为 starting/running）时拦截 Android 返回，并经 MethodChannel `name.w57.nearest_station_notification/background_task` 调用 `moveTaskToBack`
 - iOS、Web、Windows、macOS、Linux 原样返回 `child`
 
 不负责：
@@ -325,13 +437,28 @@ NotificationService 不拥有定位或站点业务的主状态，但会持有通
 
 职责：
 
-- 选择 zip（`file_selector` 单选）
+- 选择 zip（`file_selector` 单选，扩展名 zip，含 MIME / UTI 过滤）
 - 解压、读取 `SHA256SUMS` 并校验实际存在的 station / event 文件
 - 零字节或读取结果不可用的条目视为不存在；仅对实际存在的文件执行 SHA-256 校验
 - 以 `StationManager.validate` / `EventManager.validate` 校验格式
 - 原子写入 documents（临时文件 → 改名）并重新加载
 - 单飞：`busy` 为 true 时忽略新请求
 - 通过 `ValueNotifier<InfoImportResult?> lastResult` 发布 `InfoImportResult.success` / `InfoImportResult.failure`
+
+ZIP 限制与规则：
+
+- 文件大小 > 0 且 ≤ 20 MiB；读取长度必须与文件长度一致
+- 条目数 ≤ 100；解压总大小 ≤ 50 MiB；单条目 ≤ 10 MiB
+- 仅匹配压缩包根目录的固定文件名：`station_data_xyz.bin`、`event_data.json`、`SHA256SUMS`
+- 同名条目重复、校验清单缺失、哈希格式错误或重复列出同一文件 → 无效
+- `SHA256SUMS` 支持 `sha256sum` 文本格式（BOM、注释行、`*` 前缀、大小写不敏感）
+- 允许仅 station、仅 event 或两者都有
+
+结果模型：
+
+- `InfoImportResult.success({station, event})` / `InfoImportResult.failure(error)`
+- 私有构造 + 断言保证成功至少携带一个数据、失败不携带数据
+- 写入按文件原子，但不是跨文件事务：若 station 写入成功而 event 写入失败，可能只更新 station
 
 不负责：
 
@@ -347,11 +474,21 @@ NotificationService 不拥有定位或站点业务的主状态，但会持有通
 - 执行 `Settings.save()`
 - 单飞：`busy` 为 true 时忽略新请求
 - 通过 `ValueNotifier<SettingsSaveResult?> lastResult` 发布 `SettingsSaveResult.success` / `SettingsSaveResult.failure`
+- `SettingsSaveResult` 私有构造 + 断言保证 success / failure 互斥
 
 不负责：
 
 - 对话框编辑草稿
 - UI、Toast、Coordinator 热加载
+
+---
+
+### Dialogs
+
+- `SettingsDialog`：编辑本地草稿，保存调用 `SettingsService.save(_draft)`；订阅 `busy` 与 `lastResult`，仅刷新自身；不自动关闭；左下「关闭」与 X 同职责。
+- `InfoDialog`：显示车站数量 / 版本 / 大小与许可证入口、更新提示、导入按钮；订阅 `busy` 与 `lastResult`，仅刷新自身；不自动关闭。
+- `LicenseListDialog`：从 `LicenseRegistry` 聚合许可证，应用条目置底；`count > 0` 时显示车站数据信息；条目打开 `LicenseDetailDialog`。
+- 所有对话框的全局 Toast 由 HomePage 统一显示。
 
 ---
 
@@ -374,11 +511,11 @@ settings dialog：
 
 info dialog：
 
-- 结构：标题行（信息）→ 许可证框 → 提示框 → 按钮行（关闭 / 导入）
-- 许可证框：小节标签（许可证及车站信息）+ bin 信息（已读取 N 个车站 / 大小 / 版本 = date，存在修订时附 + 修订 = pdate）与许可证入口，点击打开 `LicenseListDialog`
-- 提示框：与许可证框同外观（小节标签「更新」）；正文提示定期更新车站信息 / 事件信息数据，点击框体打开下载网站（`Common` 常量），并提示下载后点击导入、选择数据文件更新信息
+- 结构：标题行（信息）→ 许可证及车站信息框 → 更新提示框 → 按钮行（关闭 / 导入）
+- 许可证框：显示车站数 / 版本（date，存在修订时附 pdate）/ 大小 / 许可证入口，点击打开 `LicenseListDialog`
+- 更新提示框：正文提示定期更新车站信息 / 事件信息数据，点击框体打开下载网站（`Common.uriInformation`）
 - 链接：点击经 `launchUrl(..., mode: LaunchMode.externalApplication)` 打开系统浏览器
-- 导入：按钮调用 `InfoService.import()`；Service 内部完成 zip 选择、解析、SHA-256 / 格式校验、写入与加载；`file_selector` 单选（限 zip），允许仅 bin、仅 event 或两者都有
+- 导入：按钮调用 `InfoService.import()`；Service 内部完成 zip 选择、解析、SHA-256 / 格式校验、写入与加载
 - 订阅 `InfoService.busy`：busy 期间禁用导入按钮
 - 订阅 `InfoService.lastResult`：仅刷新自身 bin 信息；成功/失败都不自动关闭
 - Toast 由 HomePage 统一显示（成功按实际导入内容，失败为「无效的文件」）
@@ -393,6 +530,7 @@ info dialog：
 - 定位流程进行中（starting/running）按返回键不销毁 Activity，而是调用 Android `moveTaskToBack(true)`。
 - 系统杀死进程后的冷启动不恢复旧 Coordinator 状态。
 - 使用 Android 默认的应用 task affinity（包名 `name.w57.nearest_station_notification`），不额外设置 `taskAffinity`。
+- 声明定位、前台服务、通知与 wake lock 权限；注册 Geolocator 前台服务与通知图标元数据。
 
 ---
 
@@ -403,15 +541,41 @@ info dialog：
 SearchEngine 输出：
 
 - index
-- distance
-- bearing
+- distance（米）
+- bearing（度）
 
 Coordinator 补全：
 
 - name
 - gcd
 
+派生显示值：
+
+- `distanceInUnit`：< 1000 m 显示米，否则显示千米
+- `bearingIndex`：8 方向枚举
+
 SearchEngine 不解析站名。
+
+### PositionResult
+
+- latitude / longitude / speed / accuracy / heading
+- timestamp
+- 派生显示值：`speedString`、`accuracyString`、`headingIndex`、`timestampString`、`samplingMode`
+
+### Enums
+
+- `RunningStatus`：stopped / starting / running
+- `SamplingMode`：staying（0 m/s，filter 4）/ walking（1 m/s，4）/ cycling（4 m/s，4）/ transit（8 m/s，16）
+- `Direction`：staying + 8 方向
+- `LocationInterval`：s1（1 s / 1024 ms）/ s3（3 s / 3072 ms）/ s5（5 s / 5120 ms）
+- `StationCount`：game（12 + 事件 2 + radar 4 + natsume 2）/ max（20）
+- `StationCountPart`：friend / event / radar / natsume
+
+`StationCount.count` 为动态值：`friend + (事件期间 ? event : 0) + radar + natsume`；`part(index)` 与 `label` 随事件期间变化。
+
+### Event Data
+
+见 EventManager 的 schema。
 
 ---
 
@@ -419,18 +583,16 @@ SearchEngine 不解析站名。
 
 ```text
 LocationProcessor
-        │
+        │  PositionResult + 算法结果
         ▼
 Coordinator
+        │  补全 station metadata / 维护状态
+        ├──► 常驻 handlers（NotificationService 等，前后台均接收）
         │
-        ├──► StationManager
-        │        补全 station metadata
-        │
-        ├──► HomePage
-        │        更新 UI
-        │
-        └──► NotificationService
-                 更新通知
+        └──► active handlers（HomePage，仅前台接收）
+                 │
+                 ▼
+              UI 更新
 ```
 
 原则：
@@ -442,7 +604,9 @@ Coordinator 通过 Handler（add/remove 注册与解除）广播结果，不关�
 
 LocationProcessor 通过单一的 LocationHandler 向 Coordinator 返回算法结果（Coordinator 构造完成后经 setLocationHandler() 注册），再由 Coordinator 补全并广播。
 
-停止流程：Coordinator 先停止 LocationProcessor，再直接调用 NotificationService.cancelAll()，清空自身缓存的定位结果和运行状态，最后广播 (null, null)，使前台 HomePage 清空列表。
+停止流程：Coordinator 先停止 LocationProcessor，再直接调用 NotificationService.cancelAll()，清空自身缓存的定位结果和运行状态，最后以 forceNotify 广播 `(null, null)`，使前台 HomePage 清空列表。
+
+启动流程：Coordinator 进入 starting → 请求定位权限与通知权限 → 失败则回到 stopped → 成功且仍为 starting 时启动 LocationProcessor → 首个定位结果到达后进入 running。
 
 ---
 
@@ -465,6 +629,7 @@ stopped ──start()──► starting ──首个定位结果──► runnin
 
 - `running ⇔ positionResult != null`（升级与赋值在同一同步块完成；stop() 同步清空）
 - `stopped ⇒ GPS 订阅不存在`（stop() 先取消订阅再置状态；start() 在权限等待期间被停止则中断，不建立订阅）
+- 停止后到达的延迟定位结果被 Coordinator 丢弃
 
 分工：
 
@@ -477,9 +642,9 @@ stopped ──start()──► starting ──首个定位结果──► runnin
 
 changeXxx 家族（外部事件驱动的状态更新）：
 
-- changeLocale：l10n 更新（系统语言变化；传播至 LocationProcessor 与 NotificationService）
-- changeActive：active 更新（前后台切换；LocationProcessor 切换搜索件数）
-- changeSettings：settings 更新（设置项保存）
+- changeLocale：l10n 更新（系统语言变化；传播至 LocationProcessor 与 NotificationService；已订阅时重启流以刷新前台通知文本）
+- changeActive：active 更新（前后台切换；LocationProcessor 切换搜索件数；恢复前台时立即重发缓存结果）
+- changeSettings：settings 更新（设置项保存；定位间隔变化时重启流，数量变化时用最后采样点重算）
 - changeStationData：站点数据更新（导入）
   - `Coordinator._manager`、`LocationProcessor._manager`、`_engine`（重建为 `SearchEngine(新 manager)`）在同一同步块内成对替换；流不中断、队列不清
   - Coordinator 调用 `LocationProcessor.changeData(...)` 完成换链
@@ -510,6 +675,12 @@ Coordinator.changeActive()
 由 Coordinator 决定是否转发给需要的模块。
 ```
 
+HomePage.dispose 时：
+
+- 移除生命周期观察者与 Service 监听
+- 释放 InfoService / SettingsService
+- 移除 Coordinator 的 handler 并调用 `stop()`
+
 ---
 
 ## Locale
@@ -524,6 +695,7 @@ Coordinator
 
 - 语言解析采用严格匹配：ja、en、zh-Hans（或 zh-CN），不做语言码级宽松回退，无匹配时回退 en。
 - MaterialApp 的 localeListResolutionCallback 与 HomePage.didChangeLocales 共用 L10n.resolve()，保证 UI 与通知的语言判定一致。
+- 8 方向标签按语言提供；静止时显示 `--`。
 
 ---
 
@@ -539,6 +711,7 @@ Coordinator
 - event 启动加载：与 StationManager 初始化同阶段；documents 优先，读取失败 / 无效回退空实例（静默）
 - station 校验：尺寸 / 结构校验在加载后与写入前执行，复用同一 `validate`
 - event 校验：JSON 可解析、`periods` 为数组、各元素 `start` / `end` 为可解析的本地时间且 start ≤ end、空数组合法
+- 示例数据判定：`count > 0 && count < 50`
 
 event schema：
 
@@ -553,6 +726,7 @@ event schema：
 - 先校验（station 复用加载校验 / event JSON 校验），再写临时文件
 - 原子替换（临时文件 → 改名）；失败不覆盖现有私有文件
 - 失败不执行 `Coordinator.changeStationData()` / `Coordinator.changeEventData()`；此前更新过的版本继续生效（从未更新过则仍为 assets / 空）
+- 单文件原子；多个文件同时导入时不保证跨文件事务
 
 ```text
 HomePage（对话框触发）→ InfoService.import()
@@ -591,8 +765,9 @@ SettingsService.lastResult = SettingsSaveResult.success / failure
 
 ### Hosting
 
-- 真实数据由独立网站提供手动下载（背后为另一个 GitHub Release），页面提供 `station_data_xyz.bin` / `event_data.json` 两个文件
-- URL 为 `Common` 常量
+- 真实数据由独立网站提供手动下载（背后为另一个 GitHub Release），下载包为 ZIP，内含 `station_data_xyz.bin` / `event_data.json` / `SHA256SUMS`
+- URL 为 `Common.uriInformation` 常量
+- 不做自动更新检测与应用内下载
 
 ### HomePage Guide
 
