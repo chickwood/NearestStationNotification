@@ -200,16 +200,16 @@ class L10n {
   //   return '${flnNotificationGcd(gcd)}\nDistance: $distanceInUnit';
   // }
 
-  // FGT 通知标题
-  String get fgtChannelName => fgtNotificationTitle; // 定义别名区分使用位置
-  String get fgtNotificationTitle {
+  // Geolocator 服务通知标题
+  String get fgnChannelName => fgnNotificationTitle; // 定义别名区分使用位置
+  String get fgnNotificationTitle {
     if (_isJa) return 'アプリ常駐通知';
     if (_isZhHans) return '常驻服务通知';
     return 'Persistent Service Notification';
   }
 
-  // FGT 通知正文
-  String get fgtNotificationBody {
+  // Geolocator 服务通知正文
+  String get fgnNotificationBody {
     if (_isJa) return '長押しでこの常駐通知の非表示を推奨します';
     if (_isZhHans) return '建议长按关闭常驻服务通知';
     return 'Recommended to hide this notification by long press';

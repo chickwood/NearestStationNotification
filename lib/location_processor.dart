@@ -124,9 +124,9 @@ class LocationProcessor {
         distanceFilter: distanceFilter,
         intervalDuration: Duration(milliseconds: milliseconds),
         foregroundNotificationConfig: ForegroundNotificationConfig(
-          notificationChannelName: _l10n.fgtChannelName,
-          notificationTitle: _l10n.fgtNotificationTitle,
-          notificationText: _l10n.fgtNotificationBody,
+          notificationChannelName: _l10n.fgnChannelName,
+          notificationTitle: _l10n.fgnNotificationTitle,
+          notificationText: _l10n.fgnNotificationBody,
           notificationIcon: const AndroidResource(
             name: Common.flnNotificationIcon,
             defType: 'drawable',
