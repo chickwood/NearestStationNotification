@@ -3,7 +3,7 @@ description: "Finds the nearest station using your location and sends a notifica
 publish_to: 'none'
 # version 格式: X.Y.Z+YYYYMMDDNN
 # (后半段 Version Code，Google Play 的规定上限 2100000000，按此编码约到 2100 年）
-version: 1.2.1+2026101504
+version: 1.2.2+2026102401
 
 environment:
   sdk: '>=3.7.0 <4.0.0'
