@@ -664,7 +664,6 @@ class _StationTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isNearest = index == 0;
-
     return Container(
       // margin: const EdgeInsets.only(bottom: 4),
       padding: EdgeInsets.symmetric(
@@ -672,17 +671,14 @@ class _StationTile extends StatelessWidget {
         vertical: isNearest ? 8 : 6,
       ),
       decoration: BoxDecoration(
-        color:
-            isNearest
-                ? const Color(0xFFFFF0E0) // Colors.orange.shade50
-                : Colors.white,
-        borderRadius: BorderRadius.circular(8),
+        color: isNearest ? const Color(0xFFFFF9E0) : Colors.white,
         border: Border.all(
           color:
               isNearest
                   ? const Color(0xFFFFC000) // Colors.orange.shade700
                   : _partBorderColors[part]!,
         ),
+        borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
         children: [

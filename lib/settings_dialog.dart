@@ -55,7 +55,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
     final l10n = L10n.of(context);
     return Dialog(
       elevation: 2,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 30),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 32),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.all(8),
@@ -102,8 +102,8 @@ class _SettingsDialogState extends State<SettingsDialog> {
                           () => _draft = _draft.copyWith(stationCount: v),
                         ),
                   ),
-                  const SizedBox(height: 12),
                   // ── 位置情報取得頻度 ────────────────────────────────────
+                  const SizedBox(height: 12),
                   _SectionLabel(label: l10n.settingsLocationInterval),
                   const SizedBox(height: 8),
                   _SegmentedRow<LocationInterval>(
@@ -116,8 +116,8 @@ class _SettingsDialogState extends State<SettingsDialog> {
                           () => _draft = _draft.copyWith(locationInterval: v),
                         ),
                   ),
-                  const SizedBox(height: 12),
                   // // ── 通知方式 ────────────────────────────────────────────
+                  // const SizedBox(height: 12),
                   // _SectionLabel(label: l10n.settingsNotificationMode),
                   // const SizedBox(height: 8),
                   // _SegmentedRow<NotificationMode>(
@@ -129,57 +129,59 @@ class _SettingsDialogState extends State<SettingsDialog> {
                   //   onChanged: (v) =>
                   //       setState(() => _draft = _draft.copyWith(notificationMode: v)),
                   // ),
-                  // const SizedBox(height: 12),
                 ],
               ),
             ),
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: () => Navigator.of(context).pop(),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
-                    child: Text(
-                      l10n.dialogClose,
-                      style: const TextStyle(
-                        color: Color(0xFF4080FF),
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
+            const SizedBox(height: 12),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => Navigator.of(context).pop(),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      child: Text(
+                        l10n.dialogClose,
+                        style: const TextStyle(
+                          color: Color(0xFF4080FF),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                     ),
                   ),
-                ),
-                GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap:
-                      widget.settingsService.busy.value
-                          ? null
-                          : () => widget.settingsService.save(_draft),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
-                    child: Text(
-                      l10n.settingsSave,
-                      style: TextStyle(
-                        color:
-                            widget.settingsService.busy.value
-                                ? const Color(0xFFA0C0FF)
-                                : const Color(0xFF4080FF),
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap:
+                        widget.settingsService.busy.value
+                            ? null
+                            : () => widget.settingsService.save(_draft),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      child: Text(
+                        l10n.settingsSave,
+                        style: TextStyle(
+                          color:
+                              widget.settingsService.busy.value
+                                  ? const Color(0xFFA0C0FF)
+                                  : const Color(0xFF4080FF),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ],
         ),
@@ -218,7 +220,7 @@ class _SegmentedRow<T> extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(vertical: 6),
                     decoration: BoxDecoration(
                       color:
-                          isSelected ? const Color(0xFF4080FF) : Colors.white,
+                          isSelected ? const Color(0xFFDCECFF) : Colors.white,
                       border: Border.all(
                         color:
                             isSelected
@@ -232,8 +234,7 @@ class _SegmentedRow<T> extends StatelessWidget {
                         labelOf(v),
                         textAlign: TextAlign.center,
                         style: TextStyle(
-                          color:
-                              isSelected ? Colors.white : Colors.grey.shade800,
+                          color: Colors.grey.shade800,
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
                         ),

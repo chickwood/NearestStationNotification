@@ -74,194 +74,200 @@ class _InfoDialogState extends State<InfoDialog> {
   @override
   Widget build(BuildContext context) {
     final l10n = L10n.of(context);
-
-    final content = Padding(
-      padding: const EdgeInsets.all(8),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // タイトル行
-          Padding(
-            padding: const EdgeInsets.all(4),
-            child: Row(
-              children: [
-                const Icon(Icons.info, color: Color(0xFF4080FF)),
-                const SizedBox(width: 4),
-                Text(
-                  l10n.infoDialogTitle,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const Spacer(),
-                GestureDetector(
-                  onTap: () => Navigator.of(context).pop(),
-                  child: Icon(Icons.close, color: Colors.grey.shade600),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 4),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // ── 駅情報（ライセンス入口）────────────────────────
-                _SectionLabel(label: l10n.infoTitle),
-                const SizedBox(height: 8),
-                Container(
-                  width: double.infinity,
-                  alignment: Alignment.centerLeft,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFFF9E0),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: const Color(0xFFFFF0B0)),
-                  ),
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap:
-                        () => showDialog<void>(
-                          context: context,
-                          barrierColor: Colors.transparent,
-                          builder:
-                              (_) => LicenseListDialog(
-                                _stationManager,
-                                _eventManager,
-                              ),
-                        ),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.info, color: Color(0xFFFFC000)),
-                          const SizedBox(width: 8),
-                          Flexible(
-                            child: Text(
-                              '${l10n.infoStations(_stationManager.count)}'
-                              '\n${l10n.infoVersion(_stationManager.date, _stationManager.pdate)}'
-                              '\n${l10n.infoSize(_stationManager.size)}'
-                              '\n\n${l10n.infoLicense}',
-                              style: TextStyle(
-                                color: Colors.grey.shade600,
-                                fontSize: 12,
-                              ),
-                              softWrap: true,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                // ── 更新案内──────────────────────────────
-                _SectionLabel(label: l10n.infoUpdateTitle),
-                const SizedBox(height: 8),
-                Container(
-                  width: double.infinity,
-                  alignment: Alignment.centerLeft,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFE8F8FF),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: const Color(0xFF60A0FF)),
-                  ),
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap:
-                        () => launchUrl(
-                          Common.uriInformation,
-                          mode: LaunchMode.externalApplication,
-                        ),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.download, color: Color(0xFF4080FF)),
-                          const SizedBox(width: 8),
-                          Flexible(
-                            child: Text(
-                              l10n.infoUpdateNotice,
-                              style: TextStyle(
-                                color: Colors.grey.shade600,
-                                fontSize: 12,
-                              ),
-                              softWrap: true,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              _DialogButton(
-                label: l10n.dialogClose,
-                onTap: () => Navigator.of(context).pop(),
-              ),
-              _DialogButton(
-                label: l10n.infoImport,
-                onTap:
-                    widget.infoService.busy.value
-                        ? null
-                        : widget.infoService.import,
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-
     return Dialog(
       elevation: 2,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 30),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 32),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: content,
-    );
-  }
-}
-
-// ── Dialog button ─────────────────────────────────────────────────
-
-class _DialogButton extends StatelessWidget {
-  final String label;
-  final VoidCallback? onTap;
-
-  const _DialogButton({required this.label, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onTap,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        child: Text(
-          label,
-          style: TextStyle(
-            color:
-                onTap == null
-                    ? const Color(0xFFA0C0FF)
-                    : const Color(0xFF4080FF),
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
-          ),
+        padding: const EdgeInsets.all(8),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // タイトル行
+            Padding(
+              padding: const EdgeInsets.all(4),
+              child: Row(
+                children: [
+                  const Icon(Icons.info, color: Color(0xFF4080FF)),
+                  const SizedBox(width: 4),
+                  Text(
+                    l10n.infoDialogTitle,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const Spacer(),
+                  GestureDetector(
+                    onTap: () => Navigator.of(context).pop(),
+                    child: Icon(Icons.close, color: Colors.grey.shade600),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 4),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // ── 駅情報（ライセンス入口）────────────────────────
+                  _SectionLabel(label: l10n.infoTitle),
+                  const SizedBox(height: 8),
+                  Container(
+                    width: double.infinity,
+                    alignment: Alignment.centerLeft,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFDCECFF),
+                      border: Border.all(color: const Color(0xFF60A0FF)),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap:
+                          () => showDialog<void>(
+                            context: context,
+                            barrierColor: Colors.transparent,
+                            builder:
+                                (_) => LicenseListDialog(
+                                  _stationManager,
+                                  _eventManager,
+                                ),
+                          ),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.description,
+                              color: Color(0xFF4080FF),
+                            ),
+                            const SizedBox(width: 8),
+                            Flexible(
+                              child: Text(
+                                '${l10n.infoStations(_stationManager.count)}'
+                                '\n${l10n.infoVersion(_stationManager.date, _stationManager.pdate)}'
+                                '\n${l10n.infoSize(_stationManager.size)}'
+                                '\n\n${l10n.infoLicense}',
+                                style: TextStyle(
+                                  color: Colors.grey.shade800,
+                                  fontSize: 12,
+                                ),
+                                softWrap: true,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  // ── 更新案内──────────────────────────────
+                  const SizedBox(height: 12),
+                  _SectionLabel(label: l10n.infoUpdateTitle),
+                  const SizedBox(height: 8),
+                  Container(
+                    width: double.infinity,
+                    alignment: Alignment.centerLeft,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFDCECFF),
+                      border: Border.all(color: const Color(0xFF4080FF)),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap:
+                          () => launchUrl(
+                            Common.uriInformation,
+                            mode: LaunchMode.externalApplication,
+                          ),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.download,
+                              color: Color(0xFF4080FF),
+                            ),
+                            const SizedBox(width: 8),
+                            Flexible(
+                              child: Text(
+                                l10n.infoUpdateNotice,
+                                style: TextStyle(
+                                  color: Colors.grey.shade800,
+                                  fontSize: 12,
+                                ),
+                                softWrap: true,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => Navigator.of(context).pop(),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      child: Text(
+                        l10n.dialogClose,
+                        style: TextStyle(
+                          color: const Color(0xFF4080FF),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ),
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap:
+                        widget.infoService.busy.value
+                            ? null
+                            : () => widget.infoService.import(),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      child: Text(
+                        l10n.infoImport,
+                        style: TextStyle(
+                          color:
+                              widget.infoService.busy.value
+                                  ? const Color(0xFFA0C0FF)
+                                  : const Color(0xFF4080FF),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
