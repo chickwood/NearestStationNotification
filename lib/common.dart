@@ -6,8 +6,12 @@ class Common {
 
   // 駅情報・イベント情報
   static const binFileName = 'station_data_xyz.bin';
-  static const eventFileName = 'event_data.json';
+  static const eventFileName = 'event_data.ndjson';
   static const sumsFileName = 'SHA256SUMS';
+
+  // イベントデータ形式
+  static const eventVersion = 2;
+  static const eventFields = <String>['start_epoch', 'end_epoch'];
 
   // ── 导入 zip 限制 ──────────────────────────────────────────────
   static const maxZipSize = 20 * 1024 * 1024;

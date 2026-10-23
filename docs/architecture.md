@@ -50,7 +50,7 @@ Test
 | `lib/location_processor.dart` | GPS 流、采样策略、漂移过滤、SearchEngine 调用 |
 | `lib/search_engine.dart` | KD-Tree 最近车站搜索、距离与方位角计算 |
 | `lib/station_manager.dart` | 车站 BIN 数据校验、加载、原子写入、按索引访问 |
-| `lib/event_manager.dart` | 事件 JSON 数据校验、加载、原子写入、事件期间判定 |
+| `lib/event_manager.dart` | 事件 NDJSON 数据校验、加载、原子写入、事件期间判定 |
 | `lib/notification_service.dart` | Flutter Local Notifications 封装与业务通知显示 |
 | `lib/background_task.dart` | Android 返回键拦截与 moveTaskToBack |
 | `lib/settings.dart` | `Settings` 模型与 SharedPreferences 持久化 |
@@ -91,7 +91,7 @@ Test
 「构造传参」只约束参数的传递方式，不规定字段可见性。字段可见性按对象类型区分：
 
 - **协调 / 处理类**（`Coordinator`、`LocationProcessor`、`NotificationService`）：字段是内部状态，私有且可重新赋值，只能经 `changeXxx()` 等专用方法变更
-- **数据快照**（`StationManager`、`EventManager`）：加载后只读；`StationManager` 的数组与元数据、`EventManager` 的 periods 均不再修改
+- **数据快照**（`StationManager`、`EventManager`）：加载后只读；`StationManager` 的数组与元数据、`EventManager` 的期间数据（epoch ms）均不再修改
 - **可变设置**（`Settings`）：字段公开可写；对话框使用 `copyWith()` 生成草稿，保存后由 Service 持久化
 - **结果服务**（`InfoService`、`SettingsService`）：对外暴露 `final ValueNotifier lastResult` 与 `final ValueNotifier<bool> busy`，内部不使用 `changeXxx`
 - **UI 组件（Widget）**：字段须 `final` 且公开（`State` 经 `widget.x` 读取）；可变性由配套的 `State` 承接并反映到 UI
@@ -336,18 +336,20 @@ BIN 布局：
 
 职责：
 
-- 事件数据校验（JSON 可解析 / periods 数组 / start ≤ end；加载与写入共用）
+- 事件数据校验（NDJSON header `v` / `fields`、数据行是 2 元素整数数组（epoch ms）、start ≤ end；加载与写入共用）
 - 事件数据加载（documents 优先；读取失败 / 无效回退空实例）
 - 事件数据写入（原子替换：临时文件 → 改名）
-- 事件期间判定（当前时间落在任一 period 内，含端点）
+- 事件期间判定（当前时间落在任一 period 内，含端点；毫秒精度）
 
 schema：
 
-```json
-{"periods": [{"start": "2026-05-01T15:00:00", "end": "2026-05-31T23:59:59"}]}
+```text
+{"v":2,"fields":["start_epoch","end_epoch"]}
+[1777615200000,1780239599000]
 ```
 
-- 空数组合法；无事件数据时视为不在事件期间。
+- 仅 header、无数据行是合法空集合；导入后清空 event。
+- 文件缺失 / 无效时视为不在事件期间。
 - 当前消费者：Coordinator、HomePage、InfoDialog、LicenseListDialog；`StationCount` 通过注入的判定器消费。
 
 必须：
@@ -449,7 +451,7 @@ ZIP 限制与规则：
 
 - 文件大小 > 0 且 ≤ 20 MiB；读取长度必须与文件长度一致
 - 条目数 ≤ 100；解压总大小 ≤ 50 MiB；单条目 ≤ 10 MiB
-- 仅匹配压缩包根目录的固定文件名：`station_data_xyz.bin`、`event_data.json`、`SHA256SUMS`
+- 仅匹配压缩包根目录的固定文件名：`station_data_xyz.bin`、`event_data.ndjson`、`SHA256SUMS`
 - 同名条目重复、校验清单缺失、哈希格式错误或重复列出同一文件 → 无效
 - `SHA256SUMS` 支持 `sha256sum` 文本格式（BOM、注释行、`*` 前缀、大小写不敏感）
 - 允许仅 station、仅 event 或两者都有
@@ -575,7 +577,7 @@ SearchEngine 不解析站名。
 
 ### Event Data
 
-见 EventManager 的 schema。
+见 EventManager 的 schema（v2 NDJSON，epoch ms）。仅 header 表示合法空集合；导入后清空 event。
 
 ---
 
@@ -706,24 +708,26 @@ Coordinator
 - 车站数据文件：`station_data_xyz.bin`（assets 与 documents 同名、路径不同）
   - assets：随应用发布的示例 / 过时数据
   - documents（私有目录）：真实数据，由 InfoService 写入
-- 事件数据文件：`event_data.json`（documents）；缺失 / 无效时为空（无事件期间）
+- 事件数据文件：`event_data.ndjson`（documents）；缺失 / 无效时为空（无事件期间）
 - station 启动选源：只依据 documents 文件（含此前更新版本）的读取结果——读取成功则使用；读取异常 / 文件不存在回退 assets（示例 / 过时数据）；加载后校验失败（含 assets 数据损坏）回退空实例（静默回退策略）
 - event 启动加载：与 StationManager 初始化同阶段；documents 优先，读取失败 / 无效回退空实例（静默）
 - station 校验：尺寸 / 结构校验在加载后与写入前执行，复用同一 `validate`
-- event 校验：JSON 可解析、`periods` 为数组、各元素 `start` / `end` 为可解析的本地时间且 start ≤ end、空数组合法
+- event 校验：NDJSON header `v` / `fields`、数据行是 2 元素整数数组（epoch ms）、start ≤ end；仅 header 为合法空集合；坏行无效
+- event 空集合：仅 header 的 event 文件导入后清空 event；ZIP 不包含 event 文件时不更新 event
 - 示例数据判定：`count > 0 && count < 50`
 
 event schema：
 
-```json
-{"periods": [{"start": "2026-05-01T15:00:00", "end": "2026-05-31T23:59:59"}]}
+```text
+{"v":2,"fields":["start_epoch","end_epoch"]}
+[1777615200000,1780239599000]
 ```
 
 ### Update Flow
 
 更新（导入）写入必须：
 
-- 先校验（station 复用加载校验 / event JSON 校验），再写临时文件
+- 先校验（station 复用加载校验 / event NDJSON 校验），再写临时文件
 - 原子替换（临时文件 → 改名）；失败不覆盖现有私有文件
 - 失败不执行 `Coordinator.changeStationData()` / `Coordinator.changeEventData()`；此前更新过的版本继续生效（从未更新过则仍为 assets / 空）
 - 单文件原子；多个文件同时导入时不保证跨文件事务
@@ -733,7 +737,7 @@ HomePage（对话框触发）→ InfoService.import()
         │
         ├─ file_selector 选择 zip
         ├─ 解析 zip + SHA256SUMS 校验
-        └─ 格式校验（station 复用加载校验 / event JSON 校验）
+        └─ 格式校验（station 复用加载校验 / event NDJSON 校验）
         │
         ▼
 原子写 documents（临时文件 → 改名）
@@ -765,7 +769,7 @@ SettingsService.lastResult = SettingsSaveResult.success / failure
 
 ### Hosting
 
-- 真实数据由独立网站提供手动下载（背后为另一个 GitHub Release），下载包为 ZIP，内含 `station_data_xyz.bin` / `event_data.json` / `SHA256SUMS`
+- 真实数据由独立网站提供手动下载（背后为另一个 GitHub Release），下载包为 ZIP，内含 `station_data_xyz.bin` / `event_data.ndjson` / `SHA256SUMS`
 - URL 为 `Common.uriInformation` 常量
 - 不做自动更新检测与应用内下载
 
