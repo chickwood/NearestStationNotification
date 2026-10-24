@@ -18,7 +18,7 @@ android {
     // the Flutter Gradle plugin.
     // To change from these defaults, make your changes in this file.
     compileSdk = 37
-    ndkVersion = "30.0.16248370"
+    ndkVersion = flutter.ndkVersion
 
     compileOptions {
         isCoreLibraryDesugaringEnabled = true
@@ -34,12 +34,6 @@ android {
         targetSdk = 37
         versionCode = flutter.versionCode
         versionName = flutter.versionName
-    }
-
-    externalNativeBuild {
-        cmake {
-            version = "4.1.2"
-        }
     }
 
     signingConfigs {
