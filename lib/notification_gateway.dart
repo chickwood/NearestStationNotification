@@ -5,10 +5,10 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'common.dart';
 import 'l10n.dart';
 
-/// 業務通知専用サービス（FLN ラッパー）
+/// 業務通知専用ゲートウェイ（FLN ラッパー）
 /// 呼び出し側（Coordinator）から渡されたデータで通知を表示する
 /// 通知表示に必要な内部状態（現在言語 / 最近の定位結果 / 最近通知した駅 / 更新ロック）を保持する
-class NotificationService {
+class NotificationGateway {
   L10n _l10n;
 
   late final FlutterLocalNotificationsPlugin _fln;
@@ -17,7 +17,7 @@ class NotificationService {
   StationResult? _lastNearestResult; // 最近车站切换检测用
   List<StationResult>? _stationResults;
 
-  NotificationService(this._l10n) {
+  NotificationGateway(this._l10n) {
     _fln = FlutterLocalNotificationsPlugin();
   }
 

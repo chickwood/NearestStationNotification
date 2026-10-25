@@ -1,19 +1,20 @@
 import 'package:flutter/material.dart';
 
-import 'common.dart';
-import 'l10n.dart';
-import 'settings.dart';
+import '../common.dart';
+import '../l10n.dart';
+import '../manager/settings_manager.dart';
+import '../service/settings_save_service.dart';
 
 // ── Settings Dialog ───────────────────────────────────────────────
 
 class SettingsDialog extends StatefulWidget {
-  final Settings settings;
-  final SettingsService settingsService;
+  final SettingsManager settings;
+  final SettingsSaveService settingsSaveService;
 
   const SettingsDialog(
     this.settings, {
     super.key,
-    required this.settingsService,
+    required this.settingsSaveService,
   });
 
   @override
@@ -21,7 +22,7 @@ class SettingsDialog extends StatefulWidget {
 }
 
 class _SettingsDialogState extends State<SettingsDialog> {
-  late Settings _draft;
+  late SettingsManager _draft;
 
   @override
   void initState() {
@@ -29,14 +30,14 @@ class _SettingsDialogState extends State<SettingsDialog> {
 
     // 弹窗内操作的临时副本，关闭则丢弃
     _draft = widget.settings.copyWith();
-    widget.settingsService.lastResult.addListener(_handleResult);
-    widget.settingsService.busy.addListener(_handleBusyChanged);
+    widget.settingsSaveService.lastResult.addListener(_handleResult);
+    widget.settingsSaveService.busy.addListener(_handleBusyChanged);
   }
 
   @override
   void dispose() {
-    widget.settingsService.lastResult.removeListener(_handleResult);
-    widget.settingsService.busy.removeListener(_handleBusyChanged);
+    widget.settingsSaveService.lastResult.removeListener(_handleResult);
+    widget.settingsSaveService.busy.removeListener(_handleBusyChanged);
     super.dispose();
   }
 
@@ -159,9 +160,9 @@ class _SettingsDialogState extends State<SettingsDialog> {
                   GestureDetector(
                     behavior: HitTestBehavior.opaque,
                     onTap:
-                        widget.settingsService.busy.value
+                        widget.settingsSaveService.busy.value
                             ? null
-                            : () => widget.settingsService.save(_draft),
+                            : () => widget.settingsSaveService.save(_draft),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 12,
@@ -171,7 +172,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
                         l10n.settingsSave,
                         style: TextStyle(
                           color:
-                              widget.settingsService.busy.value
+                              widget.settingsSaveService.busy.value
                                   ? const Color(0xFFA0C0FF)
                                   : const Color(0xFF4080FF),
                           fontSize: 14,
@@ -259,53 +260,5 @@ class _SectionLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Text(label, style: TextStyle(color: Colors.grey.shade600));
-  }
-}
-
-// ── Settings Service ───────────────────────────────────────────────
-
-class SettingsSaveResult {
-  final Settings? settings;
-  final Object? error;
-
-  const SettingsSaveResult._({this.settings, this.error})
-    : assert(
-        (settings == null) != (error == null),
-        'exactly one of settings / error must be set',
-      );
-
-  factory SettingsSaveResult.success(Settings settings) =>
-      SettingsSaveResult._(settings: settings);
-
-  factory SettingsSaveResult.failure(Object error) =>
-      SettingsSaveResult._(error: error);
-
-  bool get succeeded => error == null;
-}
-
-/// Settings.save() 的异步执行与结果持有者，
-/// 生命周期独立于 SettingsDialog。
-class SettingsService {
-  final ValueNotifier<SettingsSaveResult?> lastResult = ValueNotifier(null);
-  final ValueNotifier<bool> busy = ValueNotifier(false);
-
-  Future<void> save(Settings settings) async {
-    if (busy.value) return;
-
-    busy.value = true;
-    try {
-      await settings.save();
-      lastResult.value = SettingsSaveResult.success(settings);
-    } catch (e, st) {
-      debugPrint('error: $e\n$st');
-      lastResult.value = SettingsSaveResult.failure(e);
-    } finally {
-      busy.value = false;
-    }
-  }
-
-  void dispose() {
-    lastResult.dispose();
-    busy.dispose();
   }
 }

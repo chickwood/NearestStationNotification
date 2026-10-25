@@ -1,15 +1,21 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_styled_toast/flutter_styled_toast.dart';
 
-import 'background_task.dart';
-import 'common.dart';
-import 'coordinator.dart';
-import 'event_manager.dart';
 import 'info_dialog.dart';
-import 'l10n.dart';
-import 'settings.dart';
 import 'settings_dialog.dart';
-import 'station_manager.dart';
+
+import '../common.dart';
+import '../coordinator.dart';
+import '../l10n.dart';
+import '../manager/event_manager.dart';
+import '../manager/settings_manager.dart';
+import '../manager/station_manager.dart';
+import '../service/info_import_service.dart';
+import '../service/settings_save_service.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -19,14 +25,14 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
-  Settings? _settings;
+  SettingsManager? _settings;
   StationManager? _stationManager;
   EventManager? _eventManager;
 
   Coordinator? _coordinator;
 
-  late final InfoService _infoService;
-  late final SettingsService _settingsService;
+  late final InfoImportService _infoImportService;
+  late final SettingsSaveService _settingsSaveService;
 
   int _positionVisibility = 0; // 坐标显示/关闭
 
@@ -34,10 +40,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   void initState() {
     super.initState();
 
-    _infoService = InfoService();
-    _settingsService = SettingsService();
-    _infoService.lastResult.addListener(_handleImportResult);
-    _settingsService.lastResult.addListener(_handleSettingsResult);
+    _infoImportService = InfoImportService();
+    _settingsSaveService = SettingsSaveService();
+    _infoImportService.lastResult.addListener(_handleImportResult);
+    _settingsSaveService.lastResult.addListener(_handleSettingsResult);
 
     WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -50,10 +56,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
 
-    _infoService.lastResult.removeListener(_handleImportResult);
-    _settingsService.lastResult.removeListener(_handleSettingsResult);
-    _infoService.dispose();
-    _settingsService.dispose();
+    _infoImportService.lastResult.removeListener(_handleImportResult);
+    _settingsSaveService.lastResult.removeListener(_handleSettingsResult);
+    _infoImportService.dispose();
+    _settingsSaveService.dispose();
 
     _coordinator?.removeLocationResultHandler(_handleLocationResultReceived);
     _coordinator?.removeRunningStatusHandler(_handleRunningStatusChanged);
@@ -208,11 +214,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     final active = true; // 应用启动时 active 必然为 true
 
     try {
-      late Settings settings;
+      late SettingsManager settings;
       late StationManager stationManager;
       late EventManager eventManager;
       await Future.wait([
-        Settings.load().then((value) => settings = value),
+        SettingsManager.load().then((value) => settings = value),
         StationManager.load().then((value) => stationManager = value),
         EventManager.load().then((value) => eventManager = value),
       ]);
@@ -312,7 +318,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   // ── Service results ──────────────────────────────────────────────
 
   void _handleImportResult() {
-    final result = _infoService.lastResult.value;
+    final result = _infoImportService.lastResult.value;
     if (!mounted || result == null) return;
 
     final l10n = L10n.of(context);
@@ -349,7 +355,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   void _handleSettingsResult() {
-    final result = _settingsService.lastResult.value;
+    final result = _settingsSaveService.lastResult.value;
     if (!mounted || result == null) return;
 
     final l10n = L10n.of(context);
@@ -375,8 +381,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       context: context,
       barrierColor: Colors.white.withValues(alpha: 0.5),
       builder:
-          (context) =>
-              SettingsDialog(_settings!, settingsService: _settingsService),
+          (context) => SettingsDialog(
+            _settings!,
+            settingsSaveService: _settingsSaveService,
+          ),
     );
   }
 
@@ -390,7 +398,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           (context) => InfoDialog(
             _stationManager!,
             _eventManager!,
-            infoService: _infoService,
+            infoImportService: _infoImportService,
           ),
     );
   }
@@ -760,6 +768,45 @@ class _StationTile extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+// ── Background task ──────────────────────────────────────────────
+
+class BackgroundTask extends StatelessWidget {
+  static const _channel = MethodChannel(
+    'name.w57.nearest_station_notification/background_task',
+  );
+
+  final bool keepBackgroundTask;
+  final Widget child;
+
+  const BackgroundTask({
+    super.key,
+    required this.keepBackgroundTask,
+    required this.child,
+  });
+
+  static bool get _isNativeAndroid =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+
+  Future<void> _moveTaskToBack() async {
+    await _channel.invokeMethod<void>('moveTaskToBack');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_isNativeAndroid) return child;
+
+    return PopScope(
+      canPop: !keepBackgroundTask,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop && keepBackgroundTask) {
+          unawaited(_moveTaskToBack());
+        }
+      },
+      child: child,
     );
   }
 }

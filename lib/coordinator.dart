@@ -3,12 +3,12 @@ import 'dart:async';
 import 'package:geolocator/geolocator.dart';
 
 import 'common.dart';
-import 'event_manager.dart';
 import 'l10n.dart';
 import 'location_processor.dart';
-import 'notification_service.dart';
-import 'settings.dart';
-import 'station_manager.dart';
+import 'manager/event_manager.dart';
+import 'manager/settings_manager.dart';
+import 'manager/station_manager.dart';
+import 'notification_gateway.dart';
 
 typedef LocationResultHandler =
     void Function(
@@ -18,19 +18,19 @@ typedef LocationResultHandler =
 typedef RunningStatusHandler = void Function(RunningStatus runningStatus);
 
 /// アプリ全体を協調する Coordinator
-/// - LocationProcessor / NotificationService の生成と生命周期管理
+/// - LocationProcessor / NotificationGateway の生成と生命周期管理
 /// - 権限リクエスト
 /// - locate 結果に gcd/name を補完して StationResult を組立
 /// - handlers を通じて UI などの消費者へ配信
 class Coordinator {
   L10n _l10n;
   bool _active;
-  Settings _settings;
+  SettingsManager _settings;
   StationManager _stationManager;
   EventManager _eventManager;
 
   late final LocationProcessor _locationProcessor;
-  late final NotificationService _notificationService;
+  late final NotificationGateway _notificationGateway;
 
   PositionResult? _positionResult;
   List<StationResult>? _stationResults;
@@ -54,8 +54,8 @@ class Coordinator {
     this._stationManager,
     this._eventManager,
   ) {
-    _notificationService = NotificationService(_l10n);
-    addLocationResultHandler(_notificationService.handleLocationResultReceived);
+    _notificationGateway = NotificationGateway(_l10n);
+    addLocationResultHandler(_notificationGateway.handleLocationResultReceived);
 
     _locationProcessor = LocationProcessor(
       _l10n,
@@ -129,7 +129,7 @@ class Coordinator {
   /// HomePage.initState() から呼び出す
   /// FLN など非同期の初期化のみを担う
   Future<void> init() async {
-    await _notificationService.init();
+    await _notificationGateway.init();
   }
 
   // ── タスク制御 ────────────────────────────────────────────────────
@@ -159,7 +159,7 @@ class Coordinator {
   Future<void> stop() async {
     await _locationProcessor.stop();
 
-    await _notificationService.cancelAll();
+    await _notificationGateway.cancelAll();
 
     _positionResult = null;
     _stationResults = null;
@@ -172,7 +172,7 @@ class Coordinator {
 
   // ── 設定・Locale・Lifecycle・Data ─────────────────────────────────
 
-  Future<void> changeSettings(Settings settings) async {
+  Future<void> changeSettings(SettingsManager settings) async {
     _settings = settings;
     await _locationProcessor.changeSettings(settings);
   }
@@ -181,7 +181,7 @@ class Coordinator {
     _l10n = l10n;
 
     _locationProcessor.changeLocale(l10n);
-    _notificationService.changeLocale(l10n);
+    _notificationGateway.changeLocale(l10n);
   }
 
   /// UI の前台/后台状態が変わった時
@@ -230,7 +230,7 @@ class Coordinator {
   }
 
   Future<bool> _requestNotificationPermissions() async {
-    await _notificationService.requestPermissions();
+    await _notificationGateway.requestPermissions();
     return true;
   }
 

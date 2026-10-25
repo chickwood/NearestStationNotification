@@ -1,10 +1,10 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
-import 'common.dart';
-import 'event_manager.dart';
-import 'l10n.dart';
-import 'station_manager.dart';
+import '../common.dart';
+import '../l10n.dart';
+import '../manager/event_manager.dart';
+import '../manager/station_manager.dart';
 
 // ── License list dialog ───────────────────────────────────────────
 

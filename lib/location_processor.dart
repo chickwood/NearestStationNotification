@@ -5,9 +5,9 @@ import 'package:geolocator/geolocator.dart';
 
 import 'common.dart';
 import 'l10n.dart';
+import 'manager/settings_manager.dart';
+import 'manager/station_manager.dart';
 import 'search_engine.dart';
-import 'settings.dart';
-import 'station_manager.dart';
 
 typedef LocationHandler =
     void Function(
@@ -21,7 +21,7 @@ typedef LocationHandler =
 class LocationProcessor {
   L10n _l10n;
   bool _active;
-  Settings _settings;
+  SettingsManager _settings;
   StationManager _manager;
 
   late SearchEngine _engine;
@@ -56,7 +56,7 @@ class LocationProcessor {
   // ── 状態の変更 ──────────────────────────────────────────────────────
 
   /// 設定更新
-  Future<void> changeSettings(Settings settings) async {
+  Future<void> changeSettings(SettingsManager settings) async {
     final changeInterval =
         _settings.locationInterval.milliseconds !=
         settings.locationInterval.milliseconds;

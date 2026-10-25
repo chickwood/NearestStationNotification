@@ -4,7 +4,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 
-import 'common.dart';
+import '../common.dart';
 
 /// 事件数据管理器
 /// documents 覆盖（缺失 / 无效时为空）

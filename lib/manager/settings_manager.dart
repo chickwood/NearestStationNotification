@@ -1,6 +1,6 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'common.dart';
+import '../common.dart';
 
 // ── SharedPreferences キー ────────────────────────────────────────
 
@@ -10,14 +10,14 @@ class _Keys {
   // static const notificationMode = 'settings_notification_mode';
 }
 
-// ── Settings ───────────────────────────────────────────────────
+// ── SettingsManager ───────────────────────────────────────────────────
 
-class Settings {
+class SettingsManager {
   StationCount stationCount;
   LocationInterval locationInterval;
   // NotificationMode notificationMode;
 
-  Settings._({
+  SettingsManager._({
     this.stationCount = StationCount.game,
     this.locationInterval = LocationInterval.s1,
     // this.notificationMode = NotificationMode.location,
@@ -29,10 +29,10 @@ class Settings {
   }
 
   // 从 SharedPreferences 读取
-  static Future<Settings> load() async {
+  static Future<SettingsManager> load() async {
     final prefs = await SharedPreferences.getInstance();
 
-    return Settings.fromTransferable([
+    return SettingsManager.fromTransferable([
       prefs.getInt(_Keys.stationCount) ?? StationCount.game.index,
       prefs.getInt(_Keys.locationInterval) ?? LocationInterval.s1.index,
       // prefs.getInt(_Keys.notificationMode) ?? NotificationMode.location.index,
@@ -49,12 +49,12 @@ class Settings {
   }
 
   // 复制（用于弹窗内的临时副本）
-  Settings copyWith({
+  SettingsManager copyWith({
     StationCount? stationCount,
     LocationInterval? locationInterval,
     // NotificationMode? notificationMode,
   }) {
-    return Settings.fromTransferable([
+    return SettingsManager.fromTransferable([
       stationCount?.index ?? this.stationCount.index,
       locationInterval?.index ?? this.locationInterval.index,
       // notificationMode?.index ?? this.notificationMode.index,
@@ -69,7 +69,7 @@ class Settings {
   //     ];
 
   // fromTransferable
-  factory Settings.fromTransferable(List data) => Settings._(
+  factory SettingsManager.fromTransferable(List data) => SettingsManager._(
     stationCount:
         StationCount.values.elementAtOrNull(data[0] as int) ??
         StationCount.game,

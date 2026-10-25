@@ -6,8 +6,8 @@ import 'package:flutter_styled_toast/flutter_styled_toast.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import 'common.dart';
-import 'home_page.dart';
 import 'l10n.dart';
+import 'ui/home_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();

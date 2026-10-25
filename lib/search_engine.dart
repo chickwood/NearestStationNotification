@@ -1,7 +1,7 @@
 import 'dart:math';
 
 import 'common.dart';
-import 'station_manager.dart';
+import 'manager/station_manager.dart';
 
 /// 核心定位引擎
 class SearchEngine {

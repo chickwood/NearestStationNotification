@@ -7,7 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 
-import 'common.dart';
+import '../common.dart';
 
 /// 车站信息管理器
 /// 駅データ.jp CSV 解析 + BIN 文件读写
