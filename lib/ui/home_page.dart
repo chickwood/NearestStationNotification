@@ -305,7 +305,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       backgroundColor:
           isError
               ? const Color(0xFFFF4030) // Colors.red.shade700
-              : const Color(0xFFA0C0FF), // Colors.indigo.shade300
+              : const Color(0xFFDCECFF), // Colors.indigo.shade300
       textStyle: TextStyle(
         color: isError ? Colors.white : Colors.grey.shade800,
       ),
@@ -421,7 +421,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 children: [
                   Icon(
                     Icons.radar,
-                    color: const Color(0xFFFFC000), // Colors.orange.shade700
+                    color: const Color(0xFF4080FF), // Colors.orange.shade700
                   ),
                   const SizedBox(width: 4),
                   Text(
@@ -679,12 +679,9 @@ class _StationTile extends StatelessWidget {
         vertical: isNearest ? 8 : 6,
       ),
       decoration: BoxDecoration(
-        color: isNearest ? const Color(0xFFFFF9E0) : Colors.white,
+        color: isNearest ? const Color(0xFFDCECFF) : Colors.white,
         border: Border.all(
-          color:
-              isNearest
-                  ? const Color(0xFFFFC000) // Colors.orange.shade700
-                  : _partBorderColors[part]!,
+          color: isNearest ? const Color(0xFF4080FF) : _partBorderColors[part]!,
         ),
         borderRadius: BorderRadius.circular(8),
       ),
@@ -695,9 +692,7 @@ class _StationTile extends StatelessWidget {
             height: 20,
             decoration: BoxDecoration(
               color:
-                  isNearest
-                      ? const Color(0xFFFFC000) // Colors.orange.shade700
-                      : _partFillColors[part]!,
+                  isNearest ? const Color(0xFF4080FF) : _partFillColors[part]!,
               shape: BoxShape.circle,
             ),
             child: Center(
@@ -728,9 +723,7 @@ class _StationTile extends StatelessWidget {
             // padding: const EdgeInsets.symmetric(horizontal: 6),
             decoration: BoxDecoration(
               color:
-                  isNearest
-                      ? const Color(0xFFFFC000) // Colors.orange.shade700
-                      : _partFillColors[part]!,
+                  isNearest ? const Color(0xFF4080FF) : _partFillColors[part]!,
               borderRadius: BorderRadius.circular(16),
             ),
             child: Center(
@@ -750,9 +743,7 @@ class _StationTile extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 8),
             decoration: BoxDecoration(
               color:
-                  isNearest
-                      ? const Color(0xFFFFC000) // Colors.orange.shade700
-                      : _partFillColors[part]!,
+                  isNearest ? const Color(0xFF4080FF) : _partFillColors[part]!,
               borderRadius: BorderRadius.circular(16),
             ),
             child: Center(
