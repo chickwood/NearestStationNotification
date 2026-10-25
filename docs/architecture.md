@@ -61,7 +61,30 @@ Test
 | `lib/l10n.dart` | 中 / 日 / 英文本、locale 严格解析 |
 | `lib/common.dart` | 常量、几何计算、数据类与枚举 |
 
-注：`lib/*.dart.old` 为遗留文件，不参与 Dart 编译，也不属于运行时结构。
+目录结构：
+
+```text
+lib/
+├── main.dart
+├── common.dart
+├── coordinator.dart
+├── l10n.dart
+├── location_processor.dart
+├── search_engine.dart
+├── notification_gateway.dart
+├── manager/
+│   ├── station_manager.dart
+│   ├── event_manager.dart
+│   └── settings_manager.dart
+├── service/
+│   ├── info_import_service.dart
+│   └── settings_save_service.dart
+└── ui/
+    ├── home_page.dart
+    ├── settings_dialog.dart
+    ├── info_dialog.dart
+    └── license_dialog.dart
+```
 
 ---
 
@@ -156,7 +179,7 @@ BackgroundTask 包裹 HomePage（Android only）。
 
 ## Responsibilities
 
-### HomePage
+### HomePage（定义于 `ui/home_page.dart`）
 
 职责：
 
@@ -287,7 +310,7 @@ SearchEngine 只负责计算。
 
 ---
 
-### StationManager
+### StationManager（定义于 `manager/station_manager.dart`）
 
 职责：
 
@@ -333,7 +356,7 @@ BIN 布局：
 
 ---
 
-### EventManager
+### EventManager（定义于 `manager/event_manager.dart`）
 
 职责：
 
@@ -366,7 +389,7 @@ schema：
 
 ---
 
-### SettingsManager
+### SettingsManager（定义于 `manager/settings_manager.dart`）
 
 职责：
 
@@ -385,7 +408,7 @@ schema：
 
 ---
 
-### NotificationGateway
+### NotificationGateway（定义于 `notification_gateway.dart`）
 
 职责：
 
