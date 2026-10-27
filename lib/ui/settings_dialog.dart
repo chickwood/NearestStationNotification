@@ -30,13 +30,13 @@ class _SettingsDialogState extends State<SettingsDialog> {
 
     // 弹窗内操作的临时副本，关闭则丢弃
     _draft = widget.settings.copyWith();
-    widget.settingsSaveService.lastResult.addListener(_handleResult);
+    widget.settingsSaveService.last.addListener(_handleResult);
     widget.settingsSaveService.busy.addListener(_handleBusyChanged);
   }
 
   @override
   void dispose() {
-    widget.settingsSaveService.lastResult.removeListener(_handleResult);
+    widget.settingsSaveService.last.removeListener(_handleResult);
     widget.settingsSaveService.busy.removeListener(_handleBusyChanged);
     super.dispose();
   }

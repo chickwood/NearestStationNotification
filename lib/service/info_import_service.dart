@@ -3,7 +3,7 @@ import 'dart:io';
 
 import 'package:archive/archive.dart';
 import 'package:crypto/crypto.dart';
-import 'package:file_selector/file_selector.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 
 import '../common.dart';
@@ -41,7 +41,7 @@ class InfoImportResult {
 /// zip 选择 → 解析 → SHA-256 → 写入 → load
 /// 异步执行与结果独立于 Dialog 生命周期
 class InfoImportService {
-  final ValueNotifier<InfoImportResult?> lastResult = ValueNotifier(null);
+  final ValueNotifier<InfoImportResult?> last = ValueNotifier(null);
   final ValueNotifier<bool> busy = ValueNotifier(false);
 
   Future<void> import() async {
@@ -49,16 +49,16 @@ class InfoImportService {
 
     busy.value = true;
     try {
-      const typeGroup = XTypeGroup(
-        label: 'zip',
-        extensions: ['zip'],
-        mimeTypes: ['application/zip', 'application/x-zip-compressed'],
-        uniformTypeIdentifiers: ['public.zip-archive'],
+      final picked = await FilePicker.pickFile(
+        type: FileType.custom,
+        allowedExtensions: const ['zip'],
       );
-      final xfile = await openFile(acceptedTypeGroups: const [typeGroup]);
-      if (xfile == null) return; // キャンセル
+      if (picked == null) return; // キャンセル
 
-      final archive = await _parseImportArchive(File(xfile.path));
+      final path = picked.path;
+      if (path == null) throw const _InvalidImportException();
+
+      final archive = await _parseImportArchive(File(path));
       final stationBin = archive.stationBin;
       final eventJson = archive.eventJson;
 
@@ -86,20 +86,20 @@ class InfoImportService {
         eventManager = await EventManager.load();
       }
 
-      lastResult.value = InfoImportResult.success(
+      last.value = InfoImportResult.success(
         station: stationManager,
         event: eventManager,
       );
     } catch (e, st) {
       debugPrint('error: $e\n$st');
-      lastResult.value = InfoImportResult.failure(e);
+      last.value = InfoImportResult.failure(e);
     } finally {
       busy.value = false;
     }
   }
 
   void dispose() {
-    lastResult.dispose();
+    last.dispose();
     busy.dispose();
   }
 }

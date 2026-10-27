@@ -42,8 +42,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
     _infoImportService = InfoImportService();
     _settingsSaveService = SettingsSaveService();
-    _infoImportService.lastResult.addListener(_handleImportResult);
-    _settingsSaveService.lastResult.addListener(_handleSettingsResult);
+    _infoImportService.last.addListener(_handleImportResult);
+    _settingsSaveService.last.addListener(_handleSettingsResult);
 
     WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -56,8 +56,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
 
-    _infoImportService.lastResult.removeListener(_handleImportResult);
-    _settingsSaveService.lastResult.removeListener(_handleSettingsResult);
+    _infoImportService.last.removeListener(_handleImportResult);
+    _settingsSaveService.last.removeListener(_handleSettingsResult);
     _infoImportService.dispose();
     _settingsSaveService.dispose();
 
@@ -318,7 +318,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   // ── Service results ──────────────────────────────────────────────
 
   void _handleImportResult() {
-    final result = _infoImportService.lastResult.value;
+    final result = _infoImportService.last.value;
     if (!mounted || result == null) return;
 
     final l10n = L10n.of(context);
@@ -355,7 +355,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   void _handleSettingsResult() {
-    final result = _settingsSaveService.lastResult.value;
+    final result = _settingsSaveService.last.value;
     if (!mounted || result == null) return;
 
     final l10n = L10n.of(context);
