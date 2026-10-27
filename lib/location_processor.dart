@@ -21,10 +21,10 @@ typedef LocationHandler =
 class LocationProcessor {
   L10n _l10n;
   bool _active;
-  SettingsManager _settings;
-  StationManager _manager;
+  StationManager _stationManager;
+  ProcessorSettingsManager _settingsManager;
 
-  late SearchEngine _engine;
+  late SearchEngine _searchEngine;
 
   // 位置ズレフィルタ用キュー
   static const _queueSize = 3;
@@ -35,8 +35,13 @@ class LocationProcessor {
   // 結果コールバック（Coordinator が登録）
   LocationHandler? _onLocationUpdated;
 
-  LocationProcessor(this._l10n, this._active, this._settings, this._manager) {
-    _engine = SearchEngine(_manager);
+  LocationProcessor(
+    this._l10n,
+    this._active,
+    this._stationManager,
+    this._settingsManager,
+  ) {
+    _searchEngine = SearchEngine(_stationManager);
   }
 
   void setLocationHandler(LocationHandler handler) {
@@ -56,20 +61,20 @@ class LocationProcessor {
   // ── 状態の変更 ──────────────────────────────────────────────────────
 
   /// 設定更新
-  Future<void> changeSettings(SettingsManager settings) async {
-    final changeInterval =
-        _settings.locationInterval.milliseconds !=
+  Future<void> changeSettings(ProcessorSettingsManager settings) async {
+    final intervalChanged =
+        _settingsManager.locationInterval.milliseconds !=
         settings.locationInterval.milliseconds;
-    final changeCount =
-        _settings.stationCount.count != settings.stationCount.count;
-    _settings = settings;
+    final countChanged =
+        _settingsManager.stationCount.count != settings.stationCount.count;
+    _settingsManager = settings;
 
     if (_positionSubscription != null) {
-      if (changeInterval) {
+      if (intervalChanged) {
         _startStream();
       }
 
-      if (changeCount) {
+      if (countChanged) {
         if (_positionQueue case [..., final last]) {
           _updateSearchResult(last);
         }
@@ -80,11 +85,11 @@ class LocationProcessor {
   /// UI 活動状態の変更
   /// active が false → true になった場合は count 分の再検索が必要
   void changeActive(bool active) {
-    final changeActive = _active != active;
+    final activeChanged = _active != active;
     _active = active;
 
     if (_positionSubscription != null) {
-      if (changeActive && _active) {
+      if (activeChanged && _active) {
         if (_positionQueue case [..., final last]) {
           _updateSearchResult(last);
         }
@@ -104,9 +109,9 @@ class LocationProcessor {
 
   /// 站点数据更新（hot reload）
   /// manager 与 SearchEngine 成对替换（同一同步块，不中断流）
-  void changeData(StationManager manager) {
-    _manager = manager;
-    _engine = SearchEngine(manager);
+  void changeData(StationManager stationManager) {
+    _stationManager = stationManager;
+    _searchEngine = SearchEngine(stationManager);
   }
 
   // ── GPS Stream ───────────────────────────────────────────────────
@@ -116,7 +121,7 @@ class LocationProcessor {
         _positionQueue.isNotEmpty
             ? _positionQueue.last.samplingMode.filter
             : SamplingMode.staying.filter;
-    final milliseconds = _settings.locationInterval.milliseconds;
+    final milliseconds = _settingsManager.locationInterval.milliseconds;
 
     final locationSettings = switch (defaultTargetPlatform) {
       TargetPlatform.android => AndroidSettings(
@@ -212,7 +217,8 @@ class LocationProcessor {
           prevMode == SamplingMode.transit &&
           Common.sampling(_positionQueue[_positionQueue.length - 3].speed) !=
               SamplingMode.transit;
-      if (_settings.locationInterval == LocationInterval.s1 && isObserving) {
+      if (_settingsManager.locationInterval == LocationInterval.s1 &&
+          isObserving) {
         // 下一次定位又变为低速或静止
         // 认为是 GPS 漂移
         if (userMode != SamplingMode.transit) {
@@ -261,11 +267,11 @@ class LocationProcessor {
   void _updateSearchResult(PositionResult positionResult) {
     // 取得车站数全部在 engine 内进行分歧判断
     // 取得最小车站数后再填入其他属性返回最小数据集
-    final stationResults = _engine
+    final stationResults = _searchEngine
         .locate(
           positionResult.latitude,
           positionResult.longitude,
-          _settings.stationCount.count,
+          _settingsManager.stationCount.count,
           _active,
         )
         .toList(growable: false);

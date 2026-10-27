@@ -26,7 +26,7 @@ class SettingsSaveResult {
 /// SettingsManager.save() 的异步执行与结果持有者，
 /// 生命周期独立于 SettingsDialog。
 class SettingsSaveService {
-  final ValueNotifier<SettingsSaveResult?> lastResult = ValueNotifier(null);
+  final ValueNotifier<SettingsSaveResult?> last = ValueNotifier(null);
   final ValueNotifier<bool> busy = ValueNotifier(false);
 
   Future<void> save(SettingsManager settings) async {
@@ -35,17 +35,17 @@ class SettingsSaveService {
     busy.value = true;
     try {
       await settings.save();
-      lastResult.value = SettingsSaveResult.success(settings);
+      last.value = SettingsSaveResult.success(settings);
     } catch (e, st) {
       debugPrint('error: $e\n$st');
-      lastResult.value = SettingsSaveResult.failure(e);
+      last.value = SettingsSaveResult.failure(e);
     } finally {
       busy.value = false;
     }
   }
 
   void dispose() {
-    lastResult.dispose();
+    last.dispose();
     busy.dispose();
   }
 }

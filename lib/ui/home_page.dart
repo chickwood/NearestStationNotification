@@ -12,8 +12,10 @@ import '../common.dart';
 import '../coordinator.dart';
 import '../l10n.dart';
 import '../manager/event_manager.dart';
+import '../manager/history_manager.dart';
 import '../manager/settings_manager.dart';
 import '../manager/station_manager.dart';
+import '../service/history_backup_service.dart';
 import '../service/info_import_service.dart';
 import '../service/settings_save_service.dart';
 
@@ -24,15 +26,18 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
-  SettingsManager? _settings;
+class _HomePageState extends ResetableState<HomePage>
+    with WidgetsBindingObserver {
+  SettingsManager? _settingsManager;
   StationManager? _stationManager;
   EventManager? _eventManager;
+  HistoryManager? _historyManager;
 
   Coordinator? _coordinator;
 
   late final InfoImportService _infoImportService;
   late final SettingsSaveService _settingsSaveService;
+  late final HistoryBackupService _historyBackupService;
 
   int _positionVisibility = 0; // 坐标显示/关闭
 
@@ -42,8 +47,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
     _infoImportService = InfoImportService();
     _settingsSaveService = SettingsSaveService();
-    _infoImportService.lastResult.addListener(_handleImportResult);
-    _settingsSaveService.lastResult.addListener(_handleSettingsResult);
+    _historyBackupService = HistoryBackupService();
+    _infoImportService.last.addListener(_handleInfoImportResultNotified);
+    _settingsSaveService.last.addListener(_handleSettingsSaveResultNotified);
+    _historyBackupService.last.addListener(_handleHistoryBackupResultNotified);
 
     WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -56,10 +63,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
 
-    _infoImportService.lastResult.removeListener(_handleImportResult);
-    _settingsSaveService.lastResult.removeListener(_handleSettingsResult);
+    _infoImportService.last.removeListener(_handleInfoImportResultNotified);
+    _settingsSaveService.last.removeListener(_handleSettingsSaveResultNotified);
+    _historyBackupService.last.removeListener(
+      _handleHistoryBackupResultNotified,
+    );
     _infoImportService.dispose();
     _settingsSaveService.dispose();
+    _historyBackupService.dispose();
 
     _coordinator?.removeLocationResultHandler(_handleLocationResultReceived);
     _coordinator?.removeRunningStatusHandler(_handleRunningStatusChanged);
@@ -94,9 +105,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     if (_coordinator == null ||
-        _settings == null ||
+        _settingsManager == null ||
         _stationManager == null ||
-        _eventManager == null) {
+        _eventManager == null ||
+        _historyManager == null) {
       return const Scaffold();
     }
 
@@ -214,21 +226,24 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     final active = true; // 应用启动时 active 必然为 true
 
     try {
-      late SettingsManager settings;
+      late SettingsManager settingsManager;
       late StationManager stationManager;
       late EventManager eventManager;
+      late HistoryManager historyManager;
       await Future.wait([
-        SettingsManager.load().then((value) => settings = value),
+        SettingsManager.load().then((value) => settingsManager = value),
         StationManager.load().then((value) => stationManager = value),
         EventManager.load().then((value) => eventManager = value),
+        HistoryManager.load().then((value) => historyManager = value),
       ]);
 
       final coordinator = Coordinator(
         l10n,
         active,
-        settings,
+        settingsManager,
         stationManager,
         eventManager,
+        historyManager,
       );
       _coordinator = coordinator;
 
@@ -243,10 +258,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
       if (!mounted) return;
       setState(() {
-        _settings = settings;
+        _settingsManager = settingsManager;
         _stationManager = stationManager;
         _eventManager = eventManager;
+        _historyManager = historyManager;
       });
+
+      unawaited(historyManager.consolidateIfDue());
     } catch (e) {
       // 其他错误（文件读取失败等）
       debugPrint(e.toString());
@@ -254,25 +272,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
   }
 
-  void _handleLocationResultReceived(
-    PositionResult? positionResult,
-    List<StationResult>? stationResults,
-  ) {
-    if (!mounted) return;
-    setState(() {});
-  }
-
-  void _handleRunningStatusChanged(RunningStatus runningStatus) {
-    if (!mounted) return;
-    setState(() {});
-  }
-
   // ── ボタンイベント ────────────────────────────────────────────────
 
   /// 起動ボタン押下時
   /// 権限リクエスト + 定位開始
   Future<void> _start() async {
-    if (_settings == null) return;
+    if (_settingsManager == null) return;
 
     await _coordinator?.start();
     // 按钮外观变更
@@ -315,10 +320,15 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     );
   }
 
+  // ── Handler ──────────────────────────────────────────────
+
+  void _handleLocationResultReceived(_, _) => resetState();
+  void _handleRunningStatusChanged(_) => resetState();
+
   // ── Service results ──────────────────────────────────────────────
 
-  void _handleImportResult() {
-    final result = _infoImportService.lastResult.value;
+  void _handleInfoImportResultNotified() {
+    final result = _infoImportService.last.value;
     if (!mounted || result == null) return;
 
     final l10n = L10n.of(context);
@@ -354,8 +364,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
   }
 
-  void _handleSettingsResult() {
-    final result = _settingsSaveService.lastResult.value;
+  void _handleSettingsSaveResultNotified() {
+    final result = _settingsSaveService.last.value;
     if (!mounted || result == null) return;
 
     final l10n = L10n.of(context);
@@ -366,12 +376,29 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
     final settings = result.settings!;
     setState(() {
-      _settings = settings;
+      _settingsManager = settings;
     });
     // 无论运行状态如何都立即反映
     // （LocationProcessor 内部会根据 stream 状态自行判断）
     _coordinator?.changeSettings(settings);
     _showToast(l10n.settingsSaveSucceeded);
+  }
+
+  void _handleHistoryBackupResultNotified() {
+    final result = _historyBackupService.last.value;
+    if (!mounted || result == null || result.cancelled) return;
+
+    final l10n = L10n.of(context);
+    if (!result.succeeded) {
+      _showToast(l10n.historyBackupFailed, isError: true);
+      return;
+    }
+
+    if (result.action == HistoryBackupAction.export) {
+      _showToast(l10n.historyExportSucceeded);
+    } else {
+      _showToast(l10n.historyImportSucceeded);
+    }
   }
 
   // ── Settings Dialog ───────────────────────────────────────────────────
@@ -382,8 +409,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       barrierColor: Colors.white.withValues(alpha: 0.5),
       builder:
           (context) => SettingsDialog(
-            _settings!,
-            settingsSaveService: _settingsSaveService,
+            _settingsManager!,
+            _settingsSaveService,
+            _historyManager!,
+            _historyBackupService,
+            _coordinator!.historyConsumer,
+            _stationManager!,
           ),
     );
   }
@@ -395,11 +426,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       context: context,
       barrierColor: Colors.white.withValues(alpha: 0.5),
       builder:
-          (context) => InfoDialog(
-            _stationManager!,
-            _eventManager!,
-            infoImportService: _infoImportService,
-          ),
+          (context) =>
+              InfoDialog(_stationManager!, _eventManager!, _infoImportService),
     );
   }
 
@@ -507,7 +535,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 name: stationResult.name ?? '',
                 distance: stationResult.distanceInUnit,
                 direction: l10n.direction(stationResult.bearingIndex),
-                part: _settings!.stationCount.part(index),
+                part: _settingsManager!.stationCount.part(index),
               );
             },
             separatorBuilder: (BuildContext context, int index) {

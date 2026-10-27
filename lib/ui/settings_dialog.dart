@@ -1,27 +1,40 @@
 import 'package:flutter/material.dart';
 
 import '../common.dart';
+import '../consumer/history_consumer.dart';
 import '../l10n.dart';
+import '../manager/history_manager.dart';
 import '../manager/settings_manager.dart';
+import '../manager/station_manager.dart';
+import '../service/history_backup_service.dart';
 import '../service/settings_save_service.dart';
+import 'history_page.dart';
 
 // ── Settings Dialog ───────────────────────────────────────────────
 
 class SettingsDialog extends StatefulWidget {
-  final SettingsManager settings;
+  final SettingsManager settingsManager;
   final SettingsSaveService settingsSaveService;
+  final HistoryManager historyManager;
+  final HistoryBackupService historyBackupService;
+  final HistoryConsumer historyConsumer;
+  final StationManager stationManager;
 
   const SettingsDialog(
-    this.settings, {
+    this.settingsManager,
+    this.settingsSaveService,
+    this.historyManager,
+    this.historyBackupService,
+    this.historyConsumer,
+    this.stationManager, {
     super.key,
-    required this.settingsSaveService,
   });
 
   @override
   State<SettingsDialog> createState() => _SettingsDialogState();
 }
 
-class _SettingsDialogState extends State<SettingsDialog> {
+class _SettingsDialogState extends ResetableState<SettingsDialog> {
   late SettingsManager _draft;
 
   @override
@@ -29,27 +42,20 @@ class _SettingsDialogState extends State<SettingsDialog> {
     super.initState();
 
     // 弹窗内操作的临时副本，关闭则丢弃
-    _draft = widget.settings.copyWith();
-    widget.settingsSaveService.lastResult.addListener(_handleResult);
+    _draft = widget.settingsManager.copyWith();
+    widget.settingsSaveService.last.addListener(_handleResult);
     widget.settingsSaveService.busy.addListener(_handleBusyChanged);
   }
 
   @override
   void dispose() {
-    widget.settingsSaveService.lastResult.removeListener(_handleResult);
+    widget.settingsSaveService.last.removeListener(_handleResult);
     widget.settingsSaveService.busy.removeListener(_handleBusyChanged);
     super.dispose();
   }
 
-  void _handleResult() {
-    if (!mounted) return;
-    setState(() {});
-  }
-
-  void _handleBusyChanged() {
-    if (!mounted) return;
-    setState(() {});
-  }
+  void _handleResult() => resetState();
+  void _handleBusyChanged() => resetState();
 
   @override
   Widget build(BuildContext context) {
@@ -86,51 +92,121 @@ class _SettingsDialogState extends State<SettingsDialog> {
               ),
             ),
             const SizedBox(height: 4),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // ── 検出駅数 ────────────────────────────────────────────
-                  _SectionLabel(label: l10n.settingsStationCount),
-                  const SizedBox(height: 8),
-                  _SegmentedRow<StationCount>(
-                    values: const [StationCount.game, StationCount.max],
-                    selected: _draft.stationCount,
-                    labelOf: (v) => v.label,
-                    onChanged:
-                        (v) => setState(
-                          () => _draft = _draft.copyWith(stationCount: v),
+            Flexible(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.sizeOf(context).height * 0.55,
+                ),
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // ── 検出駅数 ────────────────────────────────────────────
+                      _SectionLabel(label: l10n.settingsStationCount),
+                      const SizedBox(height: 8),
+                      _SegmentedRow<StationCount>(
+                        values: const [StationCount.game, StationCount.max],
+                        selected: _draft.stationCount,
+                        labelOf: (v) => v.label,
+                        onChanged:
+                            (v) => setState(
+                              () => _draft = _draft.copyWith(stationCount: v),
+                            ),
+                      ),
+                      // ── 位置情報取得頻度 ────────────────────────────────────
+                      const SizedBox(height: 12),
+                      _SectionLabel(label: l10n.settingsLocationInterval),
+                      const SizedBox(height: 8),
+                      _SegmentedRow<LocationInterval>(
+                        values: LocationInterval.values,
+                        selected: _draft.locationInterval,
+                        labelOf:
+                            (v) =>
+                                l10n.settingsLocationIntervalLabel(v.seconds),
+                        onChanged:
+                            (v) => setState(
+                              () =>
+                                  _draft = _draft.copyWith(locationInterval: v),
+                            ),
+                      ),
+                      const SizedBox(height: 12),
+                      _SectionLabel(label: l10n.settingsHistory),
+                      const SizedBox(height: 4),
+                      _CheckboxRow(
+                        label: l10n.settingsHistoryEnabled,
+                        value: _draft.historyEnabled,
+                        onChanged:
+                            (v) => setState(
+                              () => _draft = _draft.copyWith(historyEnabled: v),
+                            ),
+                      ),
+                      _CheckboxRow(
+                        label: l10n.settingsHistoryMergeRapid,
+                        value: _draft.historyMergeView,
+                        onChanged:
+                            (v) => setState(
+                              () =>
+                                  _draft = _draft.copyWith(historyMergeView: v),
+                            ),
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE8F8FF),
+                          border: Border.all(color: const Color(0xFF60A0FF)),
+                          borderRadius: BorderRadius.circular(16),
                         ),
-                  ),
-                  // ── 位置情報取得頻度 ────────────────────────────────────
-                  const SizedBox(height: 12),
-                  _SectionLabel(label: l10n.settingsLocationInterval),
-                  const SizedBox(height: 8),
-                  _SegmentedRow<LocationInterval>(
-                    values: LocationInterval.values,
-                    selected: _draft.locationInterval,
-                    labelOf:
-                        (v) => l10n.settingsLocationIntervalLabel(v.seconds),
-                    onChanged:
-                        (v) => setState(
-                          () => _draft = _draft.copyWith(locationInterval: v),
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap:
+                              () => Navigator.of(context).push(
+                                MaterialPageRoute<void>(
+                                  builder:
+                                      (_) => HistoryPage(
+                                        widget.historyManager,
+                                        widget.historyBackupService,
+                                        widget.stationManager,
+                                        _draft.historySettingsManager,
+                                        widget.historyConsumer,
+                                      ),
+                                ),
+                              ),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 10,
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.history,
+                                  color: Color(0xFF4080FF),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    l10n.historyOpen,
+                                    style: TextStyle(
+                                      color: Colors.grey.shade800,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ),
+                                Icon(
+                                  Icons.chevron_right,
+                                  color: Colors.grey.shade600,
+                                  size: 20,
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
+                      ),
+                    ],
                   ),
-                  // // ── 通知方式 ────────────────────────────────────────────
-                  // const SizedBox(height: 12),
-                  // _SectionLabel(label: l10n.settingsNotificationMode),
-                  // const SizedBox(height: 8),
-                  // _SegmentedRow<NotificationMode>(
-                  //   values: NotificationMode.values,
-                  //   selected: _draft.notificationMode,
-                  //   labelOf: (v) => v == NotificationMode.location
-                  //       ? l10n.settingsNotificationModeLocation
-                  //       : l10n.settingsNotificationModeStation,
-                  //   onChanged: (v) =>
-                  //       setState(() => _draft = _draft.copyWith(notificationMode: v)),
-                  // ),
-                ],
+                ),
               ),
             ),
             const SizedBox(height: 12),
@@ -246,6 +322,45 @@ class _SegmentedRow<T> extends StatelessWidget {
               ),
             );
           }).toList(),
+    );
+  }
+}
+
+class _CheckboxRow extends StatelessWidget {
+  final String label;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  const _CheckboxRow({
+    required this.label,
+    required this.value,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => onChanged(!value),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          children: [
+            Icon(
+              value ? Icons.check_box : Icons.check_box_outline_blank,
+              color: const Color(0xFF4080FF),
+              size: 20,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(color: Colors.grey.shade800, fontSize: 12),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

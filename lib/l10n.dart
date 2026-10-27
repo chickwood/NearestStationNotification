@@ -257,6 +257,152 @@ class L10n {
     return '$seconds s';
   }
 
+  String get settingsHistory {
+    if (_isJa) return '履歴';
+    if (_isZhHans) return '历史记录';
+    return 'History';
+  }
+
+  String get settingsHistoryEnabled {
+    if (_isJa) return '最寄り駅の変更履歴を記録';
+    if (_isZhHans) return '记录车站切换历史';
+    return 'Record station change history';
+  }
+
+  String get settingsHistoryMergeRapid {
+    if (_isJa) return '5分以内の再切替をまとめて表示';
+    if (_isZhHans) return '将5分钟内反复切换的车站合并展示';
+    return 'Merge repeat switches within 5 minutes';
+  }
+
+  String get historyOpen {
+    if (_isJa) return '履歴を開く';
+    if (_isZhHans) return '打开历史记录';
+    return 'Open History';
+  }
+
+  String get historyTitle {
+    if (_isJa) return '履歴';
+    if (_isZhHans) return '历史记录';
+    return 'History';
+  }
+
+  String get historyMonthEmpty {
+    if (_isJa) return '今月の履歴はありません';
+    if (_isZhHans) return '本月暂无历史记录';
+    return 'No history this month';
+  }
+
+  String get historyDayEmpty {
+    if (_isJa) return 'この日の履歴はありません';
+    if (_isZhHans) return '当天暂无历史记录';
+    return 'No history for this day';
+  }
+
+  String historyDayCount(int count) {
+    if (_isJa) return '$count 件';
+    if (_isZhHans) return '共 $count 条记录';
+    return '$count records';
+  }
+
+  String get historyLoadFailed {
+    if (_isJa) return '履歴の読み込みに失敗しました';
+    if (_isZhHans) return '读取历史记录失败';
+    return 'Failed to load history';
+  }
+
+  String get historyRefresh {
+    if (_isJa) return '更新';
+    if (_isZhHans) return '刷新';
+    return 'Refresh';
+  }
+
+  String get historyJumpMonth {
+    if (_isJa) return '月を選択';
+    if (_isZhHans) return '选择月份';
+    return 'Select month';
+  }
+
+  String get historyPrevMonth {
+    if (_isJa) return '前月';
+    if (_isZhHans) return '上一月';
+    return 'Previous month';
+  }
+
+  String get historyNextMonth {
+    if (_isJa) return '翌月';
+    if (_isZhHans) return '下一月';
+    return 'Next month';
+  }
+
+  String get historyTime {
+    if (_isJa) return '時刻';
+    if (_isZhHans) return '时间';
+    return 'Time';
+  }
+
+  String get historyCoordinates {
+    if (_isJa) return '座標';
+    if (_isZhHans) return '坐标';
+    return 'Coordinates';
+  }
+
+  String get historyExport {
+    if (_isJa) return 'バックアップをエクスポート';
+    if (_isZhHans) return '导出备份';
+    return 'Export backup';
+  }
+
+  String get historyImport {
+    if (_isJa) return 'バックアップをインポート';
+    if (_isZhHans) return '导入备份';
+    return 'Import backup';
+  }
+
+  String get historyExporting {
+    if (_isJa) return 'エクスポート中...';
+    if (_isZhHans) return '正在导出...';
+    return 'Exporting...';
+  }
+
+  String get historyImporting {
+    if (_isJa) return 'インポート中...';
+    if (_isZhHans) return '正在导入...';
+    return 'Importing...';
+  }
+
+  String get historyExportSucceeded {
+    if (_isJa) return 'エクスポートしました';
+    if (_isZhHans) return '导出完成';
+    return 'Export complete';
+  }
+
+  String get historyImportSucceeded {
+    if (_isJa) return 'インポートしました';
+    if (_isZhHans) return '导入完成';
+    return 'Import complete';
+  }
+
+  String get historyBackupFailed {
+    if (_isJa) return 'バックアップ操作に失敗しました';
+    if (_isZhHans) return '备份操作失败';
+    return 'Backup operation failed';
+  }
+
+  String get historyImportConfirm {
+    if (_isJa) {
+      return '過去の月はバックアップの件数が多い場合のみ上書きされ、当月は統合されます。続行しますか？';
+    }
+    if (_isZhHans) {
+      return '过往月份仅在备份条数更多时覆盖，当前月将合并；继续？';
+    }
+    return 'Past months are overwritten only when the backup has more records; the current month is merged. Continue?';
+  }
+
+  String historyStationId(int id) {
+    return 'ID: $id';
+  }
+
   String get settingsSave {
     if (_isJa || _isZhHans) return '保存';
     return 'Save';

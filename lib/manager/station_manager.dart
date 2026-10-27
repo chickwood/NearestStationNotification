@@ -21,6 +21,7 @@ class StationManager {
   late final Uint32List _rights; // KD-Tree Right 区
   late final Uint32List _offsets; // 车站名偏移索引区
   late final Uint8List _names; // 车站名原始数据区 (变长)
+  Map<int, String>? _namesByGcd;
 
   // _manager 构造时赋值
   // _info 使用默认值
@@ -200,6 +201,24 @@ class StationManager {
     }
 
     return (null, null);
+  }
+
+  /// 根据 gcd 获取车站名（首次调用时构建 gcd → name 缓存）
+  String? getStationNameByGcd(int gcd) {
+    if (!isLoaded) return null;
+
+    final cached = _namesByGcd;
+    if (cached != null) return cached[gcd];
+
+    final names = <int, String>{};
+    for (var index = 0; index < count; index++) {
+      final (stationGcd, name) = getStationName(index);
+      if (stationGcd == null || name == null) continue;
+      names[stationGcd] = name;
+    }
+
+    _namesByGcd = names;
+    return names[gcd];
   }
 
   // 根据索引按需获取车站坐标详情

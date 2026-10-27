@@ -1,5 +1,7 @@
 import 'dart:math';
 
+import 'package:flutter/widgets.dart';
+
 class Common {
   // ── 动态包名常驻内存（由 main 在冷启动时注入） ───────────────────────
   static late final String appName;
@@ -12,6 +14,16 @@ class Common {
   // イベントデータ形式
   static const eventVersion = 2;
   static const eventFields = <String>['start_epoch', 'end_epoch'];
+
+  // 履歴
+  static const historyDirName = 'history';
+  static const historySchemaVersion = 1;
+  static const historyFields = <String>['gcd', 'lat_e6', 'lon_e6', 'epoch'];
+  static const historyMergeWindow = Duration(minutes: 5);
+  static const historyBlockRowLimit = 5;
+  static const historyArchiveWindowStartDay = 3;
+  static const historyArchiveWindowEndDay = 10;
+  static const historyManifestFileName = 'MANIFEST';
 
   // ── 导入 zip 限制 ──────────────────────────────────────────────
   static const maxZipSize = 20 * 1024 * 1024;
@@ -52,6 +64,51 @@ class Common {
 
   // int(UInt32) 最大值
   static const intMaxValue = 4294967295;
+
+  // ── 日期（int yyyyMMdd / yyyyMM，见 architecture.md 的 Date Representation）
+  /// 本地日期键：`yyyyMMdd`
+  static int dateOf(DateTime time) =>
+      time.year * 10000 + time.month * 100 + time.day;
+
+  /// epoch 毫秒 → 本地日期键
+  static int dateOfEpoch(int epoch) =>
+      dateOf(DateTime.fromMillisecondsSinceEpoch(epoch));
+
+  /// 日期键 → 月份键：`yyyyMM`
+  static int monthDateOf(int date) => date ~/ 100;
+
+  /// 年
+  static int yearOf(int date) => date ~/ 10000;
+
+  /// 月（1–12）
+  static int monthOf(int date) => date ~/ 100 % 100;
+
+  /// 日（1–31）
+  static int dayOf(int date) => date % 100;
+
+  /// 合法日期键；0 表示未设置
+  static bool isValidDate(int date) {
+    if (date == 0) return true;
+    if (date < 10000101 || date > 99991231) return false;
+
+    final year = yearOf(date);
+    final month = monthOf(date);
+    final day = dayOf(date);
+    if (month < 1 || month > 12) return false;
+    if (day < 1 || day > 31) return false;
+
+    final time = DateTime(year, month, day);
+    return time.year == year && time.month == month && time.day == day;
+  }
+
+  /// 合法月份键；0 表示未设置
+  static bool isValidMonth(int month) {
+    if (month == 0) return true;
+    if (month < 100001 || month > 999912) return false;
+
+    final monthOfYear = month % 100;
+    return monthOfYear >= 1 && monthOfYear <= 12;
+  }
 
   // 地球半径常数（米）
   static const _earthRadius = 6371000.0;
@@ -330,6 +387,67 @@ class PositionResult {
   //     );
 }
 
+class HistoryRecord {
+  final int gcd;
+  final int latE6;
+  final int lonE6;
+  final int epoch;
+
+  const HistoryRecord({
+    required this.gcd,
+    required this.latE6,
+    required this.lonE6,
+    required this.epoch,
+  });
+
+  double get latitude => latE6 / 1e6;
+  double get longitude => lonE6 / 1e6;
+  DateTime get timestamp => DateTime.fromMillisecondsSinceEpoch(epoch);
+  String get key => '$gcd|$epoch|$latE6|$lonE6';
+
+  List<Object?> toRow() => [gcd, latE6, lonE6, epoch];
+
+  static HistoryRecord? tryParse(Object? value) {
+    if (value is! List || value.length != 4) return null;
+
+    final gcd = value[0];
+    final latitudeE6 = value[1];
+    final longitudeE6 = value[2];
+    final epoch = value[3];
+
+    if (gcd is! int) return null;
+    if (latitudeE6 is! int || longitudeE6 is! int || epoch is! int) return null;
+
+    return HistoryRecord(
+      gcd: gcd,
+      latE6: latitudeE6,
+      lonE6: longitudeE6,
+      epoch: epoch,
+    );
+  }
+
+  /// 记录键去重后按 epoch / gcd / key 升序排序
+  /// 磁盘读取与页面合并共用同一实现，避免两处排序不一致
+  static List<HistoryRecord> mergeDedup(Iterable<HistoryRecord> input) {
+    final unique = <String, HistoryRecord>{};
+    for (final record in input) {
+      unique.putIfAbsent(record.key, () => record);
+    }
+
+    final records = unique.values.toList();
+    records.sort((a, b) {
+      final byEpoch = a.epoch.compareTo(b.epoch);
+      if (byEpoch != 0) return byEpoch;
+
+      final byStation = a.gcd.compareTo(b.gcd);
+      if (byStation != 0) return byStation;
+
+      return a.key.compareTo(b.key);
+    });
+    return records;
+  }
+}
+
 enum RunningStatus { stopped, starting, running }
 
 enum SamplingMode {
@@ -438,3 +556,10 @@ enum StationCount {
 }
 
 enum StationCountPart { friend, event, radar, natsume }
+
+abstract class ResetableState<T extends StatefulWidget> extends State<T> {
+  void resetState() {
+    if (!mounted) return;
+    setState(() {});
+  }
+}

@@ -17,16 +17,16 @@ class InfoDialog extends StatefulWidget {
 
   const InfoDialog(
     this.stationManager,
-    this.eventManager, {
+    this.eventManager,
+    this.infoImportService, {
     super.key,
-    required this.infoImportService,
   });
 
   @override
   State<InfoDialog> createState() => _InfoDialogState();
 }
 
-class _InfoDialogState extends State<InfoDialog> {
+class _InfoDialogState extends ResetableState<InfoDialog> {
   late StationManager _stationManager;
   late EventManager _eventManager;
 
@@ -35,19 +35,19 @@ class _InfoDialogState extends State<InfoDialog> {
     super.initState();
     _stationManager = widget.stationManager;
     _eventManager = widget.eventManager;
-    widget.infoImportService.lastResult.addListener(_handleImportResult);
+    widget.infoImportService.last.addListener(_handleImportResult);
     widget.infoImportService.busy.addListener(_handleBusyChanged);
   }
 
   @override
   void dispose() {
-    widget.infoImportService.lastResult.removeListener(_handleImportResult);
+    widget.infoImportService.last.removeListener(_handleImportResult);
     widget.infoImportService.busy.removeListener(_handleBusyChanged);
     super.dispose();
   }
 
   void _handleImportResult() {
-    final result = widget.infoImportService.lastResult.value;
+    final result = widget.infoImportService.last.value;
     if (result == null || !result.succeeded || !mounted) return;
 
     setState(() {
@@ -60,10 +60,7 @@ class _InfoDialogState extends State<InfoDialog> {
     });
   }
 
-  void _handleBusyChanged() {
-    if (!mounted) return;
-    setState(() {});
-  }
+  void _handleBusyChanged() => resetState();
 
   @override
   Widget build(BuildContext context) {
