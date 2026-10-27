@@ -3,7 +3,6 @@ import 'dart:io';
 
 import 'package:archive/archive.dart';
 import 'package:crypto/crypto.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 
 import '../common.dart';
@@ -38,26 +37,17 @@ class InfoImportResult {
   bool get succeeded => error == null;
 }
 
-/// zip 选择 → 解析 → SHA-256 → 写入 → load
+/// zip 解析 → SHA-256 → 写入 → load
 /// 异步执行与结果独立于 Dialog 生命周期
 class InfoImportService {
   final ValueNotifier<InfoImportResult?> last = ValueNotifier(null);
   final ValueNotifier<bool> busy = ValueNotifier(false);
 
-  Future<void> import() async {
+  Future<void> import(String path) async {
     if (busy.value) return;
 
     busy.value = true;
     try {
-      final picked = await FilePicker.pickFile(
-        type: FileType.custom,
-        allowedExtensions: const ['zip'],
-      );
-      if (picked == null) return; // キャンセル
-
-      final path = picked.path;
-      if (path == null) throw const _InvalidImportException();
-
       final archive = await _parseImportArchive(File(path));
       final stationBin = archive.stationBin;
       final eventJson = archive.eventJson;

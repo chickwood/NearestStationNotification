@@ -583,7 +583,7 @@ schema：
 
 职责：
 
-- 选择 zip（`file_picker` 单选，扩展名 zip 过滤）
+- 接收 InfoDialog 传入的 zip 文件路径（选择由 UI 负责，Service 不接触文件选择器）
 - 解压、读取 `SHA256SUMS` 并校验实际存在的 station / event 文件
 - 零字节或读取结果不可用的条目视为不存在；仅对实际存在的文件执行 SHA-256 校验
 - 以 `StationManager.validate` / `EventManager.validate` 校验格式
@@ -609,6 +609,7 @@ ZIP 限制与规则：
 不负责：
 
 - UI、Toast、Coordinator 热加载
+- 文件选择（由 InfoDialog 负责）
 - 判断当前运行状态
 
 ---
@@ -767,9 +768,9 @@ info dialog：
 - 许可证框：显示车站数 / 版本（`date`，存在修订时附 `pdate`；均为 `yyyyMMdd` 的 `int`）/ 大小 / 许可证入口，点击打开 `LicenseListDialog`
 - 更新提示框：正文提示定期更新车站信息 / 事件信息数据，点击框体打开下载网站（`Common.uriInformation`）
 - 链接：点击经 `launchUrl(..., mode: LaunchMode.externalApplication)` 打开系统浏览器
-- 导入：按钮调用 `InfoImportService.import()`；Service 内部完成 zip 选择、解析、SHA-256 / 格式校验、写入与加载
-- 订阅 `InfoImportService.busy`：busy 期间禁用导入按钮
-- 订阅 `InfoImportService.last`：仅刷新自身 bin 信息；成功/失败都不自动关闭
+- 导入：按钮先用 `file_picker` 选择 zip，再将路径传给 `InfoImportService.import(path)`；Service 完成解析、SHA-256 / 格式校验、写入与加载
+- 导入按钮以 `_picking` 守护选择阶段；订阅 `InfoImportService.busy`，`_picking` 或 busy 期间禁用导入按钮
+- 订阅 `InfoImportService.lastResult`：仅刷新自身 bin 信息；成功/失败都不自动关闭
 - Toast 由 HomePage 统一显示（成功按实际导入内容，失败为「无效的文件」）
 - 不执行写盘、不弹 Toast
 
@@ -1016,9 +1017,11 @@ event schema：
 - 单文件原子；多个文件同时导入时不保证跨文件事务
 
 ```text
-HomePage（对话框触发）→ InfoImportService.import()
+InfoDialog（`file_picker` 选择 zip）
+        │  path
+        ▼
+InfoImportService.import(path)
         │
-        ├─ FilePicker.pickFile 选择 zip
         ├─ 解析 zip + SHA256SUMS 校验
         └─ 格式校验（station 复用加载校验 / event NDJSON 校验）
         │

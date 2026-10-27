@@ -1,3 +1,4 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -29,6 +30,7 @@ class InfoDialog extends StatefulWidget {
 class _InfoDialogState extends ResetableState<InfoDialog> {
   late StationManager _stationManager;
   late EventManager _eventManager;
+  bool _picking = false;
 
   @override
   void initState() {
@@ -61,6 +63,30 @@ class _InfoDialogState extends ResetableState<InfoDialog> {
   }
 
   void _handleBusyChanged() => resetState();
+
+  bool get _importBusy => _picking || widget.infoImportService.busy.value;
+
+  Future<void> _handleImport() async {
+    if (!mounted || _importBusy) return;
+
+    setState(() => _picking = true);
+    try {
+      final picked = await FilePicker.pickFile(
+        type: FileType.custom,
+        allowedExtensions: const ['zip'],
+      );
+      if (!mounted || picked == null) return;
+
+      final path = picked.path;
+      if (path == null) return;
+
+      await widget.infoImportService.import(path);
+    } catch (e, st) {
+      debugPrint('error: $e\n$st');
+    } finally {
+      if (mounted) setState(() => _picking = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -233,10 +259,7 @@ class _InfoDialogState extends ResetableState<InfoDialog> {
                   ),
                   GestureDetector(
                     behavior: HitTestBehavior.opaque,
-                    onTap:
-                        widget.infoImportService.busy.value
-                            ? null
-                            : () => widget.infoImportService.import(),
+                    onTap: _handleImport,
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 12,
@@ -246,7 +269,7 @@ class _InfoDialogState extends ResetableState<InfoDialog> {
                         l10n.infoImport,
                         style: TextStyle(
                           color:
-                              widget.infoImportService.busy.value
+                              _importBusy
                                   ? const Color(0xFFA0C0FF)
                                   : const Color(0xFF4080FF),
                           fontSize: 14,
