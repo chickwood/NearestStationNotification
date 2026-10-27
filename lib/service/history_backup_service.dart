@@ -1,6 +1,6 @@
 import 'dart:io';
+import 'dart:typed_data';
 
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -47,6 +47,13 @@ class HistoryBackupResult {
   );
 }
 
+class HistoryBackupExport {
+  final Uint8List bytes;
+  final String fileName;
+
+  const HistoryBackupExport({required this.bytes, required this.fileName});
+}
+
 class HistoryBackupService {
   final ValueNotifier<HistoryBackupResult?> last = ValueNotifier(null);
   final ValueNotifier<bool> busy = ValueNotifier(false);
@@ -54,8 +61,10 @@ class HistoryBackupService {
 
   bool _disposed = false;
 
-  Future<void> export(HistoryManager historyManager) async {
-    if (_disposed || busy.value) return;
+  Future<HistoryBackupExport?> createExport(
+    HistoryManager historyManager,
+  ) async {
+    if (_disposed || busy.value) return null;
 
     busy.value = true;
     progress.value = 0;
@@ -73,62 +82,52 @@ class HistoryBackupService {
       });
 
       final bytes = await temp.readAsBytes();
-      try {
-        if (await temp.exists()) await temp.delete();
-      } catch (e, st) {
-        debugPrint('error: $e\n$st');
-      }
-
-      final savedUri = await FilePicker.saveFile(
-        fileName: 'history-backup-$exportedAt.zip',
+      return HistoryBackupExport(
         bytes: bytes,
-        mimeType: 'application/zip',
+        fileName: 'history-backup-$exportedAt.zip',
       );
-
-      if (savedUri == null) {
-        _setResult(HistoryBackupResult.cancelled(HistoryBackupAction.export));
-      } else {
-        _setProgress(1);
-        _setResult(
-          HistoryBackupResult.success(
-            HistoryBackupAction.export,
-            savedPath: savedUri.toString(),
-          ),
-        );
-      }
     } catch (e, st) {
       debugPrint('error: $e\n$st');
       _setResult(HistoryBackupResult.failure(HistoryBackupAction.export, e));
+      if (!_disposed) busy.value = false;
+      return null;
     } finally {
       try {
         if (temp != null && await temp.exists()) await temp.delete();
       } catch (e, st) {
         debugPrint('error: $e\n$st');
       }
-      if (!_disposed) busy.value = false;
     }
   }
 
-  Future<void> import(HistoryManager historyManager) async {
+  void finishExport({String? savedPath, Object? error}) {
+    if (_disposed) return;
+
+    if (error != null) {
+      _setResult(
+        HistoryBackupResult.failure(HistoryBackupAction.export, error),
+      );
+    } else if (savedPath == null) {
+      _setResult(HistoryBackupResult.cancelled(HistoryBackupAction.export));
+    } else {
+      _setProgress(1);
+      _setResult(
+        HistoryBackupResult.success(
+          HistoryBackupAction.export,
+          savedPath: savedPath,
+        ),
+      );
+    }
+    busy.value = false;
+  }
+
+  Future<void> import(HistoryManager historyManager, String path) async {
     if (_disposed || busy.value) return;
 
     busy.value = true;
     progress.value = 0;
 
     try {
-      final picked = await FilePicker.pickFile(
-        type: FileType.custom,
-        allowedExtensions: const ['zip'],
-      );
-
-      if (picked == null) {
-        _setResult(HistoryBackupResult.cancelled(HistoryBackupAction.import));
-        return;
-      }
-
-      final path = picked.path;
-      if (path == null) throw StateError('file path unavailable');
-
       await historyManager.importBackup(File(path), (value) {
         _setProgress(value);
       });

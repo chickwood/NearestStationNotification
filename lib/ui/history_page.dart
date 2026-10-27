@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:nearest_station_notification/manager/settings_manager.dart';
 
@@ -225,7 +226,33 @@ class _HistoryPageState extends ResetableState<HistoryPage> {
     }
     setState(() => _runningAction = HistoryBackupAction.export);
     await widget.historyConsumer.flush();
-    await widget.historyBackupService.export(widget.historyManager);
+    if (!mounted) return;
+
+    final payload = await widget.historyBackupService.createExport(
+      widget.historyManager,
+    );
+    if (payload == null) {
+      if (mounted) setState(() => _runningAction = null);
+      return;
+    }
+
+    if (!mounted) {
+      widget.historyBackupService.finishExport();
+      return;
+    }
+
+    try {
+      final savedUri = await FilePicker.saveFile(
+        fileName: payload.fileName,
+        bytes: payload.bytes,
+        mimeType: 'application/zip',
+      );
+      widget.historyBackupService.finishExport(savedPath: savedUri?.toString());
+    } catch (e, st) {
+      debugPrint('error: $e\n$st');
+      widget.historyBackupService.finishExport(error: e);
+    }
+
     if (!mounted) return;
     setState(() => _runningAction = null);
   }
@@ -265,7 +292,25 @@ class _HistoryPageState extends ResetableState<HistoryPage> {
     await widget.historyConsumer.flush();
     if (!mounted) return;
 
-    await widget.historyBackupService.import(widget.historyManager);
+    String? path;
+    try {
+      final picked = await FilePicker.pickFile(
+        type: FileType.custom,
+        allowedExtensions: const ['zip'],
+      );
+      path = picked?.path;
+    } catch (e, st) {
+      debugPrint('error: $e\n$st');
+      if (mounted) setState(() => _runningAction = null);
+      return;
+    }
+
+    if (path == null) {
+      if (mounted) setState(() => _runningAction = null);
+      return;
+    }
+
+    await widget.historyBackupService.import(widget.historyManager, path);
     if (!mounted) return;
     setState(() => _runningAction = null);
   }

@@ -59,7 +59,7 @@ Test
 | `lib/manager/history_manager.dart` | 车站切换历史记录、日/月文件、月度归档、备份与导入 |
 | `lib/service/info_import_service.dart` | `InfoImportService`、ZIP 导入解析与校验 |
 | `lib/service/settings_save_service.dart` | `SettingsSaveService` |
-| `lib/service/history_backup_service.dart` | `HistoryBackupService`、历史备份导出/导入与文件对话框 |
+| `lib/service/history_backup_service.dart` | `HistoryBackupService`、历史备份导出/导入（不含文件对话框） |
 | `lib/ui/settings_dialog.dart` | 设置对话框 |
 | `lib/ui/info_dialog.dart` | 信息对话框 |
 | `lib/ui/license_dialog.dart` | 许可证列表与详情对话框 |
@@ -199,7 +199,7 @@ BackgroundTask 包裹 HomePage（Android only）。
 - HistoryConsumer 每次成功写入后递增 `flushCount`、每次追加 pending 后递增 `pendingRevision`；非活跃期间两者均不递增，恢复 active 时成对递增。历史页直接订阅这两个通知，不经过 Coordinator。
 - HistoryManager 是过往历史存储与查询的唯一来源；不持有当天内存状态、不注册定位 handler、不依赖 Coordinator / HistoryConsumer、UI 或文件对话框。
 - HistoryPage 由 HomePage → SettingsDialog 注入 `HistoryConsumer`，不依赖 Coordinator：订阅 `pendingRevision` 触发增量重建、`flushCount` 触发磁盘重读，build 时按日合并 `HistoryManager.readDay()` 与 `historyConsumer.pendingRecords`；页面只判断 `mounted`，前后台门控在 Consumer（`Coordinator.changeActive` 转发），恢复时由 Consumer 补发通知。
-- HistoryBackupService 由 HomePage 在 `initState` 创建并持有，不持有 HistoryManager；`export()` / `import()` 由调用方传入 HistoryManager，并使用 `file_picker`。注入 HistoryPage 与 SettingsDialog，页面关闭后操作继续。
+- HistoryBackupService 由 HomePage 在 `initState` 创建并持有，不持有 HistoryManager；`createExport(HistoryManager)` / `import(HistoryManager, path)` 由调用方传入参数，不接触文件对话框。注入 HistoryPage 与 SettingsDialog；文件选择/保存由 HistoryPage 负责，进入 Service 的处理在页面关闭后继续。
 - Coordinator 通过 `changeEventData` 将事件期间判定注入 `StationCount.eventPeriod`。
 - Coordinator 不负责 StationManager / EventManager / HistoryManager 的加载与写入实现；HistoryManager 的日文件追加由 HistoryConsumer 触发。
 - InfoImportService / SettingsSaveService / HistoryBackupService 不依赖 UI，不直接调用 Coordinator 或 Toast。
@@ -676,19 +676,21 @@ ZIP 限制与规则：
 职责：
 
 - 由 HomePage 在 `initState` 创建并持有，生命周期独立于 HistoryPage / SettingsDialog
-- 不持有 HistoryManager；`export(HistoryManager)` / `import(HistoryManager)` 由调用方传入
-- 导出：生成外层 ZIP 到临时目录，读取字节后经 `FilePicker.saveFile(bytes:)` 保存；完成后删除临时文件（含取消/异常）。调用前由 HistoryPage 执行 `historyConsumer.flush()`
+- 不持有 HistoryManager；`createExport(HistoryManager)` / `import(HistoryManager, path)` 由调用方传入
+- 导出：生成外层 ZIP 到临时目录并读取字节，返回 `HistoryBackupExport(bytes, fileName)` 供 HistoryPage 经 `FilePicker.saveFile(bytes:)` 保存；临时文件随即删除。调用前由 HistoryPage 执行 `historyConsumer.flush()`
 - 导出文件名：`history-backup-<epoch>.zip`，`<epoch>` 取 `HistoryManager.createBackup()` 返回的 `exportedAt`，与包内 `MANIFEST.exportedAt` 严格相等；临时文件名只用调用时刻的 epoch（随后删除），不要求与最终名一致
 - 注意：`FilePicker.saveFile` 需要完整字节，导出时 ZIP 会读入内存；大备份需预留内存与临时空间。
-- 导入：`FilePicker.pickFile` 选择 ZIP，调用 `HistoryManager.importBackup()`；调用前由 HistoryPage 执行 `historyConsumer.flush()`，完成后重载月份/日期
+- 导入：接收 HistoryPage 选择的 ZIP 路径，调用 `HistoryManager.importBackup()`；调用前由 HistoryPage 执行 `historyConsumer.flush()`，完成后重载月份/日期
 - 单飞：`busy` 为 true 时忽略新请求
+- 导出为两阶段：`createExport()` 成功返回 payload 并保持 busy；HistoryPage 保存后调用 `finishExport(savedPath / error)` 发布成功 / 取消 / 失败并释放 busy。导入直接发布结果
 - 通过 `ValueNotifier<HistoryBackupResult?> last` 发布成功 / 取消 / 失败；由 HomePage 订阅并统一 Toast，HistoryPage 只订阅 `busy` / `progress`
 - 通过 `ValueNotifier<double> progress` 发布 0–1 进度（导出按文件、导入按月份/条目）
-- 捕获文件选择器平台异常并转为失败结果
+- 捕获导出生成 / 导入处理异常并转为失败结果
 
 不负责：
 
 - 历史文件格式、条数比较与写入
+- 文件选择 / 保存（由 HistoryPage 负责）
 - UI、Toast
 - 判断当前运行状态
 
@@ -713,6 +715,7 @@ ZIP 限制与规则：
 - 区块按首条记录起算的固定 5 分钟窗口；块内按车站首次出现顺序分组、组内时间升序；最新区块在前
 - 每组最多显示 5 行，超出时第 5 行右侧箭头展开/收起
 - 导出与导入前均调用 `historyConsumer.flush()`
+- 使用 `file_picker` 选择导入 ZIP / 保存导出的 ZIP；导出保存结果经 `historyBackupService.finishExport()` 回报
 - 订阅 `HistoryBackupService.busy` / `progress`，显示进度；不订阅 `last`
 - 备份操作结束后重载自身月份/日期列表；导入后的 Toast 由 HomePage 负责
 
@@ -760,7 +763,7 @@ history page：
 - 单日页默认按时间倒序逐条展示；合并展示开关开启时按固定 5 分钟区块展示
 - AppBar：返回、刷新、日历跳转、备份导出、备份导入
 - 备份导出前 `historyConsumer.flush()`；无历史时禁用导出；导入前确认覆盖规则；导入后刷新当天来源并重载
-- 导出/导入期间显示进度并禁用入口；页面关闭后操作继续（Service 由 HomePage 持有）
+- 导出/导入期间显示进度并禁用入口；文件选择/保存阶段绑定 HistoryPage，进入 Service 的导出/导入处理在页面关闭后继续（Service 由 HomePage 持有）
 
 info dialog：
 
@@ -1056,7 +1059,10 @@ SettingsSaveService.last = SettingsSaveResult.success / failure
 历史备份：
 
 ```text
-HistoryPage → HistoryBackupService.export/import(historyManager)
+HistoryPage（`file_picker` 选择 / 保存）
+        │  path / HistoryBackupExport
+        ▼
+HistoryBackupService.createExport / import
         │
         ▼
 HistoryBackupService.last = success / cancelled / failure
