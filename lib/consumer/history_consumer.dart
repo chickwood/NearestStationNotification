@@ -32,7 +32,7 @@ class HistoryConsumer {
   bool _hasLastHistory = false;
   int? _lastHistoryGcd;
 
-  int _date = Common.dateOf(DateTime.now());
+  int _date = Common.today();
 
   int? _lastProcessedEpoch;
   PositionResult? _lastPositionResult;

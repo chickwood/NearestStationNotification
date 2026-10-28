@@ -330,7 +330,7 @@ class HistoryManager {
   Future<void> _consolidateLocked() async {
     if (_directory == null) return;
 
-    final date = Common.dateOf(DateTime.now());
+    final date = Common.today();
     final day = Common.dayOf(date);
     if (day < Common.historyArchiveWindowStartDay) return;
 
@@ -703,7 +703,7 @@ class HistoryManager {
         throw const FormatException('manifest mismatch');
       }
 
-      final currentMonth = Common.monthDateOf(Common.dateOf(DateTime.now()));
+      final currentMonth = Common.currentMonth();
       for (final month in archiveMonths) {
         if (month >= currentMonth) {
           throw const FormatException('invalid archive month');
