@@ -45,6 +45,16 @@ class NearestStationNotificationApp extends StatelessWidget {
             seedColor: const Color(0xFF4080FF), // Colors.indigo
           ),
           useMaterial3: true,
+          appBarTheme: const AppBarTheme(
+            backgroundColor: Color(0xFF4080FF),
+            foregroundColor: Colors.white,
+            actionsPadding: EdgeInsets.only(right: 8),
+            titleSpacing: 0,
+            titleTextStyle: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
         ),
         // darkTheme: ThemeData(
         //   brightness: Brightness.dark,

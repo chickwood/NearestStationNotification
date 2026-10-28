@@ -5,8 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_styled_toast/flutter_styled_toast.dart';
 
-import 'info_dialog.dart';
-import 'settings_dialog.dart';
+import 'info_page.dart';
+import 'settings_page.dart';
 
 import '../common.dart';
 import '../coordinator.dart';
@@ -118,87 +118,60 @@ class _HomePageState extends ResetableState<HomePage>
       child: Scaffold(
         backgroundColor: Colors.grey.shade50,
         appBar: AppBar(
-          title: Row(
-            children: [
-              // Image.asset(
-              //   'assets/ic_title.png',
-              //   color: Colors.white,
-              //   width: 32,
-              //   height: 32,
-              //   fit: BoxFit.contain,
-              // ),
-              // const SizedBox(width: 4),
-              Flexible(
-                child: Text(
-                  l10n.appTitle,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          backgroundColor: const Color(0xFF4080FF),
+          titleSpacing: 16,
+          // title: Row(
+          //   children: [
+          //     // Image.asset(
+          //     //   'assets/ic_title.png',
+          //     //   color: Colors.white,
+          //     //   width: 32,
+          //     //   height: 32,
+          //     //   fit: BoxFit.contain,
+          //     // ),
+          //     // const SizedBox(width: 4),
+          //     Flexible(child: Text(l10n.appTitle)),
+          //   ],
+          // ),
+          title: Text(l10n.appTitle),
           actions: [
             // 开始/停止
-            Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: GestureDetector(
-                onTap: switch (_coordinator!.runningStatus) {
-                  RunningStatus.stopped => _start,
-                  // starting でも即時停止できる
-                  RunningStatus.running || RunningStatus.starting => _stop,
-                },
-                child: Icon(
+            AppBarAction(
+              onPressed:
+                  _coordinator!.runningStatus == RunningStatus.stopped
+                      ? _start
+                      : _stop,
+              icon:
                   _coordinator!.runningStatus == RunningStatus.running
-                      ? Icons.stop_circle
-                      : Icons.play_circle_filled, // starting/stopped
-                  color:
-                      _coordinator!.runningStatus == RunningStatus.starting
-                          ? const Color(0xFFA0C0FF)
-                          : Colors.white,
-                  size: 32,
-                ),
-              ),
+                      ? const Icon(Icons.stop_circle)
+                      : const Icon(Icons.play_circle_filled),
+              color:
+                  _coordinator!.runningStatus == RunningStatus.starting
+                      ? const Color(0xFFA0C0FF)
+                      : Colors.white,
             ),
             // 设置（starting 中は無効化）
-            Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: GestureDetector(
-                onTap:
-                    _coordinator!.runningStatus == RunningStatus.starting
-                        ? null
-                        : _showSettingsDialog,
-                child: Icon(
-                  Icons.settings,
-                  color:
-                      _coordinator!.runningStatus == RunningStatus.starting
-                          ? const Color(0xFFA0C0FF)
-                          : Colors.white,
-                  size: 32,
-                ),
-              ),
+            AppBarAction(
+              onPressed:
+                  _coordinator!.runningStatus == RunningStatus.starting
+                      ? noop
+                      : _showSettingsPage,
+              icon: const Icon(Icons.settings),
+              color:
+                  _coordinator!.runningStatus == RunningStatus.starting
+                      ? const Color(0xFFA0C0FF)
+                      : Colors.white,
             ),
             // 情報（starting 中は無効化）
-            Padding(
-              padding: const EdgeInsets.only(right: 12),
-              child: GestureDetector(
-                onTap:
-                    _coordinator!.runningStatus == RunningStatus.starting
-                        ? null
-                        : _showInfoDialog,
-                child: Icon(
-                  Icons.info,
-                  color:
-                      _coordinator!.runningStatus == RunningStatus.starting
-                          ? const Color(0xFFA0C0FF)
-                          : Colors.white,
-                  size: 32,
-                ),
-              ),
+            AppBarAction(
+              onPressed:
+                  _coordinator!.runningStatus == RunningStatus.starting
+                      ? noop
+                      : _showInfoPage,
+              icon: const Icon(Icons.info),
+              color:
+                  _coordinator!.runningStatus == RunningStatus.starting
+                      ? const Color(0xFFA0C0FF)
+                      : Colors.white,
             ),
           ],
         ),
@@ -401,33 +374,33 @@ class _HomePageState extends ResetableState<HomePage>
     }
   }
 
-  // ── Settings Dialog ───────────────────────────────────────────────────
+  // ── Settings Page ─────────────────────────────────────────────────────
 
-  void _showSettingsDialog() {
-    showDialog(
-      context: context,
-      barrierColor: Colors.white.withValues(alpha: 0.5),
-      builder:
-          (context) => SettingsDialog(
-            _settingsManager!,
-            _settingsSaveService,
-            _historyManager!,
-            _historyBackupService,
-            _coordinator!.historyConsumer,
-            _stationManager!,
-          ),
+  void _showSettingsPage() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder:
+            (context) => SettingsPage(
+              _settingsManager!,
+              _settingsSaveService,
+              _historyManager!,
+              _historyBackupService,
+              _coordinator!.historyConsumer,
+              _stationManager!,
+            ),
+      ),
     );
   }
 
-  // ── Info Dialog ─────────────────────────────────────────────────────
+  // ── Info Page ───────────────────────────────────────────────────────
 
-  void _showInfoDialog() {
-    showDialog(
-      context: context,
-      barrierColor: Colors.white.withValues(alpha: 0.5),
-      builder:
-          (context) =>
-              InfoDialog(_stationManager!, _eventManager!, _infoImportService),
+  void _showInfoPage() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder:
+            (context) =>
+                InfoPage(_stationManager!, _eventManager!, _infoImportService),
+      ),
     );
   }
 

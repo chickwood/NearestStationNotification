@@ -35,7 +35,7 @@ Test
 - EventManager 是唯一事件数据来源
 - HistoryConsumer 持有未落盘缓冲（pending）并负责记录判定与批量写穿（10 条 / 首条起算 5 分钟，按日批量追加）；HistoryManager 负责持久化；UI 按日合并磁盘与 pending；Coordinator 只公开 HistoryConsumer，由页面直接订阅
 - Coordinator 只负责协调，不负责业务实现
-- 持久化与导入的异步执行从 Dialog 生命周期中解耦（InfoImportService / SettingsSaveService / HistoryBackupService）
+- 持久化与导入的异步执行从页面生命周期中解耦（InfoImportService / SettingsSaveService / HistoryBackupService）
 - 日期只有一种表示：本地 `yyyyMMdd` 的 `int`（月份为 `date ~/ 100`），值即键，不做多表示并存；`epoch`（int 毫秒）单独命名（见 `Date Representation`）
 - 不为了设计而设计
 - 当前项目规模优先保持职责清晰、依赖简单、易维护
@@ -47,7 +47,7 @@ Test
 | 文件 | 职责 |
 |---|---|
 | `lib/main.dart` | 应用引导：注入包名、注册 ADDITIONAL_NOTICE 许可证、创建 `StyledToast` / `MaterialApp` |
-| `lib/ui/home_page.dart` | 主 UI、生命周期、初始化编排、Service 持有与结果处理、对话框入口、BackgroundTask |
+| `lib/ui/home_page.dart` | 主 UI、生命周期、初始化编排、Service 持有与结果处理、页面入口、BackgroundTask |
 | `lib/coordinator.dart` | 业务流程协调、权限请求、定位结果补全与广播、运行状态机、公开 HistoryConsumer |
 | `lib/consumer/notification_consumer.dart` | 通知常驻消费者：接收定位结果广播并更新系统通知 |
 | `lib/consumer/history_consumer.dart` | 历史常驻消费者：切换判定、开关与补记、pending 缓冲、10 条 / 首条起算 5 分钟的批量落盘 |
@@ -60,10 +60,11 @@ Test
 | `lib/service/info_import_service.dart` | `InfoImportService`、ZIP 导入解析与校验 |
 | `lib/service/settings_save_service.dart` | `SettingsSaveService` |
 | `lib/service/history_backup_service.dart` | `HistoryBackupService`、历史备份导出/导入（不含文件对话框） |
-| `lib/ui/settings_dialog.dart` | 设置对话框 |
-| `lib/ui/info_dialog.dart` | 信息对话框 |
-| `lib/ui/license_dialog.dart` | 许可证列表与详情对话框 |
+| `lib/ui/settings_page.dart` | 设置页面 |
+| `lib/ui/info_page.dart` | 信息页面 |
+| `lib/ui/license_page.dart` | 许可证列表与详情页面 |
 | `lib/ui/history_page.dart` | 历史月份/日期列表、单日逐条与区块展示 |
+| `lib/ui/history_date_picker.dart` | 历史日历跳转：当前月选日期、往期选月份 |
 | `lib/l10n.dart` | 中 / 日 / 英文本、locale 严格解析 |
 | `lib/common.dart` | 常量、几何计算、数据类与枚举 |
 
@@ -91,10 +92,11 @@ lib/
 │   └── history_backup_service.dart
 └── ui/
     ├── home_page.dart
-    ├── settings_dialog.dart
-    ├── info_dialog.dart
-    ├── license_dialog.dart
-    └── history_page.dart
+    ├── settings_page.dart
+    ├── info_page.dart
+    ├── license_page.dart
+    ├── history_page.dart
+    └── history_date_picker.dart
 ```
 
 ---
@@ -114,7 +116,7 @@ lib/
   - 不需要被对象在多处内部方法间保存和复用
 
 - **Service 与 Widget 的传参**：
-   - `InfoImportService` / `SettingsSaveService` / `HistoryBackupService` 由 HomePage 在 `initState` 创建并持有，经构造参数传给对话框 / HistoryPage；其公开字段为 `final`
+   - `InfoImportService` / `SettingsSaveService` / `HistoryBackupService` 由 HomePage 在 `initState` 创建并持有，经构造参数传给页面 / HistoryPage；其公开字段为 `final`
   - Widget 为不可变描述，字段公开且 `final`；可变性由配套 `State` 承接
   - 更新「当前状态」类字段时，使用专门的 `changeXxx()` 方法，不通过构造函数重新赋值
   - `start()` / `stop()` 等生命周期方法尽量保持无参数、成对存在，所需状态在构造函数或 `changeXxx()` 中已经就绪
@@ -129,7 +131,7 @@ lib/
 - **数据快照**（`StationManager`、`EventManager`）：加载后只读；`StationManager` 的数组与元数据、`EventManager` 的期间数据（epoch ms）均不再修改
 - **未落盘缓冲**（`HistoryConsumer`）：`List<HistoryRecord>` 为内部状态，只保留上次 flush 成功后新增的记录；历史页经 `historyConsumer.pendingRecords` 读取，不经 UI 修改
 - **历史存储**（`HistoryManager`）：目录与锁为内部状态，全部私有；对外只提供追加、读取、日期/月份枚举、归档与备份/导入方法，不持有当天内存状态
-- **可变设置**（`SettingsManager`）：字段公开可写；对话框使用 `copyWith()` 生成草稿，保存后由 Service 持久化
+- **可变设置**（`SettingsManager`）：字段公开可写；SettingsPage 使用 `copyWith()` 生成草稿，保存后由 Service 持久化
 - **结果服务**（`InfoImportService`、`SettingsSaveService`、`HistoryBackupService`）：对外暴露 `final ValueNotifier last` 与 `final ValueNotifier<bool> busy`（`HistoryBackupService` 另有 `final ValueNotifier<double> progress`），内部不使用 `changeXxx`
 - **UI 组件（Widget）**：字段须 `final` 且公开（`State` 经 `widget.x` 读取）；可变性由配套的 `State` 承接并反映到 UI
 
@@ -144,17 +146,19 @@ lib/
 - **比较**：月份归属用 `date ~/ 100 == month`，不用 `startsWith` 等字符串前缀比较；日期 / 月份列表排序直接比较 `int`（数值序即时间序）。
 - **唯一转换入口**：集中在 `lib/common.dart` 的 `Common`，其他模块不得自建副本；`HistoryRecord` 的日期派生同样走该入口：
   - `dateOf(DateTime)`、`dateOfEpoch(int epoch)` → `int date`
+  - `today()` / `currentMonth()` → 当前本地日期 / 月份键
   - `monthDateOf(int date)` → `int month`（`date ~/ 100`）
+  - `addMonths(int month, int delta)` → 月份键加减，处理跨年（`202601` + (-1) → `202512`）
   - `yearOf` / `monthOf` / `dayOf` → 年、月（1–12）、日（1–31）分量
   - `isValidDate` / `isValidMonth` → 合法性校验
   - 不提供通用的 `date` → `DateTime` 转换方法：仅在必须构造 `DateTime` 的边界处就地转换（见下条「分量例外」）
 - **合法性**：`date >= 10000101` 且经 `DateTime(y, m, d)` 回检；`0` 表示「未设置」必须放行（`StationManager` 空实例的 `date` / `pdate` 为 0）。
 - **文件名**：由 `int` 直接插值，日 `$date.ndjson`（8 位）、月 `$month.zip`（6 位），年份 ≥ 1000 时位数天然正确；目录扫描仍以 `^\d{8}$` / `^\d{6}$` 正则取名字，再 `int.parse` 成 `date` / `month`。
-- **分量例外**：除键的生成 / 解析 / 合法性回检与页面标题显示之外，全项目只有以下三处需要用到分量，且都不改变「`int date` 是唯一日期表示」的约定：
+- **状态**：HistoryPage 的当前月 / 最早月直接保存 `int month`（`yyyyMM`），不使用 `DateTime` 字段或参数；月份比较直接比较 `int`，月份加减走 `Common.addMonths()`。
+- **分量例外**：除键的生成 / 解析 / 合法性回检与页面标题显示之外，全项目只有以下两处需要用到分量，且都不改变「`int date` 是唯一日期表示」的约定：
   - 月度归档调度：按当前日序（`date % 100`，即当月第几天）判断 3 日 / 10 日窗口，只需要「日」，不需要年与月
-  - 月份导航与月份比较：`DateTime(y, m ± 1)` / `DateTime(y, m)` 需要年 + 月成对，且必须借 `DateTime` 完成年进位归一化（1 月 → 上一年 12 月）
-  - `showDatePicker` 的 `firstDate` / `lastDate`：需要年 + 月 + 日构造「今天」边界
-- **边界例外**：`DateTime` 只出现在 `DateTime.now()`、`showDatePicker`、月份导航的加减与边界构造、与 epoch 互转、UI 文本格式化过程中，不作为字段、参数或 Map key 的日期类型。
+  - `showDatePicker` 的 `initialDate` / `firstDate` / `lastDate`：需要年 + 月 + 日构造边界
+- **边界例外**：`DateTime` 只出现在 `DateTime.now()`、`showDatePicker`、与 epoch 互转、UI 文本格式化过程中，不作为字段、参数或 Map key 的日期类型。
 - **`epoch`**：int 毫秒是另一套时间表示，与 `date` 并存但语义不同，命名必须是 `epoch` / `...Epoch`，不得写成 `date*`。
 - **`stamp`**：专指由 epoch 派生的文件名字片段（当前为导出 zip 文件名），不参与数据键，也不等同于 `date`。
 
@@ -175,16 +179,16 @@ lib/
         │               ▲               ▲          SettingsSaveService    HistoryBackupService
         │               │               │               │                          │
         │               │               │               ▼                          ▼
-        │               │               │        InfoDialog /              HistoryPage
-        │               │               │        SettingsDialog                  ▲
+        │               │               │        InfoPage /              HistoryPage
+        │               │               │        SettingsPage                    ▲
         │               │               │                                        │
-        ├───────────────┘               │                               SettingsDialog
+        ├───────────────┘               │                               SettingsPage
         │                               │
         ├──► LocationProcessor ──► SearchEngine ──► StationManager
         ├──► NotificationConsumer
         └──► HistoryConsumer ──► HistoryManager
 
-HomePage 另持有 SettingsManager，并将其传入 Coordinator；Coordinator 再向 LocationProcessor 传 `processorSettingsManager`、向 HistoryConsumer 传 `historySettingsManager`；SettingsDialog 由 HomePage 注入 `historyConsumer`，再转交 HistoryPage（HistoryPage 不依赖 Coordinator）；
+HomePage 另持有 SettingsManager，并将其传入 Coordinator；Coordinator 再向 LocationProcessor 传 `processorSettingsManager`、向 HistoryConsumer 传 `historySettingsManager`；SettingsPage 由 HomePage 注入 `historyConsumer`，再转交 HistoryPage（HistoryPage 不依赖 Coordinator）；
 BackgroundTask 包裹 HomePage（Android only）。
 ```
 
@@ -192,18 +196,18 @@ BackgroundTask 包裹 HomePage（Android only）。
 
 - SearchEngine 是 LocationProcessor 的内部依赖。
 - SettingsManager 只通过两个只读视图对外：`processorSettingsManager`（`stationCount` / `locationInterval`）与 `historySettingsManager`（`historyEnabled` / `historyMergeView`）；LocationProcessor 与 HistoryConsumer 不持有 SettingsManager 本体。
-- StationManager 是共享 Repository；HomePage、LocationProcessor、SearchEngine、Coordinator、InfoImportService、InfoDialog、LicenseListDialog 均可依赖。
-- EventManager 是事件数据来源，独立于定位结果流；HomePage、Coordinator、InfoDialog、LicenseListDialog 可直接依赖。
+- StationManager 是共享 Repository；HomePage、LocationProcessor、SearchEngine、Coordinator、InfoImportService、InfoPage、LicenseListPage 均可依赖。
+- EventManager 是事件数据来源，独立于定位结果流；HomePage、Coordinator、InfoPage、LicenseListPage 可直接依赖。
 - HistoryConsumer 持有 pending 缓冲并负责记录判定、开关补记与按日批量写穿；记录按自身 `epoch` 写入对应日文件，同一天的多条一次写入，成功后从 pending 移除。
 - NotificationConsumer / HistoryConsumer 是 Coordinator 的常驻定位结果消费者：接收广播 payload，各自持有私有状态并在 Coordinator 之外产生副作用；不读取 Coordinator 快照。
 - HistoryConsumer 每次成功写入后递增 `flushCount`、每次追加 pending 后递增 `pendingRevision`；非活跃期间两者均不递增，恢复 active 时成对递增。历史页直接订阅这两个通知，不经过 Coordinator。
 - HistoryManager 是过往历史存储与查询的唯一来源；不持有当天内存状态、不注册定位 handler、不依赖 Coordinator / HistoryConsumer、UI 或文件对话框。
-- HistoryPage 由 HomePage → SettingsDialog 注入 `HistoryConsumer`，不依赖 Coordinator：订阅 `pendingRevision` 触发增量重建、`flushCount` 触发磁盘重读，build 时按日合并 `HistoryManager.readDay()` 与 `historyConsumer.pendingRecords`；页面只判断 `mounted`，前后台门控在 Consumer（`Coordinator.changeActive` 转发），恢复时由 Consumer 补发通知。
-- HistoryBackupService 由 HomePage 在 `initState` 创建并持有，不持有 HistoryManager；`createExport(HistoryManager)` / `import(HistoryManager, path)` 由调用方传入参数，不接触文件对话框。注入 HistoryPage 与 SettingsDialog；文件选择/保存由 HistoryPage 负责，进入 Service 的处理在页面关闭后继续。
+- HistoryPage 由 HomePage → SettingsPage 注入 `HistoryConsumer`，不依赖 Coordinator：订阅 `pendingRevision` 触发增量重建、`flushCount` 触发磁盘重读，build 时按日合并 `HistoryManager.readDay()` 与 `historyConsumer.pendingRecords`；页面只判断 `mounted`，前后台门控在 Consumer（`Coordinator.changeActive` 转发），恢复时由 Consumer 补发通知。
+- HistoryBackupService 由 HomePage 在 `initState` 创建并持有，不持有 HistoryManager；`createExport(HistoryManager)` / `import(HistoryManager, path)` 由调用方传入参数，不接触文件对话框。注入 HistoryPage 与 SettingsPage；文件选择/保存由 HistoryPage 负责，进入 Service 的处理在页面关闭后继续。
 - Coordinator 通过 `changeEventData` 将事件期间判定注入 `StationCount.eventPeriod`。
 - Coordinator 不负责 StationManager / EventManager / HistoryManager 的加载与写入实现；HistoryManager 的日文件追加由 HistoryConsumer 触发。
 - InfoImportService / SettingsSaveService / HistoryBackupService 不依赖 UI，不直接调用 Coordinator 或 Toast。
-- Dialog 只依赖其显示所需的管理器与 Service；HistoryPage 依赖 `HistoryConsumer`、HistoryManager、HistoryBackupService、StationManager 与 `HistorySettingsManager`。
+- InfoPage / SettingsPage / LicenseListPage 只依赖其显示所需的管理器与 Service；HistoryPage 依赖 `HistoryConsumer`、HistoryManager、HistoryBackupService、StationManager 与 `HistorySettingsManager`。
 
 ---
 
@@ -214,7 +218,7 @@ BackgroundTask 包裹 HomePage（Android only）。
 - 调用 `WidgetsFlutterBinding.ensureInitialized()`。
 - 通过 `PackageInfo.fromPlatform()` 取包名最后一段写入 `Common.appName`。
 - 注册 `ADDITIONAL_NOTICE`（车站数据免责声明）到 `LicenseRegistry`；`LICENSE` 本体已打包但注册代码当前注释停用。
-- `runApp()` 启动 `StyledToast(child: MaterialApp(...))`，因此 Toast 渲染在应用级 Overlay，层级高于 Dialog 路由。
+- `runApp()` 启动 `StyledToast(child: MaterialApp(...))`，因此 Toast 渲染在应用级 Overlay，层级高于页面路由。
 
 `MaterialApp`：
 
@@ -239,8 +243,8 @@ BackgroundTask 包裹 HomePage（Android only）。
 - 在 `initState` 创建并持有 InfoImportService / SettingsSaveService / HistoryBackupService（生命周期跟随 HomePage；dispose 时释放）
 - Manager（Settings / Station / Event / History）在首帧后的 `Future.wait` 中加载；Service 不持有 Manager，按调用传入
 - 订阅 Service 结果：导入 / 设置保存 / 历史备份的 Toast、Coordinator 热加载与 `setState`
-- 设置入口（settings dialog：设置项编辑与保存、历史记录入口）
-- 站点数据管理入口（info dialog：bin 信息 / 提示 / 导入 / 许可证入口）
+- 设置入口（settings page：设置项编辑与保存、历史记录入口）
+- 站点数据管理入口（info page：bin 信息 / 提示 / 导入 / 许可证入口）
 - 示例数据引导提示（stopped 且为示例数据时）
 - 通过 Coordinator 的 handler 触发 UI 重建，并通过 getter 读取当前结果和运行状态
 - 向 BackgroundTask 提供 `Coordinator.runningStatus != RunningStatus.stopped` 的 keepBackgroundTask
@@ -272,7 +276,7 @@ BackgroundTask 包裹 HomePage（Android only）。
 - 创建 LocationProcessor / NotificationConsumer / HistoryConsumer，并注册两个常驻定位结果 handler
 - HistoryConsumer 以常驻 handler 注册，保证 pending 先于 active handler 更新
 - 注入事件期间判定到 `StationCount.eventPeriod`
-- 公开 `historyConsumer`，供 HomePage 注入 SettingsDialog → HistoryPage
+- 公开 `historyConsumer`，供 HomePage 注入 SettingsPage → HistoryPage
 - `init()` 只初始化通知，不预载历史；历史由页面按日读盘并合并 pending
 - start()
 - stop()（等待 `HistoryConsumer.flush()`；pending 保留在 Consumer）
@@ -395,7 +399,7 @@ BIN 布局：
 
 当前消费者：
 
-- HomePage、Coordinator、LocationProcessor、SearchEngine、InfoImportService、InfoDialog、LicenseListDialog、HistoryPage
+- HomePage、Coordinator、LocationProcessor、SearchEngine、InfoImportService、InfoPage、LicenseListPage、HistoryPage
 
 未来消费者：
 
@@ -432,7 +436,7 @@ schema：
 
 - 仅 header、无数据行是合法空集合；导入后清空 event。
 - 文件缺失 / 无效时视为不在事件期间。
-- 当前消费者：Coordinator、HomePage、InfoDialog、LicenseListDialog；`StationCount` 通过注入的判定器消费。
+- 当前消费者：Coordinator、HomePage、InfoPage、LicenseListPage；`StationCount` 通过注入的判定器消费。
 
 必须：
 
@@ -462,7 +466,7 @@ schema：
 | `settings_history_merge_view` | bool |
 
 - 读取时对越界索引回退默认值（`StationCount.game` / `LocationInterval.s1`）；布尔键缺失回退 false
-- `copyWith()` 生成对话框草稿；`save()` 写入全部键
+- `copyWith()` 生成 SettingsPage 草稿；`save()` 写入全部键
 - `processorSettingsManager` 向 LocationProcessor 暴露 `stationCount` / `locationInterval`；`historySettingsManager` 向历史功能暴露 `historyEnabled` / `historyMergeView`，二者均为不可变的命名记录
 - `historyEnabled` 控制记录；`historyMergeView` 只控制历史页展示，与记录开关独立
 - `fromTransferable()` 位置约定：`data[0]` stationCount、`data[1]` locationInterval、`data[2]` historyEnabled、`data[3]` historyMergeView
@@ -550,7 +554,7 @@ schema：
 - flush 单飞：定时器、阈值、stop / 导出 / 导入可能并发触发，共用同一个 future
 - 不持有 Coordinator 引用；`pendingRecords` / `pendingRevision` / `flushCount` 由自身发布，Coordinator 只公开引用
 - `pendingRevision` / `flushCount` 受 `changeActive()` 门控：非活跃期间不通知，恢复时成对递增，让页面重取 pending 与磁盘
-- 由 Coordinator 公开 `historyConsumer`，HomePage 注入 SettingsDialog → HistoryPage
+- 由 Coordinator 公开 `historyConsumer`，HomePage 注入 SettingsPage → HistoryPage
 - 写入失败只记录日志，不抛出
 - 当天展示由页面合并 `readDay(int date)` 与 `historyConsumer.pendingRecords`，不假设 pending 覆盖整天
 
@@ -583,7 +587,7 @@ schema：
 
 职责：
 
-- 接收 InfoDialog 传入的 zip 文件路径（选择由 UI 负责，Service 不接触文件选择器）
+- 接收 InfoPage 传入的 zip 文件路径（选择由 UI 负责，Service 不接触文件选择器）
 - 解压、读取 `SHA256SUMS` 并校验实际存在的 station / event 文件
 - 零字节或读取结果不可用的条目视为不存在；仅对实际存在的文件执行 SHA-256 校验
 - 以 `StationManager.validate` / `EventManager.validate` 校验格式
@@ -609,7 +613,7 @@ ZIP 限制与规则：
 不负责：
 
 - UI、Toast、Coordinator 热加载
-- 文件选择（由 InfoDialog 负责）
+- 文件选择（由 InfoPage 负责）
 - 判断当前运行状态
 
 ---
@@ -625,7 +629,7 @@ ZIP 限制与规则：
 
 不负责：
 
-- 对话框编辑草稿
+- SettingsPage 编辑草稿
 - UI、Toast、Coordinator 热加载
 
 ---
@@ -635,6 +639,7 @@ ZIP 限制与规则：
 职责：
 
 - 历史文件存储与查询：`appendRecords()`、`readDay(int date)`、`readMonth(int month)`、`listDays(int month)`、`listMonths()`；日期 / 月份入参与返回值均为 `int`（见 `Date Representation`）
+- `listMonths()` 每次调用直接扫描目录内所有 `YYYYMM.zip` / `YYYYMMdd.ndjson`，不受 3–10 日窗口限制；该窗口只控制 `consolidateIfDue()` 的归档执行时机
 - 由 HistoryConsumer 在 flush 时按日分组调用 `appendRecords()`（10 条 / 首条起算 5 分钟）；不注册定位 handler，不持有当天内存记录
 - 不提供单条追加入口：单条写入也走 `appendRecords()`，调用方不感知批大小
 - 日文件 `history/YYYYMMDD.ndjson` 创建与追加（新文件先写 header）
@@ -675,7 +680,7 @@ ZIP 限制与规则：
 
 职责：
 
-- 由 HomePage 在 `initState` 创建并持有，生命周期独立于 HistoryPage / SettingsDialog
+- 由 HomePage 在 `initState` 创建并持有，生命周期独立于 HistoryPage / SettingsPage
 - 不持有 HistoryManager；`createExport(HistoryManager)` / `import(HistoryManager, path)` 由调用方传入
 - 导出：生成外层 ZIP 到临时目录并读取字节，返回 `HistoryBackupExport(bytes, fileName)` 供 HistoryPage 经 `FilePicker.saveFile(bytes:)` 保存；临时文件随即删除。调用前由 HistoryPage 执行 `historyConsumer.flush()`
 - 导出文件名：`history-backup-<epoch>.zip`，`<epoch>` 取 `HistoryManager.createBackup()` 返回的 `exportedAt`，与包内 `MANIFEST.exportedAt` 严格相等；临时文件名只用调用时刻的 epoch（随后删除），不要求与最终名一致
@@ -709,7 +714,7 @@ ZIP 限制与规则：
 - 读取失败与 Manager 一致：只 `debugPrint`，保持旧数据或显示空状态，不保留页面级 error，也不显示重试页
 - 当天与往期使用同一合并路径，不再区分 live / disk
 - 站名：展示时通过 `StationManager.getStationNameByGcd(record.gcd)` 获取；查不到显示 `--`
-- 月份导航 `< yyyy-MM >`、日期列表、刷新、日历跳转、备份导出/导入入口
+- 月份导航 `< yyyy-MM >`、日期列表、刷新、日历跳转、备份导出/导入入口；日历跳转当前月选日期并打开单日页，往期选月份并加载该月日期列表，选择范围以 `_months`（`listMonths()` 扫描 + pending）为准，无数据月份 / 年份禁用
 - 默认当前月；下一月在当前月禁用，上一月在最早记录月禁用；月份间隙显示空状态
 - 单日页逐条展示（默认）或 5 分钟区块展示（`settingsManager.historyMergeView`）
 - 区块按首条记录起算的固定 5 分钟窗口；块内按车站首次出现顺序分组、组内时间升序；最新区块在前
@@ -726,34 +731,33 @@ ZIP 限制与规则：
 
 ---
 
-### Dialogs
+### Pages
 
-- `SettingsDialog`：编辑本地草稿，保存调用 `SettingsSaveService.save(_draft)`；订阅 `busy` 与 `last`，仅刷新自身；不自动关闭；左下「关闭」与 X 同职责；含历史记录区块与历史页入口；由 HomePage 注入 `HistoryConsumer` 并转交 HistoryPage
-- `InfoDialog`：显示车站数量 / 版本 / 大小与许可证入口、更新提示、导入按钮；订阅 `busy` 与 `last`，仅刷新自身；不自动关闭。
-- `LicenseListDialog`：从 `LicenseRegistry` 聚合许可证，应用条目置底；`count > 0` 时显示车站数据信息；条目打开 `LicenseDetailDialog`。
-- `HistoryPage` 为独立路由（非 Dialog）：直接接收 HistoryConsumer、HistoryManager、HistoryBackupService、StationManager 与设置草稿的 `HistorySettingsManager` 视图，未保存也立即生效。
-- 所有 Service 操作结果的 Toast（导入 / 设置保存 / 历史备份）由 HomePage 统一显示；HistoryPage 只负责进度等自身 UI。
+- `SettingsPage`：独立路由，AppBar 左侧返回、右侧保存图标；编辑本地草稿，保存调用 `SettingsSaveService.save(_draft)`；订阅 `busy` 与 `last`，仅刷新自身；保存成功后不自动返回；含历史记录区块与历史页入口；由 HomePage 注入 `HistoryConsumer` 并转交 HistoryPage
+- `InfoPage`：独立路由，AppBar 左侧返回、右侧导入图标；显示车站数量 / 版本 / 大小与许可证入口、更新提示；订阅 `busy` 与 `last`，仅刷新自身；导入成功后不自动返回
+- `LicenseListPage` / `LicenseDetailPage`：独立路由；列表从 `LicenseRegistry` 聚合许可证，应用条目置底；`count > 0` 时显示车站数据信息；条目打开 `LicenseDetailPage`
+- `HistoryPage` 为独立路由：直接接收 HistoryConsumer、HistoryManager、HistoryBackupService、StationManager 与设置草稿的 `HistorySettingsManager` 视图，未保存也立即生效
+- 所有 Service 操作结果的 Toast（导入 / 设置保存 / 历史备份）由 HomePage 统一显示；HistoryPage 只负责进度等自身 UI
 
 ---
 
 ## Entry and Interaction
 
-对话框入口（HomePage AppBar 右侧）：
+页面入口（HomePage AppBar 右侧）：
 
-- settings dialog：设置按钮
-- info dialog：info 按钮（最右侧）
+- settings page：设置按钮
+- info page：info 按钮（最右侧）
 
 入口按钮在 `starting` 中禁用，stopped / running 可用（changeXxx 本身任意状态可调用，禁用仅为既有 UI 策略）。
 
-settings dialog：
+settings page：
 
-- 负责设置项编辑（本地草稿 `_draft`）；保存时调用 `SettingsSaveService.save(_draft)`
+- 负责设置项编辑（本地草稿 `_draft`）；保存时点击 AppBar 右侧保存图标，调用 `SettingsSaveService.save(_draft)`
 - 历史记录区块：记录总开关、5 分钟合并展示 checkbox、打开历史记录入口
 - 合并展示 checkbox 与记录总开关独立，始终可编辑；打开历史页时传 `_draft.historySettingsManager`
-- 历史页入口接收 Coordinator、HistoryManager、HistoryBackupService 与 StationManager；内容可滚动，避免小屏溢出
-- 订阅 `SettingsSaveService.busy`：busy 期间禁用保存按钮；X、关闭按钮、系统返回、点击遮罩均允许关闭
-- 订阅 `SettingsSaveService.last` 仅用于刷新自身状态；成功/失败都不自动关闭
-- 左下按钮为「关闭」（`dialogClose`），行为与 X 相同（`Navigator.pop`）
+- 历史页入口接收 HistoryManager、HistoryBackupService、StationManager 与 HistoryConsumer
+- 订阅 `SettingsSaveService.busy`：busy 期间禁用保存图标；页面通过 AppBar 左侧返回或系统返回离开，不使用 X、底部按钮栏或点击遮罩关闭
+- 订阅 `SettingsSaveService.last` 仅用于刷新自身状态；成功/失败都不自动返回
 - 不执行持久化、不弹 Toast、不接收 `manager` 参数
 
 history page：
@@ -765,15 +769,15 @@ history page：
 - 备份导出前 `historyConsumer.flush()`；无历史时禁用导出；导入前确认覆盖规则；导入后刷新当天来源并重载
 - 导出/导入期间显示进度并禁用入口；文件选择/保存阶段绑定 HistoryPage，进入 Service 的导出/导入处理在页面关闭后继续（Service 由 HomePage 持有）
 
-info dialog：
+info page：
 
-- 结构：标题行（信息）→ 许可证及车站信息框 → 更新提示框 → 按钮行（关闭 / 导入）
-- 许可证框：显示车站数 / 版本（`date`，存在修订时附 `pdate`；均为 `yyyyMMdd` 的 `int`）/ 大小 / 许可证入口，点击打开 `LicenseListDialog`
+- 结构：AppBar 标题（信息）+ 右上导入图标 → 许可证及车站信息框 → 更新提示框；无 X、无底部按钮栏
+- 许可证框：显示车站数 / 版本（`date`，存在修订时附 `pdate`；均为 `yyyyMMdd` 的 `int`）/ 大小 / 许可证入口，点击打开 `LicenseListPage`
 - 更新提示框：正文提示定期更新车站信息 / 事件信息数据，点击框体打开下载网站（`Common.uriInformation`）
 - 链接：点击经 `launchUrl(..., mode: LaunchMode.externalApplication)` 打开系统浏览器
-- 导入：按钮先用 `file_picker` 选择 zip，再将路径传给 `InfoImportService.import(path)`；Service 完成解析、SHA-256 / 格式校验、写入与加载
-- 导入按钮以 `_picking` 守护选择阶段；订阅 `InfoImportService.busy`，`_picking` 或 busy 期间禁用导入按钮
-- 订阅 `InfoImportService.lastResult`：仅刷新自身 bin 信息；成功/失败都不自动关闭
+- 导入：右上导入图标先用 `file_picker` 选择 zip，再将路径传给 `InfoImportService.import(path)`；Service 完成解析、SHA-256 / 格式校验、写入与加载
+- 导入按钮以 `_picking` 守护选择阶段；订阅 `InfoImportService.busy`，`_picking` 或 busy 期间禁用导入图标
+- 订阅 `InfoImportService.last`：仅刷新自身 bin 信息；成功/失败都不自动返回
 - Toast 由 HomePage 统一显示（成功按实际导入内容，失败为「无效的文件」）
 - 不执行写盘、不弹 Toast
 
@@ -1020,7 +1024,7 @@ event schema：
 - 单文件原子；多个文件同时导入时不保证跨文件事务
 
 ```text
-InfoDialog（`file_picker` 选择 zip）
+InfoPage（`file_picker` 选择 zip）
         │  path
         ▼
 InfoImportService.import(path)
@@ -1037,14 +1041,14 @@ InfoImportService.import(path)
         ▼
 InfoImportService.last = InfoImportResult.success
         │
-        ├─ InfoDialog：仅刷新 bin 信息
+        ├─ InfoPage：仅刷新 bin 信息
         └─ HomePage：Coordinator.changeStationData/changeEventData + setState + Toast
 ```
 
 设置保存：
 
 ```text
-SettingsDialog → SettingsSaveService.save(_draft)
+SettingsPage → SettingsSaveService.save(_draft)
         │
         ▼
 SettingsManager.save()
@@ -1052,7 +1056,7 @@ SettingsManager.save()
         ▼
 SettingsSaveService.last = SettingsSaveResult.success / failure
         │
-        ├─ SettingsDialog：仅刷新自身状态（不关闭）
+        ├─ SettingsPage：仅刷新自身状态（不返回）
         └─ HomePage：setState + Coordinator.changeSettings + Toast
 ```
 

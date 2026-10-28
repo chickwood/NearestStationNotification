@@ -1,5 +1,7 @@
 import 'dart:math';
 
+import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 
 class Common {
@@ -77,6 +79,19 @@ class Common {
   /// 日期键 → 月份键：`yyyyMM`
   static int monthDateOf(int date) => date ~/ 100;
 
+  /// 当前本地日期键：`yyyyMMdd`
+  static int today() => dateOf(DateTime.now());
+
+  /// 当前本地月份键：`yyyyMM`
+  static int currentMonth() => monthDateOf(today());
+
+  /// 月份键加减
+  /// 处理跨年：`202601` + (-1) → `202512`
+  static int addMonths(int month, int delta) {
+    final index = (month ~/ 100) * 12 + (month % 100 - 1) + delta;
+    return (index ~/ 12) * 100 + index % 12 + 1;
+  }
+
   /// 年
   static int yearOf(int date) => date ~/ 10000;
 
@@ -86,7 +101,8 @@ class Common {
   /// 日（1–31）
   static int dayOf(int date) => date % 100;
 
-  /// 合法日期键；0 表示未设置
+  /// 合法日期键
+  /// 0 表示未设置
   static bool isValidDate(int date) {
     if (date == 0) return true;
     if (date < 10000101 || date > 99991231) return false;
@@ -101,7 +117,8 @@ class Common {
     return time.year == year && time.month == month && time.day == day;
   }
 
-  /// 合法月份键；0 表示未设置
+  /// 合法月份键
+  /// 0 表示未设置
   static bool isValidMonth(int month) {
     if (month == 0) return true;
     if (month < 100001 || month > 999912) return false;
@@ -558,8 +575,25 @@ enum StationCount {
 enum StationCountPart { friend, event, radar, natsume }
 
 abstract class ResetableState<T extends StatefulWidget> extends State<T> {
+  void noop() {}
+
   void resetState() {
     if (!mounted) return;
-    setState(() {});
+    setState(noop);
   }
+}
+
+class AppBarAction extends IconButton {
+  const AppBarAction({
+    super.key,
+    required super.onPressed,
+    required super.icon,
+    super.tooltip,
+    super.color,
+    super.constraints = const BoxConstraints(minWidth: 40, minHeight: 40),
+    super.padding = EdgeInsets.zero,
+    super.style = const ButtonStyle(
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    ),
+  });
 }

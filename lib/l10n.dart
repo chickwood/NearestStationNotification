@@ -215,7 +215,8 @@ class L10n {
     return 'Recommended to hide this notification by long press';
   }
 
-  // ── Settings Dialog ───────────────────────────────────────────────────────────
+  // ── Settings Page ─────────────────────────────────────────────────────────────
+  String get settingsPageTitle => settingsDialogTitle;
   String get settingsDialogTitle {
     if (_isJa) return '設定';
     if (_isZhHans) return '设置';
@@ -426,7 +427,8 @@ class L10n {
     return 'Close';
   }
 
-  // ── Info Dialog ──────────────────────────────────────────────────
+  // ── Info Page ──────────────────────────────────────────────────
+  String get infoPageTitle => infoDialogTitle;
   String get infoDialogTitle {
     if (_isJa) return '情報';
     if (_isZhHans) return '信息';
@@ -514,8 +516,9 @@ class L10n {
     return 'Invalid file';
   }
 
-  // ── License Dialog ───────────────────────────────────────────────────────────
+  // ── License Page ───────────────────────────────────────────────────────────
   String get licensesDialogTitle => infoTitle;
+  String get licensesPageTitle => licensesDialogTitle;
 
   String licenseCount(int count) {
     if (_isJa) return '$count 件ライセンス';

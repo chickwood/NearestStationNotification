@@ -24,7 +24,7 @@ class SettingsSaveResult {
 }
 
 /// SettingsManager.save() 的异步执行与结果持有者，
-/// 生命周期独立于 SettingsDialog。
+/// 生命周期独立于 SettingsPage。
 class SettingsSaveService {
   final ValueNotifier<SettingsSaveResult?> last = ValueNotifier(null);
   final ValueNotifier<bool> busy = ValueNotifier(false);

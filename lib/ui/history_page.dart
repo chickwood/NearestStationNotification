@@ -10,6 +10,7 @@ import '../l10n.dart';
 import '../manager/history_manager.dart';
 import '../manager/station_manager.dart';
 import '../service/history_backup_service.dart';
+import 'history_date_picker.dart';
 
 class HistoryPage extends StatefulWidget {
   final HistoryManager historyManager;
@@ -32,8 +33,8 @@ class HistoryPage extends StatefulWidget {
 }
 
 class _HistoryPageState extends ResetableState<HistoryPage> {
-  late DateTime _selectedMonth;
-  late DateTime _earliestMonth;
+  late int _selectedMonth;
+  late int _earliestMonth;
 
   List<int> _months = const [];
   List<int> _dates = const [];
@@ -48,7 +49,7 @@ class _HistoryPageState extends ResetableState<HistoryPage> {
   void initState() {
     super.initState();
 
-    _selectedMonth = _monthOf(DateTime.now());
+    _selectedMonth = Common.currentMonth();
     _earliestMonth = _selectedMonth;
 
     _backupWasBusy = widget.historyBackupService.busy.value;
@@ -95,7 +96,7 @@ class _HistoryPageState extends ResetableState<HistoryPage> {
 
   List<int> get _visibleDates {
     final dates = List<int>.of(_dates);
-    final month = Common.monthDateOf(Common.dateOf(_selectedMonth));
+    final month = _selectedMonth;
     for (final record in widget.historyConsumer.pendingRecords) {
       final date = Common.dateOfEpoch(record.epoch);
       if (Common.monthDateOf(date) != month) continue;
@@ -108,7 +109,7 @@ class _HistoryPageState extends ResetableState<HistoryPage> {
   bool get _hasHistory =>
       _months.isNotEmpty || widget.historyConsumer.pendingRecords.isNotEmpty;
 
-  Future<void> _loadMonths(DateTime month, {bool quiet = false}) async {
+  Future<void> _loadMonths(int month, {bool quiet = false}) async {
     final loadId = ++_loadId;
     if (!quiet) {
       setState(() {
@@ -118,7 +119,7 @@ class _HistoryPageState extends ResetableState<HistoryPage> {
 
     try {
       final storedMonths = await widget.historyManager.listMonths();
-      final current = _monthOf(DateTime.now());
+      final current = Common.currentMonth();
       final months = List<int>.of(storedMonths);
       for (final record in widget.historyConsumer.pendingRecords) {
         final monthDate = Common.monthDateOf(Common.dateOfEpoch(record.epoch));
@@ -126,19 +127,14 @@ class _HistoryPageState extends ResetableState<HistoryPage> {
       }
       months.sort((a, b) => b.compareTo(a));
 
-      var earliest =
-          months.isEmpty
-              ? current
-              : DateTime(months.last ~/ 100, months.last % 100);
-      if (earliest.isAfter(current)) earliest = current;
+      var earliest = months.isEmpty ? current : months.last;
+      if (earliest > current) earliest = current;
 
       var target = month;
-      if (target.isBefore(earliest)) target = earliest;
-      if (target.isAfter(current)) target = current;
+      if (target < earliest) target = earliest;
+      if (target > current) target = current;
 
-      final days = await widget.historyManager.listDays(
-        Common.monthDateOf(Common.dateOf(target)),
-      );
+      final days = await widget.historyManager.listDays(target);
 
       if (!mounted || loadId != _loadId) return;
       setState(() {
@@ -159,7 +155,7 @@ class _HistoryPageState extends ResetableState<HistoryPage> {
     }
   }
 
-  Future<void> _loadMonth(DateTime month) async {
+  Future<void> _loadMonth(int month) async {
     final loadId = ++_loadId;
     setState(() {
       _selectedMonth = month;
@@ -168,9 +164,7 @@ class _HistoryPageState extends ResetableState<HistoryPage> {
     });
 
     try {
-      final days = await widget.historyManager.listDays(
-        Common.monthDateOf(Common.dateOf(month)),
-      );
+      final days = await widget.historyManager.listDays(month);
       if (!mounted || loadId != _loadId) return;
       setState(() {
         _dates = days;
@@ -191,33 +185,50 @@ class _HistoryPageState extends ResetableState<HistoryPage> {
   }
 
   Future<void> _previousMonth() async {
-    await _loadMonth(DateTime(_selectedMonth.year, _selectedMonth.month - 1));
+    await _loadMonth(Common.addMonths(_selectedMonth, -1));
   }
 
   Future<void> _nextMonth() async {
-    await _loadMonth(DateTime(_selectedMonth.year, _selectedMonth.month + 1));
+    await _loadMonth(Common.addMonths(_selectedMonth, 1));
   }
 
   Future<void> _pickMonth() async {
-    final l10n = L10n.of(context);
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final firstDate = _months.isEmpty ? today : _earliestMonth;
+    if (_loading) return;
 
-    var initial = _selectedMonth;
-    if (initial.isBefore(firstDate)) initial = firstDate;
-    if (initial.isAfter(today)) initial = today;
+    final availableMonths = <int>{
+      ..._months,
+      for (final record in widget.historyConsumer.pendingRecords)
+        Common.monthDateOf(Common.dateOfEpoch(record.epoch)),
+    };
 
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: initial,
-      firstDate: firstDate,
-      lastDate: today,
-      helpText: l10n.historyJumpMonth,
+    final picked = await showHistoryDatePicker(
+      context,
+      availableMonths: availableMonths,
+      initialMonth: _selectedMonth,
     );
-
     if (picked == null || !mounted) return;
-    await _loadMonth(_monthOf(picked));
+
+    if (picked >= 10000101) {
+      final month = Common.monthDateOf(picked);
+      if (month != _selectedMonth) {
+        await _loadMonth(month);
+        if (!mounted) return;
+      }
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder:
+              (_) => HistoryDayPage(
+                widget.historyConsumer,
+                widget.historyManager,
+                widget.stationManager,
+                widget.settingsManager,
+                picked,
+              ),
+        ),
+      );
+    } else {
+      await _loadMonth(picked);
+    }
   }
 
   Future<void> _export() async {
@@ -315,42 +326,46 @@ class _HistoryPageState extends ResetableState<HistoryPage> {
     setState(() => _runningAction = null);
   }
 
-  bool get _canPrevious => _selectedMonth.isAfter(_earliestMonth);
+  bool get _canPrevious => _selectedMonth > _earliestMonth;
 
-  bool get _canNext => _selectedMonth.isBefore(_monthOf(DateTime.now()));
+  bool get _canNext => _selectedMonth < Common.currentMonth();
 
   @override
   Widget build(BuildContext context) {
     final l10n = L10n.of(context);
     final busy = widget.historyBackupService.busy.value;
+    final calendarDisabled = busy || _loading;
+    final exportDisabled = busy || _runningAction != null || !_hasHistory;
+    final importDisabled = busy || _runningAction != null;
 
     return Scaffold(
       backgroundColor: Colors.grey.shade50,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF4080FF),
-        foregroundColor: Colors.white,
         title: Text(l10n.historyTitle),
         actions: [
-          IconButton(
+          AppBarAction(
+            onPressed: busy ? noop : _refresh,
             icon: const Icon(Icons.refresh),
             tooltip: l10n.historyRefresh,
-            onPressed: busy ? null : _refresh,
+            color: busy ? const Color(0xFFA0C0FF) : Colors.white,
           ),
-          IconButton(
+          AppBarAction(
+            onPressed: calendarDisabled ? noop : _pickMonth,
             icon: const Icon(Icons.calendar_month),
             tooltip: l10n.historyJumpMonth,
-            onPressed: busy ? null : _pickMonth,
+            color: calendarDisabled ? const Color(0xFFA0C0FF) : Colors.white,
           ),
-          IconButton(
+          AppBarAction(
+            onPressed: exportDisabled ? noop : _export,
             icon: const Icon(Icons.save_alt),
             tooltip: l10n.historyExport,
-            onPressed:
-                busy || _runningAction != null || !_hasHistory ? null : _export,
+            color: exportDisabled ? const Color(0xFFA0C0FF) : Colors.white,
           ),
-          IconButton(
+          AppBarAction(
+            onPressed: importDisabled ? noop : _import,
             icon: const Icon(Icons.file_open),
             tooltip: l10n.historyImport,
-            onPressed: busy || _runningAction != null ? null : _import,
+            color: importDisabled ? const Color(0xFFA0C0FF) : Colors.white,
           ),
         ],
       ),
@@ -396,11 +411,11 @@ class _HistoryPageState extends ResetableState<HistoryPage> {
       child: Row(
         children: [
           IconButton(
+            onPressed: _canPrevious ? _previousMonth : null,
             icon: const Icon(Icons.chevron_left),
             tooltip: l10n.historyPrevMonth,
             color: const Color(0xFF4080FF),
             disabledColor: Colors.grey.shade300,
-            onPressed: _canPrevious ? _previousMonth : null,
           ),
           Expanded(
             child: Center(
@@ -415,11 +430,11 @@ class _HistoryPageState extends ResetableState<HistoryPage> {
             ),
           ),
           IconButton(
+            onPressed: _canNext ? _nextMonth : null,
             icon: const Icon(Icons.chevron_right),
             tooltip: l10n.historyNextMonth,
             color: const Color(0xFF4080FF),
             disabledColor: Colors.grey.shade300,
-            onPressed: _canNext ? _nextMonth : null,
           ),
         ],
       ),
@@ -514,7 +529,7 @@ class HistoryDayPage extends StatefulWidget {
   State<HistoryDayPage> createState() => _HistoryDayPageState();
 }
 
-class _HistoryDayPageState extends State<HistoryDayPage> {
+class _HistoryDayPageState extends ResetableState<HistoryDayPage> {
   List<HistoryRecord>? _records;
   List<HistoryRecord> _diskRecords = const [];
   int _loadId = 0;
@@ -611,9 +626,9 @@ class _HistoryDayPageState extends State<HistoryDayPage> {
         title: Text(_dateLabel(widget.date)),
         actions: [
           IconButton(
+            onPressed: _load,
             icon: const Icon(Icons.refresh),
             tooltip: l10n.historyRefresh,
-            onPressed: _load,
           ),
         ],
       ),
@@ -953,10 +968,8 @@ class _HistoryRecordRow extends StatelessWidget {
   }
 }
 
-DateTime _monthOf(DateTime time) => DateTime(time.year, time.month);
-
-String _monthLabel(DateTime time) =>
-    '${time.year.toString().padLeft(4, '0')}-${_two(time.month)}';
+String _monthLabel(int month) =>
+    '${(month ~/ 100).toString().padLeft(4, '0')}-${_two(month % 100)}';
 
 String _dateLabel(int date) =>
     '${Common.yearOf(date).toString().padLeft(4, '0')}'
