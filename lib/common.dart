@@ -1,8 +1,6 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
-import 'package:flutter/widgets.dart';
 
 class Common {
   // ── 动态包名常驻内存（由 main 在冷启动时注入） ───────────────────────
