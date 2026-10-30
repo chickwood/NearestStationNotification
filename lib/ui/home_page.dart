@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_styled_toast/flutter_styled_toast.dart';
 
+import 'history_page.dart';
 import 'info_page.dart';
 import 'settings_page.dart';
 
@@ -134,6 +135,19 @@ class _HomePageState extends ResetableState<HomePage>
           // ),
           title: Text(l10n.appTitle),
           actions: [
+            // 定位详细显示切换
+            if (_coordinator!.runningStatus == RunningStatus.running)
+              AppBarAction(
+                onPressed: _switchPositionVisibility,
+                icon:
+                    _positionVisibility > 0
+                        ? const Icon(Icons.near_me)
+                        : const Icon(Icons.near_me_disabled),
+                color:
+                    _positionVisibility == 1
+                        ? const Color(0xFFA0C0FF)
+                        : Colors.white,
+              ),
             // 开始/停止
             AppBarAction(
               onPressed:
@@ -142,47 +156,62 @@ class _HomePageState extends ResetableState<HomePage>
                       : _stop,
               icon:
                   _coordinator!.runningStatus == RunningStatus.running
-                      ? const Icon(Icons.stop_circle)
-                      : const Icon(Icons.play_circle_filled),
+                      ? const Icon(Icons.stop)
+                      : const Icon(Icons.play_arrow),
               color:
                   _coordinator!.runningStatus == RunningStatus.starting
                       ? const Color(0xFFA0C0FF)
                       : Colors.white,
             ),
-            // 设置（starting 中は無効化）
-            AppBarAction(
-              onPressed:
-                  _coordinator!.runningStatus == RunningStatus.starting
-                      ? noop
-                      : _showSettingsPage,
-              icon: const Icon(Icons.settings),
-              color:
+            // 设置 / 信息菜单（starting 中は無効化）
+            AppBarMenu<HomeMenuAction>(
+              enabled: _coordinator!.runningStatus != RunningStatus.starting,
+              position: PopupMenuPosition.under,
+              icon: const Icon(Icons.menu),
+              iconColor:
                   _coordinator!.runningStatus == RunningStatus.starting
                       ? const Color(0xFFA0C0FF)
                       : Colors.white,
-            ),
-            // 情報（starting 中は無効化）
-            AppBarAction(
-              onPressed:
-                  _coordinator!.runningStatus == RunningStatus.starting
-                      ? noop
-                      : _showInfoPage,
-              icon: const Icon(Icons.info),
-              color:
-                  _coordinator!.runningStatus == RunningStatus.starting
-                      ? const Color(0xFFA0C0FF)
-                      : Colors.white,
+              onSelected: (action) {
+                switch (action) {
+                  case HomeMenuAction.settings:
+                    _showSettingsPage();
+                    break;
+                  case HomeMenuAction.history:
+                    _showHistoryPage();
+                    break;
+                  case HomeMenuAction.info:
+                    _showInfoPage();
+                    break;
+                }
+              },
+              itemBuilder:
+                  (context) => [
+                    PopupMenuItem(
+                      value: HomeMenuAction.settings,
+                      child: Text(l10n.settingsPageTitle),
+                    ),
+                    PopupMenuItem(
+                      value: HomeMenuAction.history,
+                      child: Text(l10n.historyTitle),
+                    ),
+                    PopupMenuItem(
+                      value: HomeMenuAction.info,
+                      child: Text(l10n.infoPageTitle),
+                    ),
+                  ],
             ),
           ],
         ),
         body: SafeArea(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+            padding: const EdgeInsets.all(16),
             child: Column(
               children: [
-                Expanded(
-                  child: _buildStationResultsCard(l10n), // 车站列表 + 下部可隐藏: 位置信息
-                ),
+                if (_coordinator!.runningStatus == RunningStatus.running &&
+                    _positionVisibility > 0)
+                  ..._buildPositionResult(l10n), // 位置信息: リストの上、可隐藏
+                _buildStationResultsExpanded(l10n), // 车站列表: リスト部分のみスクロール
               ],
             ),
           ),
@@ -380,13 +409,23 @@ class _HomePageState extends ResetableState<HomePage>
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder:
-            (context) => SettingsPage(
-              _settingsManager!,
-              _settingsSaveService,
+            (context) => SettingsPage(_settingsManager!, _settingsSaveService),
+      ),
+    );
+  }
+
+  // ── History Page ───────────────────────────────────────────────────
+
+  void _showHistoryPage() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder:
+            (_) => HistoryPage(
               _historyManager!,
               _historyBackupService,
-              _coordinator!.historyConsumer,
               _stationManager!,
+              _settingsManager!.historySettingsManager,
+              _coordinator!.historyConsumer,
             ),
       ),
     );
@@ -404,164 +443,122 @@ class _HomePageState extends ResetableState<HomePage>
     );
   }
 
-  // ── Service results card ─────────────────────────────────────────
+  // ── Station results (expanded) ────────────────────────────────────────────────
 
-  Widget _buildStationResultsCard(L10n l10n) {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(8),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // タイトル行
-            Padding(
-              padding: const EdgeInsets.all(4),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.radar,
-                    color: const Color(0xFF4080FF), // Colors.orange.shade700
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    l10n.nearbyStations,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
+  Widget _buildStationResultsExpanded(L10n l10n) {
+    return Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (_stationManager!.count > 0)
+            if (_coordinator!.runningStatus == RunningStatus.stopped)
+              Align(
+                alignment: Alignment.topCenter,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      l10n.notStarted,
+                      style: const TextStyle(color: Colors.grey),
                     ),
-                  ),
-                  const Spacer(),
-                  // 定位详细显示切换
-                  if (_coordinator!.runningStatus == RunningStatus.running)
-                    GestureDetector(
-                      onTap: _switchPositionVisibility,
-                      child: Icon(
-                        _positionVisibility > 0
-                            ? Icons.near_me
-                            : Icons.near_me_disabled,
-                        color:
-                            _positionVisibility < 2
-                                ? const Color(0xFFA0C0FF)
-                                : const Color(0xFF4080FF),
+                    Text(
+                      l10n.tapToStart,
+                      style: const TextStyle(color: Colors.grey),
+                    ),
+                    if (_stationManager!.isSampleData) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        l10n.sampleDataGuide,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(color: Colors.grey),
                       ),
+                    ],
+                  ],
+                ),
+              )
+            else if (_coordinator!.runningStatus == RunningStatus.starting)
+              Align(
+                alignment: Alignment.topCenter,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      l10n.waitingForLocation,
+                      style: const TextStyle(color: Colors.grey),
                     ),
-                ],
+                    Text(
+                      l10n.waitingForLongtime,
+                      style: const TextStyle(color: Colors.grey),
+                    ),
+                  ],
+                ),
+              )
+            else ...[
+              Text(l10n.nearbyStations),
+              const SizedBox(height: 8),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 2),
+                  child: ListView.separated(
+                    itemCount: _coordinator!.stationResults!.length,
+                    itemBuilder: (context, index) {
+                      final stationResult =
+                          _coordinator!.stationResults![index];
+
+                      return _StationTile(
+                        index: index,
+                        name: stationResult.name ?? '',
+                        distance: stationResult.distanceInUnit,
+                        direction: l10n.direction(stationResult.bearingIndex),
+                        part: _settingsManager!.stationCount.part(index),
+                      );
+                    },
+                    separatorBuilder: (BuildContext context, int index) {
+                      return const SizedBox(height: 4);
+                    },
+                  ),
+                ),
+              ),
+            ]
+          else
+            Align(
+              alignment: Alignment.topCenter,
+              child: Text(
+                l10n.countStations(0),
+                style: const TextStyle(color: Colors.grey),
               ),
             ),
-            if (_coordinator!.runningStatus == RunningStatus.running &&
-                _positionVisibility > 0) ...[
-              _buildPositionResult(l10n), // 下部可隐藏: 位置信息（リスト外・カード下端）
-              const Divider(height: 8, indent: 8, endIndent: 8),
-            ],
-            const SizedBox(height: 2),
-            Expanded(
-              child: _buildStationResultsExpanded(l10n), // リスト部分のみスクロール
-            ),
-          ],
-        ),
+        ],
       ),
     );
   }
 
-  // ── Station results (expanded) ────────────────────────────────────────────────
-
-  Widget _buildStationResultsExpanded(L10n l10n) {
-    if (_stationManager!.count > 0) {
-      if (_coordinator!.runningStatus == RunningStatus.stopped) {
-        return Align(
-          alignment: Alignment.topCenter,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(l10n.notStarted, style: const TextStyle(color: Colors.grey)),
-              if (_stationManager!.isSampleData) ...[
-                const SizedBox(height: 4),
-                Text(
-                  l10n.sampleDataGuide,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.grey),
-                ),
-              ],
-            ],
-          ),
-        );
-      } else if (_coordinator!.runningStatus == RunningStatus.starting) {
-        return Align(
-          alignment: Alignment.topCenter,
-          child: Text(
-            l10n.waitingForLocation,
-            style: const TextStyle(color: Colors.grey),
-          ),
-        );
-      } else {
-        return Padding(
-          padding: const EdgeInsets.all(4),
-          child: ListView.separated(
-            itemCount: _coordinator!.stationResults!.length,
-            itemBuilder: (context, index) {
-              final stationResult = _coordinator!.stationResults![index];
-
-              return _StationTile(
-                index: index,
-                name: stationResult.name ?? '',
-                distance: stationResult.distanceInUnit,
-                direction: l10n.direction(stationResult.bearingIndex),
-                part: _settingsManager!.stationCount.part(index),
-              );
-            },
-            separatorBuilder: (BuildContext context, int index) {
-              return const SizedBox(height: 4);
-            },
-          ),
-        );
-      }
-    } else {
-      return Align(
-        alignment: Alignment.topCenter,
-        child: Text(
-          l10n.countStations(0),
-          style: const TextStyle(color: Colors.grey),
-        ),
-      );
-    }
-  }
-
   // ── Position result ────────────────────────────────────────────────
 
-  Widget _buildPositionResult(L10n l10n) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      child: Column(
+  List<Widget> _buildPositionResult(L10n l10n) {
+    return [
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Text(
-                _positionVisibility == 1
-                    ? l10n.currentLocation
-                    : l10n.currentLocationStatus,
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-            ],
+          Text(
+            _positionVisibility == 1
+                ? l10n.currentLocation
+                : l10n.currentLocationStatus,
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 8),
           Row(
             children: [
-              Expanded(
-                child: _PositionRow(
-                  label: l10n.latitude,
-                  value: _coordinator!.positionResult!.latitude.toStringAsFixed(
-                    6,
-                  ),
+              _PositionRow(
+                label: l10n.latitude,
+                value: _coordinator!.positionResult!.latitude.toStringAsFixed(
+                  6,
                 ),
               ),
-              const SizedBox(width: 24),
-              Expanded(
-                child: _PositionRow(
-                  label: l10n.longitude,
-                  value: _coordinator!.positionResult!.longitude
-                      .toStringAsFixed(6),
+              const SizedBox(width: 4),
+              _PositionRow(
+                label: l10n.longitude,
+                value: _coordinator!.positionResult!.longitude.toStringAsFixed(
+                  6,
                 ),
               ),
             ],
@@ -570,45 +567,38 @@ class _HomePageState extends ResetableState<HomePage>
             const SizedBox(height: 4),
             Row(
               children: [
-                Expanded(
-                  child: _PositionRow(
-                    label: l10n.speed,
-                    value: _coordinator!.positionResult!.speedString,
-                  ),
+                _PositionRow(
+                  label: l10n.speed,
+                  value: _coordinator!.positionResult!.speedString,
                 ),
-                const SizedBox(width: 24),
-                Expanded(
-                  child: _PositionRow(
-                    label: l10n.accuracy,
-                    value: _coordinator!.positionResult!.accuracyString,
-                  ),
+                const SizedBox(width: 4),
+                _PositionRow(
+                  label: l10n.accuracy,
+                  value: _coordinator!.positionResult!.accuracyString,
                 ),
               ],
             ),
             const SizedBox(height: 4),
             Row(
               children: [
-                Expanded(
-                  child: _PositionRow(
-                    label: l10n.heading,
-                    value: l10n.direction(
-                      _coordinator!.positionResult!.headingIndex,
-                    ),
+                _PositionRow(
+                  label: l10n.heading,
+                  value: l10n.direction(
+                    _coordinator!.positionResult!.headingIndex,
                   ),
                 ),
-                const SizedBox(width: 24),
-                Expanded(
-                  child: _PositionRow(
-                    label: l10n.timestamp,
-                    value: _coordinator!.positionResult!.timestampString,
-                  ),
+                const SizedBox(width: 4),
+                _PositionRow(
+                  label: l10n.timestamp,
+                  value: _coordinator!.positionResult!.timestampString,
                 ),
               ],
             ),
           ],
         ],
       ),
-    );
+      const Divider(height: 16),
+    ];
   }
 }
 
@@ -622,19 +612,24 @@ class _PositionRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(label, style: TextStyle(color: Colors.grey.shade600)),
-        Text(
-          value,
-          style: TextStyle(
-            color: Colors.grey.shade800,
-            // fontFamily: 'monospace',
-            fontWeight: FontWeight.bold,
-          ),
+    return Expanded(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(label, style: TextStyle(color: Colors.grey.shade600)),
+            Text(
+              value,
+              style: TextStyle(
+                color: Colors.grey.shade800,
+                // fontFamily: 'monospace',
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
 }

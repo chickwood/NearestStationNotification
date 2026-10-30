@@ -344,28 +344,24 @@ class _HistoryPageState extends ResetableState<HistoryPage> {
         title: Text(l10n.historyTitle),
         actions: [
           AppBarAction(
-            onPressed: busy ? noop : _refresh,
+            onPressed: busy ? null : _refresh,
             icon: const Icon(Icons.refresh),
             tooltip: l10n.historyRefresh,
-            color: busy ? const Color(0xFFA0C0FF) : Colors.white,
           ),
           AppBarAction(
-            onPressed: calendarDisabled ? noop : _pickMonth,
+            onPressed: calendarDisabled ? null : _pickMonth,
             icon: const Icon(Icons.calendar_month),
             tooltip: l10n.historyJumpMonth,
-            color: calendarDisabled ? const Color(0xFFA0C0FF) : Colors.white,
           ),
           AppBarAction(
-            onPressed: exportDisabled ? noop : _export,
+            onPressed: exportDisabled ? null : _export,
             icon: const Icon(Icons.save_alt),
             tooltip: l10n.historyExport,
-            color: exportDisabled ? const Color(0xFFA0C0FF) : Colors.white,
           ),
           AppBarAction(
-            onPressed: importDisabled ? noop : _import,
+            onPressed: importDisabled ? null : _import,
             icon: const Icon(Icons.file_open),
             tooltip: l10n.historyImport,
-            color: importDisabled ? const Color(0xFFA0C0FF) : Colors.white,
           ),
         ],
       ),
@@ -675,7 +671,7 @@ class _HistoryDayPageState extends ResetableState<HistoryDayPage> {
         },
         separatorBuilder: (context, index) {
           if (index == 0) return const SizedBox(height: 4);
-          return const Divider(height: 8, indent: 8, endIndent: 8);
+          return const Divider(height: 16);
         },
       );
     }
@@ -693,7 +689,7 @@ class _HistoryDayPageState extends ResetableState<HistoryDayPage> {
       },
       separatorBuilder: (context, index) {
         if (index == 0) return const SizedBox(height: 4);
-        return const Divider(height: 8, indent: 8, endIndent: 8);
+        return const Divider(height: 16);
       },
     );
   }

@@ -108,7 +108,7 @@ lib/
 - **构造函数传参（位置参数 + `this.x` 直接赋值）**：
   - 对象生命周期内代表其依赖关系的值（如回调函数、管理器、设置、语言）
   - 判断标准不是「是否会变」，而是「变化的来源是否属于该对象所处的环境状态」；此类值变化后即代表「当前状态」、并被对象内部多处方法读取
-  - 例：`l10n`（系统语言变化）、`active`（前后台切换）、`settings`（设置项保存）、`manager`（站点数据管理）、`eventManager`（事件数据管理）均属此类，生命周期模式相同：HomePage 初始化产生初值 → 传入 → 运行期间由外部事件驱动变化 → 通知更新
+  - 例：`l10n`（系统语言变化）、`active`（前后台切换）、`settingsManager`（设置项保存）、`stationManager`（站点数据管理）、`eventManager`（事件数据管理）、`historyManager`（历史存储）均属此类，生命周期模式相同：HomePage 初始化产生初值 → 传入 → 运行期间由外部事件驱动变化 → 通知更新
   - 私有字段（下划线开头）不能使用命名参数（Dart 语言限制），故统一使用位置参数
 
 - **方法参数传参**：
@@ -180,15 +180,13 @@ lib/
         │               │               │               │                          │
         │               │               │               ▼                          ▼
         │               │               │        InfoPage /              HistoryPage
-        │               │               │        SettingsPage                    ▲
-        │               │               │                                        │
-        ├───────────────┘               │                               SettingsPage
+        │               │               │        SettingsPage
         │                               │
         ├──► LocationProcessor ──► SearchEngine ──► StationManager
         ├──► NotificationConsumer
         └──► HistoryConsumer ──► HistoryManager
 
-HomePage 另持有 SettingsManager，并将其传入 Coordinator；Coordinator 再向 LocationProcessor 传 `processorSettingsManager`、向 HistoryConsumer 传 `historySettingsManager`；SettingsPage 由 HomePage 注入 `historyConsumer`，再转交 HistoryPage（HistoryPage 不依赖 Coordinator）；
+HomePage 另持有 SettingsManager，并将其传入 Coordinator；Coordinator 再向 LocationProcessor 传 `processorSettingsManager`、向 HistoryConsumer 传 `historySettingsManager`；HistoryPage 由 HomePage 三点菜单直接打开，不依赖 Coordinator；
 BackgroundTask 包裹 HomePage（Android only）。
 ```
 
@@ -202,8 +200,8 @@ BackgroundTask 包裹 HomePage（Android only）。
 - NotificationConsumer / HistoryConsumer 是 Coordinator 的常驻定位结果消费者：接收广播 payload，各自持有私有状态并在 Coordinator 之外产生副作用；不读取 Coordinator 快照。
 - HistoryConsumer 每次成功写入后递增 `flushCount`、每次追加 pending 后递增 `pendingRevision`；非活跃期间两者均不递增，恢复 active 时成对递增。历史页直接订阅这两个通知，不经过 Coordinator。
 - HistoryManager 是过往历史存储与查询的唯一来源；不持有当天内存状态、不注册定位 handler、不依赖 Coordinator / HistoryConsumer、UI 或文件对话框。
-- HistoryPage 由 HomePage → SettingsPage 注入 `HistoryConsumer`，不依赖 Coordinator：订阅 `pendingRevision` 触发增量重建、`flushCount` 触发磁盘重读，build 时按日合并 `HistoryManager.readDay()` 与 `historyConsumer.pendingRecords`；页面只判断 `mounted`，前后台门控在 Consumer（`Coordinator.changeActive` 转发），恢复时由 Consumer 补发通知。
-- HistoryBackupService 由 HomePage 在 `initState` 创建并持有，不持有 HistoryManager；`createExport(HistoryManager)` / `import(HistoryManager, path)` 由调用方传入参数，不接触文件对话框。注入 HistoryPage 与 SettingsPage；文件选择/保存由 HistoryPage 负责，进入 Service 的处理在页面关闭后继续。
+- HistoryPage 由 HomePage 三点菜单直接打开并注入 `HistoryConsumer` 与已保存的 `historySettingsManager`，不依赖 Coordinator：订阅 `pendingRevision` 触发增量重建、`flushCount` 触发磁盘重读，build 时按日合并 `HistoryManager.readDay()` 与 `historyConsumer.pendingRecords`；页面只判断 `mounted`，前后台门控在 Consumer（`Coordinator.changeActive` 转发），恢复时由 Consumer 补发通知。
+- HistoryBackupService 由 HomePage 在 `initState` 创建并持有，不持有 HistoryManager；`createExport(HistoryManager)` / `import(HistoryManager, path)` 由调用方传入参数，不接触文件对话框。注入 HistoryPage；文件选择/保存由 HistoryPage 负责，进入 Service 的处理在页面关闭后继续。
 - Coordinator 通过 `changeEventData` 将事件期间判定注入 `StationCount.eventPeriod`。
 - Coordinator 不负责 StationManager / EventManager / HistoryManager 的加载与写入实现；HistoryManager 的日文件追加由 HistoryConsumer 触发。
 - InfoImportService / SettingsSaveService / HistoryBackupService 不依赖 UI，不直接调用 Coordinator 或 Toast。
@@ -243,8 +241,9 @@ BackgroundTask 包裹 HomePage（Android only）。
 - 在 `initState` 创建并持有 InfoImportService / SettingsSaveService / HistoryBackupService（生命周期跟随 HomePage；dispose 时释放）
 - Manager（Settings / Station / Event / History）在首帧后的 `Future.wait` 中加载；Service 不持有 Manager，按调用传入
 - 订阅 Service 结果：导入 / 设置保存 / 历史备份的 Toast、Coordinator 热加载与 `setState`
-- 设置入口（settings page：设置项编辑与保存、历史记录入口）
-- 站点数据管理入口（info page：bin 信息 / 提示 / 导入 / 许可证入口）
+- 设置入口（HomePage 三点菜单 → settings page：设置项编辑与保存）
+- 站点数据管理入口（HomePage 三点菜单 → info page：bin 信息 / 提示 / 导入 / 许可证入口）
+- 历史入口（HomePage 三点菜单 → HistoryPage）
 - 示例数据引导提示（stopped 且为示例数据时）
 - 通过 Coordinator 的 handler 触发 UI 重建，并通过 getter 读取当前结果和运行状态
 - 向 BackgroundTask 提供 `Coordinator.runningStatus != RunningStatus.stopped` 的 keepBackgroundTask
@@ -276,7 +275,7 @@ BackgroundTask 包裹 HomePage（Android only）。
 - 创建 LocationProcessor / NotificationConsumer / HistoryConsumer，并注册两个常驻定位结果 handler
 - HistoryConsumer 以常驻 handler 注册，保证 pending 先于 active handler 更新
 - 注入事件期间判定到 `StationCount.eventPeriod`
-- 公开 `historyConsumer`，供 HomePage 注入 SettingsPage → HistoryPage
+- 公开 `historyConsumer`，供 HomePage 在三点菜单中打开 HistoryPage
 - `init()` 只初始化通知，不预载历史；历史由页面按日读盘并合并 pending
 - start()
 - stop()（等待 `HistoryConsumer.flush()`；pending 保留在 Consumer）
@@ -554,7 +553,7 @@ schema：
 - flush 单飞：定时器、阈值、stop / 导出 / 导入可能并发触发，共用同一个 future
 - 不持有 Coordinator 引用；`pendingRecords` / `pendingRevision` / `flushCount` 由自身发布，Coordinator 只公开引用
 - `pendingRevision` / `flushCount` 受 `changeActive()` 门控：非活跃期间不通知，恢复时成对递增，让页面重取 pending 与磁盘
-- 由 Coordinator 公开 `historyConsumer`，HomePage 注入 SettingsPage → HistoryPage
+- 由 Coordinator 公开 `historyConsumer`，HomePage 在三点菜单中打开 HistoryPage
 - 写入失败只记录日志，不抛出
 - 当天展示由页面合并 `readDay(int date)` 与 `historyConsumer.pendingRecords`，不假设 pending 覆盖整天
 
@@ -733,7 +732,7 @@ ZIP 限制与规则：
 
 ### Pages
 
-- `SettingsPage`：独立路由，AppBar 左侧返回、右侧保存图标；编辑本地草稿，保存调用 `SettingsSaveService.save(_draft)`；订阅 `busy` 与 `last`，仅刷新自身；保存成功后不自动返回；含历史记录区块与历史页入口；由 HomePage 注入 `HistoryConsumer` 并转交 HistoryPage
+- `SettingsPage`：独立路由，AppBar 左侧返回、右侧保存图标；编辑本地草稿，保存调用 `SettingsSaveService.save(_draft)`；订阅 `busy` 与 `last`，仅刷新自身；保存成功后不自动返回；含历史记录开关与合并展示设置
 - `InfoPage`：独立路由，AppBar 左侧返回、右侧导入图标；显示车站数量 / 版本 / 大小与许可证入口、更新提示；订阅 `busy` 与 `last`，仅刷新自身；导入成功后不自动返回
 - `LicenseListPage` / `LicenseDetailPage`：独立路由；列表从 `LicenseRegistry` 聚合许可证，应用条目置底；`count > 0` 时显示车站数据信息；条目打开 `LicenseDetailPage`
 - `HistoryPage` 为独立路由：直接接收 HistoryConsumer、HistoryManager、HistoryBackupService、StationManager 与设置草稿的 `HistorySettingsManager` 视图，未保存也立即生效
@@ -745,20 +744,19 @@ ZIP 限制与规则：
 
 页面入口（HomePage AppBar 右侧）：
 
-- settings page：设置按钮
-- info page：info 按钮（最右侧）
+- 开始/停止：播放 / 停止按钮
+- 三点菜单（`more_vert`）：settings page / info page / HistoryPage
 
 入口按钮在 `starting` 中禁用，stopped / running 可用（changeXxx 本身任意状态可调用，禁用仅为既有 UI 策略）。
 
 settings page：
 
 - 负责设置项编辑（本地草稿 `_draft`）；保存时点击 AppBar 右侧保存图标，调用 `SettingsSaveService.save(_draft)`
-- 历史记录区块：记录总开关、5 分钟合并展示 checkbox、打开历史记录入口
-- 合并展示 checkbox 与记录总开关独立，始终可编辑；打开历史页时传 `_draft.historySettingsManager`
-- 历史页入口接收 HistoryManager、HistoryBackupService、StationManager 与 HistoryConsumer
+- 历史记录区块：记录总开关
+- 合并展示开关（`historyMergeView`）不在 settings page 编辑，但仍保留在 `SettingsManager` 与持久化中；将来由 HistoryPage 的按钮实时修改并保存
 - 订阅 `SettingsSaveService.busy`：busy 期间禁用保存图标；页面通过 AppBar 左侧返回或系统返回离开，不使用 X、底部按钮栏或点击遮罩关闭
 - 订阅 `SettingsSaveService.last` 仅用于刷新自身状态；成功/失败都不自动返回
-- 不执行持久化、不弹 Toast、不接收 `manager` 参数
+- 不执行持久化、不弹 Toast、不接收 StationManager / EventManager 参数；仅接收 `SettingsManager` 与 `SettingsSaveService`
 
 history page：
 
@@ -930,7 +928,7 @@ changeXxx 家族（外部事件驱动的状态更新）：
 - changeActive：active 更新（前后台切换；LocationProcessor 切换搜索件数；恢复前台时立即重发缓存结果；进入后台不强制 flush，后台写盘依赖 10 条阈值 / 首条起算的 5 分钟窗口 / stop）
 - changeSettings：settings 更新（设置项保存；向 LocationProcessor 传 `processorSettingsManager`、向 HistoryConsumer 传 `historySettingsManager`；定位间隔变化时重启流，数量变化时用最后采样点重算；HistoryConsumer 在关→开时补记当前通知车站）
 - changeStationData：站点数据更新（导入）
-  - `Coordinator._manager`、`LocationProcessor._manager`、`_engine`（重建为 `SearchEngine(新 manager)`）在同一同步块内成对替换；流不中断、队列不清
+  - `Coordinator._stationManager`、`LocationProcessor._stationManager`、`_engine`（重建为 `SearchEngine(新 stationManager)`）在同一同步块内成对替换；流不中断、队列不清
   - Coordinator 调用 `LocationProcessor.changeData(...)` 完成换链
   - Dart 单线程保证换链不与在途 fix 交错；索引与站名成对换新；UI 列表与通知在下一个定位点（≤ 采样间隔）刷新
 - changeEventData：事件数据更新（导入）
@@ -1132,6 +1130,7 @@ SHA256SUMS
 - `MANIFEST`：`v`、`exportedAt`、`archiveMonths`、`dailyFiles`、`fileCount`（含 MANIFEST 与 SHA256SUMS）；先写 MANIFEST 再生成 `SHA256SUMS`（包含 MANIFEST 行）。
 - `SHA256SUMS`：与 station/event 包一致的 `sha256sum` 文本、两个空格、小写 hex；覆盖外层 ZIP 内全部文件。
 - 导入先验外层 `SHA256SUMS` 与 `MANIFEST`，拒绝子目录 / 路径穿越 / 重复条目 / 超限条目；使用流式 `InputFileStream` + `decodeStream`。
+- 备份导入上限（`HistoryManager` 常量）：条目数 ≤ 5000；单条目 ≤ 64 MiB；总解压 ≤ 1 GiB；月度 NDJSON ≤ 64 MiB；`SHA256SUMS` ≤ 1 MiB。
 - 月度 ZIP 先处理：校验内部 `SHA256SUMS` 与 NDJSON；备份条数多于本地该月总条数时覆盖 ZIP 并删除本地该月日文件；否则保留本地。
 - 日 NDJSON 后处理：与本地同日文件按记录键合并去重、按 epoch 排序后原子写回。
 - 备份中未包含的本地月份保留；失败时已完成的月度覆盖保留，可重试。

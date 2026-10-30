@@ -1,32 +1,19 @@
 import 'package:flutter/material.dart';
 
 import '../common.dart';
-import '../consumer/history_consumer.dart';
 import '../l10n.dart';
-import '../manager/history_manager.dart';
 import '../manager/settings_manager.dart';
-import '../manager/station_manager.dart';
-import '../service/history_backup_service.dart';
 import '../service/settings_save_service.dart';
-import 'history_page.dart';
 
 // ── Settings Page ─────────────────────────────────────────────────
 
 class SettingsPage extends StatefulWidget {
   final SettingsManager settingsManager;
   final SettingsSaveService settingsSaveService;
-  final HistoryManager historyManager;
-  final HistoryBackupService historyBackupService;
-  final HistoryConsumer historyConsumer;
-  final StationManager stationManager;
 
   const SettingsPage(
     this.settingsManager,
-    this.settingsSaveService,
-    this.historyManager,
-    this.historyBackupService,
-    this.historyConsumer,
-    this.stationManager, {
+    this.settingsSaveService, {
     super.key,
   });
 
@@ -72,10 +59,9 @@ class _SettingsPageState extends ResetableState<SettingsPage> {
         title: Text(l10n.settingsPageTitle),
         actions: [
           AppBarAction(
-            onPressed: busy ? noop : _save,
+            onPressed: busy ? null : _save,
             icon: const Icon(Icons.save),
             tooltip: l10n.settingsSave,
-            color: busy ? const Color(0xFFA0C0FF) : Colors.white,
           ),
         ],
       ),
@@ -86,7 +72,7 @@ class _SettingsPageState extends ResetableState<SettingsPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // ── 検出駅数 ────────────────────────────────────────────
-              _SectionLabel(label: l10n.settingsStationCount),
+              Text(l10n.settingsStationCount),
               const SizedBox(height: 8),
               _SegmentedRow<StationCount>(
                 values: const [StationCount.game, StationCount.max],
@@ -97,9 +83,9 @@ class _SettingsPageState extends ResetableState<SettingsPage> {
                       () => _draft = _draft.copyWith(stationCount: v),
                     ),
               ),
+              const Divider(height: 16),
               // ── 位置情報取得頻度 ────────────────────────────────────
-              const SizedBox(height: 12),
-              _SectionLabel(label: l10n.settingsLocationInterval),
+              Text(l10n.settingsLocationInterval),
               const SizedBox(height: 8),
               _SegmentedRow<LocationInterval>(
                 values: LocationInterval.values,
@@ -110,9 +96,10 @@ class _SettingsPageState extends ResetableState<SettingsPage> {
                       () => _draft = _draft.copyWith(locationInterval: v),
                     ),
               ),
-              const SizedBox(height: 12),
-              _SectionLabel(label: l10n.settingsHistory),
-              const SizedBox(height: 4),
+              const Divider(height: 16),
+              // ── 历史记录开关 ────────────────────────────────────
+              Text(l10n.settingsHistory),
+              const SizedBox(height: 8),
               _CheckboxRow(
                 label: l10n.settingsHistoryEnabled,
                 value: _draft.historyEnabled,
@@ -120,65 +107,6 @@ class _SettingsPageState extends ResetableState<SettingsPage> {
                     (v) => setState(
                       () => _draft = _draft.copyWith(historyEnabled: v),
                     ),
-              ),
-              _CheckboxRow(
-                label: l10n.settingsHistoryMergeRapid,
-                value: _draft.historyMergeView,
-                onChanged:
-                    (v) => setState(
-                      () => _draft = _draft.copyWith(historyMergeView: v),
-                    ),
-              ),
-              const SizedBox(height: 8),
-              Container(
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFDCECFF),
-                  border: Border.all(color: const Color(0xFF4080FF)),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap:
-                      () => Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder:
-                              (_) => HistoryPage(
-                                widget.historyManager,
-                                widget.historyBackupService,
-                                widget.stationManager,
-                                _draft.historySettingsManager,
-                                widget.historyConsumer,
-                              ),
-                        ),
-                      ),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 10,
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.history, color: Color(0xFF4080FF)),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            l10n.historyOpen,
-                            style: TextStyle(
-                              color: Colors.grey.shade800,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ),
-                        Icon(
-                          Icons.chevron_right,
-                          color: Colors.grey.shade600,
-                          size: 20,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
               ),
             ],
           ),
@@ -210,10 +138,10 @@ class _SegmentedRow<T> extends StatelessWidget {
           values.map((v) {
             final isSelected = v == selected;
             return Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 2),
-                child: GestureDetector(
-                  onTap: () => onChanged(v),
+              child: GestureDetector(
+                onTap: () => onChanged(v),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 2),
                   child: Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 6,
@@ -285,7 +213,7 @@ class _CheckboxRow extends StatelessWidget {
       behavior: HitTestBehavior.opaque,
       onTap: () => onChanged(!value),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 2),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
@@ -314,18 +242,5 @@ class _CheckboxRow extends StatelessWidget {
         ),
       ),
     );
-  }
-}
-
-// ── Section label ─────────────────────────────────────────────────
-
-class _SectionLabel extends StatelessWidget {
-  final String label;
-
-  const _SectionLabel({required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(label, style: TextStyle(color: Colors.grey.shade600));
   }
 }

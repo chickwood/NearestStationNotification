@@ -100,10 +100,9 @@ class _InfoPageState extends ResetableState<InfoPage> {
         title: Text(l10n.infoPageTitle),
         actions: [
           AppBarAction(
-            onPressed: _importBusy ? noop : _import,
+            onPressed: _importBusy ? null : _import,
             icon: const Icon(Icons.file_open),
             tooltip: l10n.infoImport,
-            color: _importBusy ? const Color(0xFFA0C0FF) : Colors.white,
           ),
         ],
       ),
@@ -114,32 +113,30 @@ class _InfoPageState extends ResetableState<InfoPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // ── 駅情報（ライセンス入口）────────────────────────
-              _SectionLabel(label: l10n.infoTitle),
+              Text(l10n.infoTitle),
               const SizedBox(height: 8),
-              Container(
-                width: double.infinity,
-                alignment: Alignment.centerLeft,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFDCECFF),
-                  border: Border.all(color: const Color(0xFF4080FF)),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap:
-                      () => Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder:
-                              (_) => LicenseListPage(
-                                _stationManager,
-                                _eventManager,
-                              ),
-                        ),
+              GestureDetector(
+                // behavior: HitTestBehavior.opaque,
+                onTap:
+                    () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder:
+                            (_) =>
+                                LicenseListPage(_stationManager, _eventManager),
                       ),
-                  child: Padding(
+                    ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 2),
+                  child: Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
+                      horizontal: 6,
+                      vertical: 6,
+                    ),
+                    alignment: Alignment.centerLeft,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFDCECFF),
+                      border: Border.all(color: const Color(0xFF4080FF)),
+                      borderRadius: BorderRadius.circular(8),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
@@ -164,29 +161,29 @@ class _InfoPageState extends ResetableState<InfoPage> {
                   ),
                 ),
               ),
+              const Divider(height: 16),
               // ── 更新案内──────────────────────────────
-              const SizedBox(height: 12),
-              _SectionLabel(label: l10n.infoUpdateTitle),
+              Text(l10n.infoUpdateTitle),
               const SizedBox(height: 8),
-              Container(
-                width: double.infinity,
-                alignment: Alignment.centerLeft,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFDCECFF),
-                  border: Border.all(color: const Color(0xFF4080FF)),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap:
-                      () => launchUrl(
-                        Common.uriInformation,
-                        mode: LaunchMode.externalApplication,
-                      ),
-                  child: Padding(
+              GestureDetector(
+                // behavior: HitTestBehavior.opaque,
+                onTap:
+                    () => launchUrl(
+                      Common.uriInformation,
+                      mode: LaunchMode.externalApplication,
+                    ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 2),
+                  child: Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
+                      horizontal: 6,
+                      vertical: 6,
+                    ),
+                    alignment: Alignment.centerLeft,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFDCECFF),
+                      border: Border.all(color: const Color(0xFF4080FF)),
+                      borderRadius: BorderRadius.circular(8),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
@@ -213,18 +210,5 @@ class _InfoPageState extends ResetableState<InfoPage> {
         ),
       ),
     );
-  }
-}
-
-// ── Section label ─────────────────────────────────────────────────
-
-class _SectionLabel extends StatelessWidget {
-  final String label;
-
-  const _SectionLabel({required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(label, style: TextStyle(color: Colors.grey.shade600));
   }
 }

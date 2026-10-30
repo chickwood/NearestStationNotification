@@ -138,7 +138,7 @@ class _LicenseListPageState extends State<LicenseListPage> {
                     ),
                   ),
                 ),
-                const Divider(height: 8),
+                const Divider(height: 16),
                 // ── 通常のライセンス条目 ──────────────────────
                 ...licenses.map(
                   (entry) => GestureDetector(
@@ -224,7 +224,7 @@ class LicenseDetailPage extends StatelessWidget {
                           ..removeLast(),
                   )
                   // 4. 【外层拼装与截断】添加外层分隔符，并切掉最后一个
-                  .expand((texts) => [...texts, const Divider(height: 24)])
+                  .expand((texts) => [...texts, const Divider(height: 16)])
                   .toList()
                 ..removeLast(),
         ),

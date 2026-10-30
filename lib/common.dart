@@ -573,11 +573,11 @@ enum StationCount {
 enum StationCountPart { friend, event, radar, natsume }
 
 abstract class ResetableState<T extends StatefulWidget> extends State<T> {
-  void noop() {}
+  void _noop() {}
 
   void resetState() {
     if (!mounted) return;
-    setState(noop);
+    setState(_noop);
   }
 }
 
@@ -587,7 +587,8 @@ class AppBarAction extends IconButton {
     required super.onPressed,
     required super.icon,
     super.tooltip,
-    super.color,
+    super.color = Colors.white,
+    super.disabledColor = const Color(0xFFA0C0FF),
     super.constraints = const BoxConstraints(minWidth: 40, minHeight: 40),
     super.padding = EdgeInsets.zero,
     super.style = const ButtonStyle(
@@ -595,3 +596,34 @@ class AppBarAction extends IconButton {
     ),
   });
 }
+
+class AppBarMenu<T> extends PopupMenuButton<T> {
+  const AppBarMenu({
+    super.key,
+    required super.itemBuilder,
+    super.elevation,
+    super.enabled,
+    super.position,
+    super.tooltip,
+    super.icon,
+    super.iconColor = Colors.white,
+    super.constraints,
+    super.padding = EdgeInsets.zero,
+    super.style = const ButtonStyle(
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      minimumSize: WidgetStatePropertyAll(Size(40, 40)),
+      maximumSize: WidgetStatePropertyAll(Size(40, 40)),
+      padding: WidgetStatePropertyAll(EdgeInsets.zero),
+      foregroundColor: WidgetStateProperty<Color?>.fromMap(
+        <WidgetStatesConstraint, Color?>{
+          WidgetState.disabled: Color(0xFFA0C0FF),
+          WidgetState.any: Colors.white,
+        },
+      ),
+    ),
+    super.shape,
+    super.onSelected,
+  });
+}
+
+enum HomeMenuAction { settings, history, info }

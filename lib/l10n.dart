@@ -74,10 +74,22 @@ class L10n {
     return 'Location update stopped...';
   }
 
+  String get tapToStart {
+    if (_isJa) return '右上の▶をクリックして開始';
+    if (_isZhHans) return '点击右上角的▶开始定位';
+    return 'Tap ▶ in the title bar to start';
+  }
+
   String get waitingForLocation {
     if (_isJa) return '位置情報取得中...';
     if (_isZhHans) return '定位更新中...';
     return 'Location updating...';
+  }
+
+  String get waitingForLongtime {
+    if (_isJa) return '長時間固まると一回▶をクリックして一旦停止';
+    if (_isZhHans) return '长时间未能启动时再次点击▶可以暂时停止';
+    return 'Tap ▶ to stop once while not start for a long time';
   }
 
   String get latitude {
@@ -274,12 +286,6 @@ class L10n {
     if (_isJa) return '5分以内の再切替をまとめて表示';
     if (_isZhHans) return '将5分钟内反复切换的车站合并展示';
     return 'Merge repeat switches within 5 minutes';
-  }
-
-  String get historyOpen {
-    if (_isJa) return '履歴を開く';
-    if (_isZhHans) return '打开历史记录';
-    return 'Open History';
   }
 
   String get historyTitle {
