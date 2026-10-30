@@ -669,7 +669,6 @@ class _StationTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final isNearest = index == 0;
     return Container(
-      // margin: const EdgeInsets.only(bottom: 4),
       padding: EdgeInsets.symmetric(
         horizontal: 12,
         vertical: isNearest ? 8 : 6,

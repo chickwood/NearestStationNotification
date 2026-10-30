@@ -129,8 +129,8 @@ class _InfoPageState extends ResetableState<InfoPage> {
                   padding: const EdgeInsets.symmetric(horizontal: 2),
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 6,
-                      vertical: 6,
+                      horizontal: 12,
+                      vertical: 8,
                     ),
                     alignment: Alignment.centerLeft,
                     decoration: BoxDecoration(
@@ -176,8 +176,8 @@ class _InfoPageState extends ResetableState<InfoPage> {
                   padding: const EdgeInsets.symmetric(horizontal: 2),
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 6,
-                      vertical: 6,
+                      horizontal: 12,
+                      vertical: 8,
                     ),
                     alignment: Alignment.centerLeft,
                     decoration: BoxDecoration(

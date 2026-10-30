@@ -144,8 +144,8 @@ class _SegmentedRow<T> extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 2),
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 6,
-                      vertical: 6,
+                      horizontal: 12,
+                      vertical: 8,
                     ),
                     decoration: BoxDecoration(
                       color:
@@ -215,7 +215,7 @@ class _CheckboxRow extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 2),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
             color: value ? const Color(0xFFDCECFF) : Colors.white,
             border: Border.all(
@@ -226,7 +226,7 @@ class _CheckboxRow extends StatelessWidget {
           child: Row(
             children: [
               Icon(
-                value ? Icons.check : Icons.check_box_outline_blank,
+                value ? Icons.check_box : Icons.check_box_outline_blank,
                 color: value ? const Color(0xFF4080FF) : Colors.grey,
                 size: 20,
               ),

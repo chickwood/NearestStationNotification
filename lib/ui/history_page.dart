@@ -461,30 +461,32 @@ class _HistoryPageState extends ResetableState<HistoryPage> {
   }
 
   Widget _buildDateRow(int date) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: Colors.grey.shade300),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap:
-            () => Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder:
-                    (_) => HistoryDayPage(
-                      widget.historyConsumer,
-                      widget.historyManager,
-                      widget.stationManager,
-                      widget.settingsManager,
-                      date,
-                    ),
-              ),
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap:
+          () => Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder:
+                  (_) => HistoryDayPage(
+                    widget.historyConsumer,
+                    widget.historyManager,
+                    widget.stationManager,
+                    widget.settingsManager,
+                    date,
+                  ),
             ),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 2),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            border: Border.all(color: Colors.grey.shade300),
+            borderRadius: BorderRadius.circular(8),
+          ),
           child: Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
               Expanded(
                 child: Text(
@@ -869,46 +871,31 @@ class _HistoryStationTile extends StatelessWidget {
     final l10n = L10n.of(context);
     final displayName = name == null || name!.isEmpty ? '--' : name!;
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: Colors.grey.shade300),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 20,
-            height: 20,
-            decoration: BoxDecoration(
-              color: Colors.grey.shade200,
-              shape: BoxShape.circle,
-            ),
-            child: Icon(Icons.train, size: 14, color: Colors.grey.shade700),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              displayName,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: Colors.grey.shade800,
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 2),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          border: Border.all(color: Colors.grey.shade300),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 20,
+              height: 20,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade200,
+                shape: BoxShape.circle,
               ),
+              child: Icon(Icons.train, size: 14, color: Colors.grey.shade700),
             ),
-          ),
-          Container(
-            height: 20,
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            decoration: BoxDecoration(
-              color: Colors.grey.shade200,
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Center(
+            const SizedBox(width: 8),
+            Expanded(
               child: Text(
-                l10n.historyStationId(gcd),
+                displayName,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   color: Colors.grey.shade800,
                   fontSize: 12,
@@ -916,8 +903,26 @@ class _HistoryStationTile extends StatelessWidget {
                 ),
               ),
             ),
-          ),
-        ],
+            Container(
+              height: 20,
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade200,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Center(
+                child: Text(
+                  l10n.historyStationId(gcd),
+                  style: TextStyle(
+                    color: Colors.grey.shade800,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
