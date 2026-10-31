@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:math';
 
 import 'package:archive/archive_io.dart';
 import 'package:crypto/crypto.dart';
@@ -31,7 +30,6 @@ class HistoryManager {
   static final _hex64 = RegExp(r'^[0-9a-fA-F]{64}$');
 
   final Directory? _directory;
-  final Random _random = Random();
 
   Future<void> _lock = Future<void>.value();
 
@@ -330,16 +328,8 @@ class HistoryManager {
   Future<void> _consolidateLocked() async {
     if (_directory == null) return;
 
-    final date = Common.today();
-    final day = Common.dayOf(date);
-    if (day < Common.historyArchiveWindowStartDay) return;
-
-    final months = await _unarchivedMonthsLocked(Common.monthDateOf(date));
+    final months = await _unarchivedMonthsLocked(Common.currentMonth());
     if (months.isEmpty) return;
-
-    if (day <= Common.historyArchiveWindowEndDay && !_random.nextBool()) {
-      return;
-    }
 
     for (final month in months) {
       try {

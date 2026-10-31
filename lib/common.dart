@@ -21,8 +21,6 @@ class Common {
   static const historyFields = <String>['gcd', 'lat_e6', 'lon_e6', 'epoch'];
   static const historyMergeWindow = Duration(minutes: 5);
   static const historyBlockRowLimit = 5;
-  static const historyArchiveWindowStartDay = 3;
-  static const historyArchiveWindowEndDay = 10;
   static const historyManifestFileName = 'MANIFEST';
 
   // ── 导入 zip 限制 ──────────────────────────────────────────────

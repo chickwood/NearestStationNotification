@@ -282,7 +282,7 @@ class L10n {
     return 'Record station change history';
   }
 
-  String get settingsHistoryMergeRapid {
+  String get settingsHistoryMergeView {
     if (_isJa) return '5分以内の再切替をまとめて表示';
     if (_isZhHans) return '将5分钟内反复切换的车站合并展示';
     return 'Merge repeat switches within 5 minutes';

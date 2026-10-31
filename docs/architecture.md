@@ -155,8 +155,7 @@ lib/
 - **合法性**：`date >= 10000101` 且经 `DateTime(y, m, d)` 回检；`0` 表示「未设置」必须放行（`StationManager` 空实例的 `date` / `pdate` 为 0）。
 - **文件名**：由 `int` 直接插值，日 `$date.ndjson`（8 位）、月 `$month.zip`（6 位），年份 ≥ 1000 时位数天然正确；目录扫描仍以 `^\d{8}$` / `^\d{6}$` 正则取名字，再 `int.parse` 成 `date` / `month`。
 - **状态**：HistoryPage 的当前月 / 最早月直接保存 `int month`（`yyyyMM`），不使用 `DateTime` 字段或参数；月份比较直接比较 `int`，月份加减走 `Common.addMonths()`。
-- **分量例外**：除键的生成 / 解析 / 合法性回检与页面标题显示之外，全项目只有以下两处需要用到分量，且都不改变「`int date` 是唯一日期表示」的约定：
-  - 月度归档调度：按当前日序（`date % 100`，即当月第几天）判断 3 日 / 10 日窗口，只需要「日」，不需要年与月
+- **分量例外**：除键的生成 / 解析 / 合法性回检与页面标题显示之外，全项目只有以下一处需要用到分量，且不改变「`int date` 是唯一日期表示」的约定：
   - `showDatePicker` 的 `initialDate` / `firstDate` / `lastDate`：需要年 + 月 + 日构造边界
 - **边界例外**：`DateTime` 只出现在 `DateTime.now()`、`showDatePicker`、与 epoch 互转、UI 文本格式化过程中，不作为字段、参数或 Map key 的日期类型。
 - **`epoch`**：int 毫秒是另一套时间表示，与 `date` 并存但语义不同，命名必须是 `epoch` / `...Epoch`，不得写成 `date*`。
@@ -638,11 +637,11 @@ ZIP 限制与规则：
 职责：
 
 - 历史文件存储与查询：`appendRecords()`、`readDay(int date)`、`readMonth(int month)`、`listDays(int month)`、`listMonths()`；日期 / 月份入参与返回值均为 `int`（见 `Date Representation`）
-- `listMonths()` 每次调用直接扫描目录内所有 `YYYYMM.zip` / `YYYYMMdd.ndjson`，不受 3–10 日窗口限制；该窗口只控制 `consolidateIfDue()` 的归档执行时机
+- `listMonths()` 每次调用直接扫描目录内所有 `YYYYMM.zip` / `YYYYMMdd.ndjson`，不受归档调度限制；调度只控制 `consolidateIfDue()` 的执行时机
 - 由 HistoryConsumer 在 flush 时按日分组调用 `appendRecords()`（10 条 / 首条起算 5 分钟）；不注册定位 handler，不持有当天内存记录
 - 不提供单条追加入口：单条写入也走 `appendRecords()`，调用方不感知批大小
 - 日文件 `history/YYYYMMDD.ndjson` 创建与追加（新文件先写 header）
-- 月度合并：启动时扫描早于当前月的未归档月份；3 日前不归档；3–10 日用一个随机值统一决定；10 日后直接补做
+- 月度合并：每次启动扫描早于当前月的未归档月份；没有未归档月份时直接跳过，归档成功后该月不再命中，因此正常情况下每月只发生一次；失败保留日文件，下次启动重试
 - 月度归档 `history/YYYYMM.zip`（内含 `YYYYMM.ndjson` + `SHA256SUMS`），成功后删除该月日文件
 - 读取月份/日期；迟到日文件与月度 ZIP 合并、去重
 - 全量备份导出：外层 ZIP 根目录放月度 ZIP、日 NDJSON、`MANIFEST`、`SHA256SUMS`；`createBackup()` 返回写入 `MANIFEST` 的 `exportedAt`（epoch ms），供调用方命名文件
@@ -752,8 +751,7 @@ ZIP 限制与规则：
 settings page：
 
 - 负责设置项编辑（本地草稿 `_draft`）；保存时点击 AppBar 右侧保存图标，调用 `SettingsSaveService.save(_draft)`
-- 历史记录区块：记录总开关
-- 合并展示开关（`historyMergeView`）不在 settings page 编辑，但仍保留在 `SettingsManager` 与持久化中；将来由 HistoryPage 的按钮实时修改并保存
+- 历史记录区块：记录总开关、5 分钟合并展示 checkbox（`historyMergeView`）
 - 订阅 `SettingsSaveService.busy`：busy 期间禁用保存图标；页面通过 AppBar 左侧返回或系统返回离开，不使用 X、底部按钮栏或点击遮罩关闭
 - 订阅 `SettingsSaveService.last` 仅用于刷新自身状态；成功/失败都不自动返回
 - 不执行持久化、不弹 Toast、不接收 StationManager / EventManager 参数；仅接收 `SettingsManager` 与 `SettingsSaveService`
@@ -1102,13 +1100,23 @@ HistoryBackupService.last = success / cancelled / failure
 - 历史记录不设条数上限，不删除月度归档，不提供清空。
 - 当前只有 v1，不存在旧版历史数据迁移；读取时坏行跳过，坏文件保留并记录日志。
 
+### Data Volume Estimate
+
+以下是设计期容量估算，不是运行时统计，也不是强制上限：
+
+- 当前 v1 每条数据行约 40–50 B（7 位 gcd、8 位纬度 e6、9 位经度 e6、13 位 epoch、分隔符与换行），每个日文件另加约 50–60 B header。
+- 标准低档 533 条/天：约 21–27 KB/天；31 天约 16,523 条、0.66–0.83 MB/月；10 年约 194.5 万条、78–98 MB。
+- 标准高档 800 条/天：约 32–40 KB/天；31 天约 24,800 条、0.99–1.24 MB/月；10 年约 292 万条、117–146 MB。
+- 以上均按 v1 未压缩 NDJSON 估算，不含文件系统块开销；ZIP 备份通常更小。
+- 历史记录不因该估算设置条数上限或自动清理；备份导入的硬性大小限制见 `Backup and Restore`。
+
 ### Write and Archive
 
 - 记录由 HistoryConsumer 判定后进入 pending，批量写入时日文件由 HistoryManager 依 epoch 的本地日期（`date`）选择；同一天的多条在一次 `appendRecords()` 中写入（单次 open / write / flush / close）；新日文件先写 header；pending 清空后取消定时器并清除窗口起点。
 - 落盘时机契约：计数阈值 10 条，或时间窗口自 pending 0→1 起算满 5 分钟。窗口不等同于“距上次落盘 5 分钟”，空闲期不产生写盘，空闲后的首条记录完整等待 5 分钟。
 - 实现（已落地）：窗口起点为 `_pendingSince`（pending 0→1 时刻）；`_flushPending` 按日分组调用 `appendRecords()`，成功后按引用移除该组记录。
 - 月度合并目标：所有早于当前月且未归档的月份（`YYYYMM.zip` 缺失或仍有该月日文件）。
-- 调度：3 日前不归档；3–10 日生成一个随机值统一决定所有未归档过往月；10 日后直接补做。
+- 调度：每次启动执行一次；存在早于当前月且未归档的月份（`YYYYMM.zip` 缺失或仍有该月日文件）时归档，否则直接返回；归档失败留下日文件，下次启动重试。
 - 合并：读取该月所有日文件与现有月度 ZIP 的 NDJSON，去重、按 epoch 升序；写临时 NDJSON → 临时 ZIP → rename → 删除日文件；失败保留日文件。
 - 所有写入与读取使用同一把异步串行锁，避免 append / 归档 / 备份 / 导入相互覆盖。
 
