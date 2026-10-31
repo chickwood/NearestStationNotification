@@ -108,6 +108,14 @@ class _SettingsPageState extends ResetableState<SettingsPage> {
                       () => _draft = _draft.copyWith(historyEnabled: v),
                     ),
               ),
+              _CheckboxRow(
+                label: l10n.settingsHistoryMergeView,
+                value: _draft.historyMergeView,
+                onChanged:
+                    (v) => setState(
+                      () => _draft = _draft.copyWith(historyMergeView: v),
+                    ),
+              ),
             ],
           ),
         ),
