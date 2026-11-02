@@ -1,7 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
-import 'package:geolocator/geolocator.dart';
+import 'package:location/location.dart';
 
 import 'common.dart';
 import 'l10n.dart';
@@ -30,7 +29,7 @@ class LocationProcessor {
   static const _queueSize = 3;
   final List<PositionResult> _positionQueue = [];
 
-  StreamSubscription<Position>? _positionSubscription;
+  StreamSubscription<LocationData>? _positionSubscription;
 
   // 結果コールバック（Coordinator が登録）
   LocationHandler? _onLocationUpdated;
@@ -51,11 +50,11 @@ class LocationProcessor {
   // ── 起動・停止 ────────────────────────────────────────────────────
 
   Future<void> start() async {
-    _startStream();
+    await _startStream();
   }
 
   Future<void> stop() async {
-    _stopStream();
+    await _stopStream();
   }
 
   // ── 状態の変更 ──────────────────────────────────────────────────────
@@ -71,7 +70,7 @@ class LocationProcessor {
 
     if (_positionSubscription != null) {
       if (intervalChanged) {
-        _startStream();
+        await _startStream();
       }
 
       if (countChanged) {
@@ -98,12 +97,12 @@ class LocationProcessor {
   }
 
   /// 系统语言更新
-  void changeLocale(L10n l10n) {
+  Future<void> changeLocale(L10n l10n) async {
     _l10n = l10n;
 
     // 前台通知テキストを即座反映するため流を再起動
     if (_positionSubscription != null) {
-      _startStream();
+      await _startStream();
     }
   }
 
@@ -116,66 +115,69 @@ class LocationProcessor {
 
   // ── GPS Stream ───────────────────────────────────────────────────
 
-  void _startStream() {
+  Future<void> _startStream() async {
     final distanceFilter =
         _positionQueue.isNotEmpty
             ? _positionQueue.last.samplingMode.filter
             : SamplingMode.staying.filter;
     final milliseconds = _settingsManager.locationInterval.milliseconds;
 
-    final locationSettings = switch (defaultTargetPlatform) {
-      TargetPlatform.android => AndroidSettings(
-        accuracy: LocationAccuracy.high,
-        distanceFilter: distanceFilter,
-        intervalDuration: Duration(milliseconds: milliseconds),
-        foregroundNotificationConfig: ForegroundNotificationConfig(
-          notificationChannelName: _l10n.fgnChannelName,
-          notificationTitle: _l10n.fgnNotificationTitle,
-          notificationText: _l10n.fgnNotificationBody,
-          notificationIcon: const AndroidResource(
-            name: Common.flnNotificationIcon,
-            defType: 'drawable',
-          ),
-          enableWakeLock: true,
-        ),
-      ),
-      TargetPlatform.iOS || TargetPlatform.macOS => AppleSettings(
-        accuracy: LocationAccuracy.bestForNavigation,
-        distanceFilter: distanceFilter,
-        activityType: ActivityType.otherNavigation,
-        showBackgroundLocationIndicator: true,
-      ),
-      _ => LocationSettings(
-        accuracy: LocationAccuracy.high,
-        distanceFilter: distanceFilter,
-      ),
-    };
-
     _positionSubscription?.cancel();
-    _positionSubscription = Geolocator.getPositionStream(
-      locationSettings: locationSettings,
-    ).listen((position) {
-      if (_handlePositionUpdated(position) case final positionResult?) {
+    _positionSubscription = null;
+
+    await Location.instance.changeSettings(
+      accuracy: LocationAccuracy.high,
+      interval: milliseconds,
+      distanceFilter: distanceFilter,
+      pausesLocationUpdatesAutomatically: false,
+      backgroundInterval: milliseconds,
+    );
+
+    await Location.instance.changeNotificationOptions(
+      channelName: _l10n.fgnChannelName,
+      title: _l10n.fgnNotificationTitle,
+      description: _l10n.fgnNotificationBody,
+      iconName: Common.flnNotificationIcon,
+    );
+
+    await Location.instance.enableBackgroundMode(
+      enable: true,
+      requireBackgroundPermission: false,
+    );
+
+    _positionSubscription = Location.instance.onLocationChanged.listen((
+      position,
+    ) async {
+      if (await _handlePositionUpdated(position) case final positionResult?) {
         _updateSearchResult(positionResult);
       }
     });
   }
 
-  void _stopStream() {
+  Future<void> _stopStream() async {
     _positionSubscription?.cancel();
     _positionSubscription = null;
+
+    await Location.instance.enableBackgroundMode(enable: false);
 
     _positionQueue.clear();
   }
 
   // ── 位置更新処理（GPS Stream）────────────────────────────
 
-  PositionResult? _handlePositionUpdated(Position position) {
+  Future<PositionResult?> _handlePositionUpdated(LocationData position) async {
     // 基础数据
     final userLatitude = position.latitude;
     final userLongitude = position.longitude;
-    final userHeading = position.heading;
-    final userSpeed = position.speed < 0 ? 0.0 : position.speed;
+    final userHeading = position.heading ?? 0.0;
+    final rawSpeed = position.speed ?? -1.0;
+    final userSpeed = rawSpeed < 0.0 ? 0.0 : rawSpeed;
+    final userAccuracy = position.accuracy ?? 0.0;
+    final rawTimestamp = position.time ?? -1.0;
+    final userTimestamp =
+        rawTimestamp < 0.0
+            ? DateTime.now()
+            : DateTime.fromMillisecondsSinceEpoch(rawTimestamp.round());
     var userMode = Common.sampling(userSpeed);
 
     // 最新采样点先进入队列
@@ -185,9 +187,9 @@ class LocationProcessor {
         latitude: userLatitude,
         longitude: userLongitude,
         speed: userSpeed,
-        accuracy: position.accuracy,
+        accuracy: userAccuracy,
         heading: userHeading,
-        timestamp: position.timestamp,
+        timestamp: userTimestamp,
       ),
     );
 
@@ -248,12 +250,12 @@ class LocationProcessor {
         // 最新可信采样点是高速
         // 并且当前处于观察者模式
         // 视为进入加速状态或者高速稳定状态
-        if (isObserving) _startStream(); // 重启流
+        if (isObserving) await _startStream(); // 重启流
       } else {
         // 最新可信采样点是低速
         // 但是前一个可信采样点是高速
         // 视为进入减速状态
-        if (prevMode == SamplingMode.transit) _startStream(); // 重启流
+        if (prevMode == SamplingMode.transit) await _startStream(); // 重启流
       }
     }
 
