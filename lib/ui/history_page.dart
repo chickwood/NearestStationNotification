@@ -2,29 +2,35 @@ import 'dart:async';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:nearest_station_notification/manager/settings_manager.dart';
 
 import '../common.dart';
 import '../consumer/history_consumer.dart';
 import '../l10n.dart';
 import '../manager/history_manager.dart';
+import '../manager/settings_manager.dart';
 import '../manager/station_manager.dart';
 import '../service/history_backup_service.dart';
 import 'history_date_picker.dart';
 
+enum _HistoryViewMode { day, month }
+
 class HistoryPage extends StatefulWidget {
+  final HistoryConsumer historyConsumer;
   final HistoryManager historyManager;
   final HistoryBackupService historyBackupService;
   final StationManager stationManager;
   final HistorySettingsManager settingsManager;
-  final HistoryConsumer historyConsumer;
+  final Future<bool> Function(bool value) onHistoryMergeViewChanged;
+  final int date;
 
   const HistoryPage(
+    this.historyConsumer,
     this.historyManager,
     this.historyBackupService,
     this.stationManager,
     this.settingsManager,
-    this.historyConsumer, {
+    this.onHistoryMergeViewChanged,
+    this.date, {
     super.key,
   });
 
@@ -33,14 +39,24 @@ class HistoryPage extends StatefulWidget {
 }
 
 class _HistoryPageState extends ResetableState<HistoryPage> {
+  _HistoryViewMode _mode = _HistoryViewMode.day;
+  late int _selectedDate;
   late int _selectedMonth;
-  late int _earliestMonth;
 
-  List<int> _months = const [];
-  List<int> _dates = const [];
+  List<HistoryRecord> _dayRecords = const [];
+  _MonthCache? _monthCache;
+
+  final Map<int, List<_HistoryBlock>> _blocksByDay = {};
+  List<int> _storedMonths = const [];
+  List<int> _availableMonths = const [];
+  List<int> _availableDates = const [];
 
   bool _loading = true;
-  int _loadId = 0;
+  int _loadGeneration = 0;
+  bool _pickingMonth = false;
+  bool _hasHistory = false;
+  late bool _mergeView;
+  bool _savingMergeView = false;
 
   bool _backupWasBusy = false;
   HistoryBackupAction? _runningAction;
@@ -49,34 +65,166 @@ class _HistoryPageState extends ResetableState<HistoryPage> {
   void initState() {
     super.initState();
 
-    _selectedMonth = Common.currentMonth();
-    _earliestMonth = _selectedMonth;
+    _mergeView = widget.settingsManager.historyMergeView;
+    _selectedDate = widget.date;
+    _selectedMonth = Common.monthDateOf(widget.date);
+    _mode =
+        _selectedMonth == Common.currentMonth()
+            ? _HistoryViewMode.day
+            : _HistoryViewMode.month;
 
     _backupWasBusy = widget.historyBackupService.busy.value;
+    widget.historyConsumer.pendingRevision.addListener(_handlePendingChanged);
     widget.historyBackupService.busy.addListener(_handleBackupChanged);
     widget.historyBackupService.progress.addListener(_handleBackupChanged);
-    widget.historyConsumer.pendingRevision.addListener(_handlePendingChanged);
-    widget.historyConsumer.flushCount.addListener(_handleFlushChanged);
 
-    unawaited(_loadMonths(_selectedMonth));
+    unawaited(_loadAvailableMonths());
+    unawaited(_reload());
   }
 
   @override
   void dispose() {
-    widget.historyBackupService.busy.removeListener(_handleBackupChanged);
-    widget.historyBackupService.progress.removeListener(_handleBackupChanged);
     widget.historyConsumer.pendingRevision.removeListener(
       _handlePendingChanged,
     );
-    widget.historyConsumer.flushCount.removeListener(_handleFlushChanged);
+    widget.historyBackupService.busy.removeListener(_handleBackupChanged);
+    widget.historyBackupService.progress.removeListener(_handleBackupChanged);
     super.dispose();
   }
 
-  void _handlePendingChanged() => resetState();
+  // ── データ読み込み ────────────────────────────────────────────────
 
-  void _handleFlushChanged() {
+  Future<void> _loadAvailableMonths() async {
+    try {
+      final stored = await widget.historyManager.listMonths();
+      final currentMonthDays = await widget.historyManager.listDays(
+        Common.currentMonth(),
+      );
+      if (!mounted) return;
+      _applyAvailableMonths(stored, currentMonthDays);
+    } catch (e, st) {
+      debugPrint('error: $e\n$st');
+    }
+  }
+
+  void _applyAvailableMonths(List<int> stored, List<int> currentMonthDays) {
+    final currentMonth = Common.currentMonth();
+    final months = <int>{...stored, currentMonth};
+    final dates = <int>{...currentMonthDays};
+
+    for (final record in widget.historyConsumer.pendingRecords) {
+      final date = Common.dateOfEpoch(record.epoch);
+      if (Common.monthDateOf(date) == currentMonth) dates.add(date);
+      months.add(Common.monthDateOf(date));
+    }
+    final sorted = months.toList()..sort((a, b) => b.compareTo(a));
+    final sortedDates = dates.toList()..sort();
+
+    setState(() {
+      _storedMonths = stored;
+      _availableMonths = List<int>.unmodifiable(sorted);
+      _availableDates = List<int>.unmodifiable(sortedDates);
+      _hasHistory =
+          stored.isNotEmpty || widget.historyConsumer.pendingRecords.isNotEmpty;
+    });
+  }
+
+  Future<void> _reload() async {
+    final generation = ++_loadGeneration;
+    _blocksByDay.clear();
+
+    try {
+      if (_mode == _HistoryViewMode.day) {
+        final records = await widget.historyManager.readDayFile(_selectedDate);
+        if (!mounted || generation != _loadGeneration) return;
+        setState(() {
+          _dayRecords = HistoryRecord.mergeDedup([
+            ...records,
+            ..._pendingForDay(),
+          ]);
+          _loading = false;
+        });
+      } else {
+        final records = await widget.historyManager.readMonth(_selectedMonth);
+        if (!mounted || generation != _loadGeneration) return;
+        setState(() {
+          _monthCache = _MonthCache.build(records, _mergeView);
+          _loading = false;
+        });
+      }
+    } catch (e, st) {
+      debugPrint('error: $e\n$st');
+      if (!mounted || generation != _loadGeneration) return;
+      setState(() {
+        if (_mode == _HistoryViewMode.day) {
+          _dayRecords = const [];
+        } else {
+          _monthCache = _MonthCache.build(const [], _mergeView);
+        }
+        _loading = false;
+      });
+    }
+  }
+
+  List<HistoryRecord> _pendingForDay([List<HistoryRecord>? pending]) {
+    final source = pending ?? widget.historyConsumer.pendingRecords;
+    return [
+      for (final record in source)
+        if (Common.dateOfEpoch(record.epoch) == _selectedDate) record,
+    ];
+  }
+
+  Future<void> _selectDay(int date) async {
+    _loadGeneration++;
+    setState(() {
+      _mode = _HistoryViewMode.day;
+      _selectedDate = date;
+      _selectedMonth = Common.monthDateOf(date);
+      _dayRecords = const [];
+      _monthCache = null;
+      _blocksByDay.clear();
+      _loading = true;
+    });
+    await _reload();
+  }
+
+  Future<void> _selectMonth(int month) async {
+    _loadGeneration++;
+    setState(() {
+      _mode = _HistoryViewMode.month;
+      _selectedMonth = month;
+      _dayRecords = const [];
+      _monthCache = null;
+      _blocksByDay.clear();
+      _loading = true;
+    });
+    await _reload();
+  }
+
+  // ── 購読 ────────────────────────────────────────────────────────
+
+  void _handlePendingChanged() {
     if (!mounted) return;
-    unawaited(_loadMonths(_selectedMonth, quiet: true));
+
+    final pending = widget.historyConsumer.pendingRecords;
+    final months = <int>{..._storedMonths, Common.currentMonth()};
+    for (final record in pending) {
+      months.add(Common.monthDateOf(Common.dateOfEpoch(record.epoch)));
+    }
+    final sorted = months.toList()..sort((a, b) => b.compareTo(a));
+
+    setState(() {
+      _availableMonths = List<int>.unmodifiable(sorted);
+      if (pending.isNotEmpty) _hasHistory = true;
+
+      if (_mode == _HistoryViewMode.day && !_loading) {
+        _dayRecords = HistoryRecord.mergeDedup([
+          ..._dayRecords,
+          ..._pendingForDay(pending),
+        ]);
+        _blocksByDay.remove(_selectedDate);
+      }
+    });
   }
 
   void _handleBackupChanged() {
@@ -87,149 +235,77 @@ class _HistoryPageState extends ResetableState<HistoryPage> {
     _backupWasBusy = busy;
 
     if (finished) {
-      unawaited(_refresh());
+      unawaited(_refreshAfterBackup());
       return;
     }
 
     resetState();
   }
 
-  List<int> get _visibleDates {
-    final dates = List<int>.of(_dates);
-    final month = _selectedMonth;
-    for (final record in widget.historyConsumer.pendingRecords) {
-      final date = Common.dateOfEpoch(record.epoch);
-      if (Common.monthDateOf(date) != month) continue;
-      if (!dates.contains(date)) dates.add(date);
-    }
-    dates.sort((a, b) => b.compareTo(a));
-    return dates;
+  Future<void> _refreshAfterBackup() async {
+    await _loadAvailableMonths();
+    if (!mounted) return;
+    await _reload();
+    if (mounted) resetState();
   }
 
-  bool get _hasHistory =>
-      _months.isNotEmpty || widget.historyConsumer.pendingRecords.isNotEmpty;
+  Future<void> _toggleMergeView() async {
+    if (_savingMergeView) return;
 
-  Future<void> _loadMonths(int month, {bool quiet = false}) async {
-    final loadId = ++_loadId;
-    if (!quiet) {
-      setState(() {
-        _loading = true;
-      });
-    }
-
-    try {
-      final storedMonths = await widget.historyManager.listMonths();
-      final current = Common.currentMonth();
-      final months = List<int>.of(storedMonths);
-      for (final record in widget.historyConsumer.pendingRecords) {
-        final monthDate = Common.monthDateOf(Common.dateOfEpoch(record.epoch));
-        if (!months.contains(monthDate)) months.add(monthDate);
-      }
-      months.sort((a, b) => b.compareTo(a));
-
-      var earliest = months.isEmpty ? current : months.last;
-      if (earliest > current) earliest = current;
-
-      var target = month;
-      if (target < earliest) target = earliest;
-      if (target > current) target = current;
-
-      final days = await widget.historyManager.listDays(target);
-
-      if (!mounted || loadId != _loadId) return;
-      setState(() {
-        _months = months;
-        _earliestMonth = earliest;
-        _selectedMonth = target;
-        _dates = days;
-        _loading = false;
-      });
-    } catch (e, st) {
-      debugPrint('error: $e\n$st');
-      if (!mounted || loadId != _loadId) return;
-      if (quiet) return;
-      setState(() {
-        _dates = const [];
-        _loading = false;
-      });
-    }
-  }
-
-  Future<void> _loadMonth(int month) async {
-    final loadId = ++_loadId;
+    final next = !_mergeView;
     setState(() {
-      _selectedMonth = month;
-      _loading = true;
-      _dates = const [];
+      _savingMergeView = true;
+      _mergeView = next;
+      _blocksByDay.clear();
+      final cache = _monthCache;
+      if (cache != null) _monthCache = cache.withMergeView(next);
     });
 
-    try {
-      final days = await widget.historyManager.listDays(month);
-      if (!mounted || loadId != _loadId) return;
-      setState(() {
-        _dates = days;
-        _loading = false;
-      });
-    } catch (e, st) {
-      debugPrint('error: $e\n$st');
-      if (!mounted || loadId != _loadId) return;
-      setState(() {
-        _dates = const [];
-        _loading = false;
-      });
-    }
+    final succeeded = await widget.onHistoryMergeViewChanged(next);
+    if (!mounted) return;
+
+    setState(() {
+      if (!succeeded) {
+        _mergeView = !next;
+        _blocksByDay.clear();
+        final cache = _monthCache;
+        if (cache != null) _monthCache = cache.withMergeView(!next);
+      }
+      _savingMergeView = false;
+    });
   }
 
-  Future<void> _refresh() async {
-    await _loadMonths(_selectedMonth);
-  }
-
-  Future<void> _previousMonth() async {
-    await _loadMonth(Common.addMonths(_selectedMonth, -1));
-  }
-
-  Future<void> _nextMonth() async {
-    await _loadMonth(Common.addMonths(_selectedMonth, 1));
-  }
+  // ── カレンダー ──────────────────────────────────────────────────
 
   Future<void> _pickMonth() async {
-    if (_loading) return;
+    if (_pickingMonth) return;
 
-    final availableMonths = <int>{
-      ..._months,
-      for (final record in widget.historyConsumer.pendingRecords)
-        Common.monthDateOf(Common.dateOfEpoch(record.epoch)),
-    };
+    _pickingMonth = true;
+    try {
+      await _loadAvailableMonths();
+      if (!mounted) return;
 
-    final picked = await showHistoryDatePicker(
-      context,
-      availableMonths: availableMonths,
-      initialMonth: _selectedMonth,
-    );
-    if (picked == null || !mounted) return;
-
-    if (picked >= 10000101) {
-      final month = Common.monthDateOf(picked);
-      if (month != _selectedMonth) {
-        await _loadMonth(month);
-        if (!mounted) return;
-      }
-      await Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          builder:
-              (_) => HistoryDayPage(
-                widget.historyConsumer,
-                widget.historyManager,
-                widget.stationManager,
-                widget.settingsManager,
-                picked,
-              ),
-        ),
+      final picked = await showHistoryDatePicker(
+        context,
+        availableMonths: _availableMonths,
+        availableDates: _availableDates,
+        initialMonth: _selectedMonth,
+        selectedDate: _mode == _HistoryViewMode.day ? _selectedDate : null,
       );
-    } else {
-      await _loadMonth(picked);
+      if (picked == null || !mounted) return;
+
+      if (picked >= 10000101) {
+        await _selectDay(picked);
+      } else {
+        await _selectMonth(picked);
+      }
+    } finally {
+      _pickingMonth = false;
+      if (mounted) resetState();
     }
   }
+
+  // ── バックアップ ────────────────────────────────────────────────
 
   Future<void> _export() async {
     if (_runningAction != null || widget.historyBackupService.busy.value) {
@@ -274,6 +350,7 @@ class _HistoryPageState extends ResetableState<HistoryPage> {
       context: context,
       builder:
           (context) => AlertDialog(
+            backgroundColor: Theme.of(context).colorScheme.surface,
             content: Text(l10n.historyImportConfirm),
             actions: [
               TextButton(
@@ -326,27 +403,34 @@ class _HistoryPageState extends ResetableState<HistoryPage> {
     setState(() => _runningAction = null);
   }
 
-  bool get _canPrevious => _selectedMonth > _earliestMonth;
+  // ── ブロック ────────────────────────────────────────────────────
 
-  bool get _canNext => _selectedMonth < Common.currentMonth();
+  List<_HistoryBlock> _blocksForDay(int date, List<HistoryRecord> records) =>
+      _blocksByDay.putIfAbsent(date, () => _buildBlocks(records));
+
+  // ── 描画 ────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
     final l10n = L10n.of(context);
-    final busy = widget.historyBackupService.busy.value;
-    final calendarDisabled = busy || _loading;
-    final exportDisabled = busy || _runningAction != null || !_hasHistory;
-    final importDisabled = busy || _runningAction != null;
+    final backupBusy = widget.historyBackupService.busy.value;
+    final calendarDisabled = backupBusy || _pickingMonth;
+    final exportDisabled = backupBusy || _runningAction != null || !_hasHistory;
+    final importDisabled = backupBusy || _runningAction != null;
 
     return Scaffold(
       backgroundColor: Colors.grey.shade50,
       appBar: AppBar(
+        backgroundColor: const Color(0xFF4080FF),
+        foregroundColor: Colors.white,
         title: Text(l10n.historyTitle),
         actions: [
           AppBarAction(
-            onPressed: busy ? null : _refresh,
-            icon: const Icon(Icons.refresh),
-            tooltip: l10n.historyRefresh,
+            onPressed: _savingMergeView ? null : _toggleMergeView,
+            icon: Icon(_mergeView ? Icons.view_agenda : Icons.view_list),
+            color: _mergeView ? Colors.white : const Color(0xFFA0C0FF),
+            disabledColor: _mergeView ? Colors.white : const Color(0xFFA0C0FF),
+            tooltip: l10n.historyMergeViewState(_mergeView),
           ),
           AppBarAction(
             onPressed: calendarDisabled ? null : _pickMonth,
@@ -367,7 +451,7 @@ class _HistoryPageState extends ResetableState<HistoryPage> {
       ),
       body: Column(
         children: [
-          if (busy)
+          if (backupBusy)
             Column(
               children: [
                 if (_runningAction != null)
@@ -393,45 +477,7 @@ class _HistoryPageState extends ResetableState<HistoryPage> {
                 ),
               ],
             ),
-          _buildMonthNavigator(l10n),
           Expanded(child: _buildBody(l10n)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMonthNavigator(L10n l10n) {
-    return Container(
-      color: Colors.white,
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-      child: Row(
-        children: [
-          IconButton(
-            onPressed: _canPrevious ? _previousMonth : null,
-            icon: const Icon(Icons.chevron_left),
-            tooltip: l10n.historyPrevMonth,
-            color: const Color(0xFF4080FF),
-            disabledColor: Colors.grey.shade300,
-          ),
-          Expanded(
-            child: Center(
-              child: Text(
-                _monthLabel(_selectedMonth),
-                style: TextStyle(
-                  color: Colors.grey.shade800,
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ),
-          IconButton(
-            onPressed: _canNext ? _nextMonth : null,
-            icon: const Icon(Icons.chevron_right),
-            tooltip: l10n.historyNextMonth,
-            color: const Color(0xFF4080FF),
-            disabledColor: Colors.grey.shade300,
-          ),
         ],
       ),
     );
@@ -442,228 +488,35 @@ class _HistoryPageState extends ResetableState<HistoryPage> {
       return const Center(child: CircularProgressIndicator());
     }
 
-    final dates = _visibleDates;
-    if (dates.isEmpty) {
-      return Center(
-        child: Text(
-          l10n.historyMonthEmpty,
-          style: TextStyle(color: Colors.grey.shade600),
-        ),
-      );
+    if (_mode == _HistoryViewMode.day) {
+      return _buildDayView(l10n);
     }
-
-    return ListView.separated(
-      padding: const EdgeInsets.all(12),
-      itemCount: dates.length,
-      itemBuilder: (context, index) => _buildDateRow(dates[index]),
-      separatorBuilder: (context, index) => const SizedBox(height: 4),
-    );
+    return _buildMonthView(l10n);
   }
 
-  Widget _buildDateRow(int date) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap:
-          () => Navigator.of(context).push(
-            MaterialPageRoute<void>(
-              builder:
-                  (_) => HistoryDayPage(
-                    widget.historyConsumer,
-                    widget.historyManager,
-                    widget.stationManager,
-                    widget.settingsManager,
-                    date,
-                  ),
-            ),
-          ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 2),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            border: Border.all(color: Colors.grey.shade300),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Expanded(
-                child: Text(
-                  _dateLabel(date),
-                  style: TextStyle(
-                    color: Colors.grey.shade800,
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-              Icon(Icons.chevron_right, color: Colors.grey.shade600, size: 20),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class HistoryDayPage extends StatefulWidget {
-  final HistoryConsumer historyConsumer;
-  final HistoryManager historyManager;
-  final StationManager stationManager;
-  final HistorySettingsManager settingsManager;
-  final int date;
-
-  const HistoryDayPage(
-    this.historyConsumer,
-    this.historyManager,
-    this.stationManager,
-    this.settingsManager,
-    this.date, {
-    super.key,
-  });
-
-  @override
-  State<HistoryDayPage> createState() => _HistoryDayPageState();
-}
-
-class _HistoryDayPageState extends ResetableState<HistoryDayPage> {
-  List<HistoryRecord>? _records;
-  List<HistoryRecord> _diskRecords = const [];
-  int _loadId = 0;
-  bool _syncingFlush = false;
-
-  @override
-  void initState() {
-    super.initState();
-    widget.historyConsumer.pendingRevision.addListener(_handlePendingChanged);
-    widget.historyConsumer.flushCount.addListener(_handleHistoryFlushChanged);
-    unawaited(_load());
-  }
-
-  @override
-  void dispose() {
-    widget.historyConsumer.pendingRevision.removeListener(
-      _handlePendingChanged,
-    );
-    widget.historyConsumer.flushCount.removeListener(
-      _handleHistoryFlushChanged,
-    );
-    super.dispose();
-  }
-
-  List<HistoryRecord> _pendingRecords() => widget.historyConsumer.pendingRecords
-      .where((record) => Common.dateOfEpoch(record.epoch) == widget.date)
-      .toList(growable: false);
-
-  List<HistoryRecord> _mergeRecords() =>
-      HistoryRecord.mergeDedup([..._diskRecords, ..._pendingRecords()]);
-
-  void _handlePendingChanged() {
-    if (!mounted) return;
-    if (_records == null || _syncingFlush) return;
-    setState(() {
-      _records = _mergeRecords();
-    });
-  }
-
-  void _handleHistoryFlushChanged() {
-    if (!mounted) return;
-    _syncingFlush = true;
-    unawaited(_reloadFromDisk());
-  }
-
-  Future<void> _reloadFromDisk() async {
-    final loadId = ++_loadId;
-    try {
-      final records = await widget.historyManager.readDay(widget.date);
-      if (!mounted || loadId != _loadId) return;
-      setState(() {
-        _diskRecords = records;
-        _records = _mergeRecords();
-      });
-    } catch (e, st) {
-      debugPrint('error: $e\n$st');
-    } finally {
-      if (loadId == _loadId) _syncingFlush = false;
-    }
-  }
-
-  Future<void> _load() async {
-    final loadId = ++_loadId;
-    setState(() {
-      _records = null;
-    });
-    _syncingFlush = false;
-
-    try {
-      final records = await widget.historyManager.readDay(widget.date);
-      if (!mounted || loadId != _loadId) return;
-      setState(() {
-        _diskRecords = records;
-        _records = _mergeRecords();
-      });
-    } catch (e, st) {
-      debugPrint('error: $e\n$st');
-      if (!mounted || loadId != _loadId) return;
-      setState(() {
-        _records = const [];
-      });
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = L10n.of(context);
-
-    return Scaffold(
-      backgroundColor: Colors.grey.shade50,
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF4080FF),
-        foregroundColor: Colors.white,
-        title: Text(_dateLabel(widget.date)),
-        actions: [
-          IconButton(
-            onPressed: _load,
-            icon: const Icon(Icons.refresh),
-            tooltip: l10n.historyRefresh,
-          ),
-        ],
-      ),
-      body: _buildBody(l10n),
-    );
-  }
-
-  Widget _buildBody(L10n l10n) {
-    final records = _records;
-    if (records == null) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
+  Widget _buildDayView(L10n l10n) {
+    final records = _dayRecords;
     if (records.isEmpty) {
-      return Center(
-        child: Text(
-          l10n.historyDayEmpty,
-          style: TextStyle(color: Colors.grey.shade600),
-        ),
+      return Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+            child: _DayHeader(date: _selectedDate, records: records),
+          ),
+          Expanded(child: _buildEmpty(l10n.historyDayEmpty)),
+        ],
       );
     }
 
-    final count = Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Text(
-        l10n.historyDayCount(records.length),
-        style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
-      ),
-    );
-
-    if (widget.settingsManager.historyMergeView) {
-      final blocks = _buildBlocks(records);
+    if (_mergeView) {
+      final blocks = _blocksForDay(_selectedDate, records);
       return ListView.separated(
         padding: const EdgeInsets.all(12),
         itemCount: blocks.length + 1,
         itemBuilder: (context, index) {
-          if (index == 0) return count;
+          if (index == 0) {
+            return _DayHeader(date: _selectedDate, records: records);
+          }
           final block = blocks[index - 1];
           return _HistoryBlockCard(
             key: ValueKey(block.startEpoch),
@@ -671,37 +524,245 @@ class _HistoryDayPageState extends ResetableState<HistoryDayPage> {
             records: block.records,
           );
         },
-        separatorBuilder: (context, index) {
-          if (index == 0) return const SizedBox(height: 4);
-          return const Divider(height: 16);
-        },
+        separatorBuilder:
+            (context, index) =>
+                index == 0
+                    ? const SizedBox(height: 4)
+                    : const Divider(height: 16),
       );
     }
 
-    final sorted = [...records]..sort((a, b) => b.epoch.compareTo(a.epoch));
     return ListView.separated(
       padding: const EdgeInsets.all(12),
-      itemCount: sorted.length + 1,
+      itemCount: records.length + 1,
       itemBuilder: (context, index) {
-        if (index == 0) return count;
+        if (index == 0) {
+          return _DayHeader(date: _selectedDate, records: records);
+        }
         return _HistoryRecordCard(
-          record: sorted[index - 1],
+          record: records[records.length - index],
           stationManager: widget.stationManager,
         );
       },
-      separatorBuilder: (context, index) {
-        if (index == 0) return const SizedBox(height: 4);
-        return const Divider(height: 16);
-      },
+      separatorBuilder:
+          (context, index) =>
+              index == 0
+                  ? const SizedBox(height: 4)
+                  : const Divider(height: 16),
+    );
+  }
+
+  Widget _buildMonthView(L10n l10n) {
+    final cache = _monthCache;
+    final days = cache?.days ?? const <_DayMeta>[];
+    if (cache == null || days.isEmpty) {
+      return _buildEmpty(l10n.historyDayEmpty);
+    }
+
+    final mergeView = cache.mergeView;
+    final index = cache.index;
+
+    return CustomScrollView(
+      slivers: [
+        SliverPadding(
+          padding: const EdgeInsets.all(12),
+          sliver: SliverList.builder(
+            itemCount: index.itemCount,
+            itemBuilder: (context, itemIndex) {
+              final dayIndex = index.dayIndexOf(itemIndex);
+              final day = days[dayIndex];
+              final offset = itemIndex - index.starts[dayIndex];
+
+              if (offset == 0) {
+                return _DayHeader(date: day.date, records: day.records);
+              }
+
+              final contentIndex = offset - 1;
+
+              if (mergeView) {
+                final blocks = _blocksForDay(day.date, day.records);
+                if (contentIndex >= blocks.length) {
+                  return const SizedBox.shrink();
+                }
+                final block = blocks[contentIndex];
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _HistoryBlockCard(
+                      key: ValueKey('${day.date}-${block.startEpoch}'),
+                      stationManager: widget.stationManager,
+                      records: block.records,
+                    ),
+                    const Divider(height: 16),
+                  ],
+                );
+              }
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _HistoryRecordCard(
+                    record: day.records[day.records.length - 1 - contentIndex],
+                    stationManager: widget.stationManager,
+                  ),
+                  const Divider(height: 16),
+                ],
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildEmpty(String message) => Center(
+    child: Text(message, style: TextStyle(color: Colors.grey.shade600)),
+  );
+}
+
+// ── 月キャッシュ / 日次索引 ────────────────────────────────────────
+
+class _DayMeta {
+  final int date;
+  final List<HistoryRecord> records;
+  final int blockCount;
+
+  const _DayMeta({
+    required this.date,
+    required this.records,
+    required this.blockCount,
+  });
+}
+
+class _MonthCache {
+  final List<_DayMeta> days;
+  final _TimelineIndex index;
+  final bool mergeView;
+
+  const _MonthCache._(this.days, this.index, this.mergeView);
+
+  factory _MonthCache.build(List<HistoryRecord> records, bool mergeView) {
+    final grouped = <int, List<HistoryRecord>>{};
+    for (final record in records) {
+      (grouped[Common.dateOfEpoch(record.epoch)] ??= <HistoryRecord>[]).add(
+        record,
+      );
+    }
+
+    final dates = grouped.keys.toList()..sort((a, b) => b.compareTo(a));
+    final days = <_DayMeta>[
+      for (final date in dates)
+        _DayMeta(
+          date: date,
+          records: grouped[date]!,
+          blockCount: _countBlocks(grouped[date]!),
+        ),
+    ];
+
+    return _MonthCache._(
+      days,
+      _TimelineIndex.build(days, mergeView),
+      mergeView,
+    );
+  }
+
+  _MonthCache withMergeView(bool mergeView) =>
+      _MonthCache._(days, _TimelineIndex.build(days, mergeView), mergeView);
+}
+
+class _TimelineIndex {
+  final List<int> starts;
+  final int itemCount;
+
+  const _TimelineIndex._(this.starts, this.itemCount);
+
+  factory _TimelineIndex.build(List<_DayMeta> days, bool mergeView) {
+    final starts = List<int>.filled(days.length + 1, 0);
+    var total = 0;
+
+    for (var i = 0; i < days.length; i++) {
+      starts[i] = total;
+      total += 1 + (mergeView ? days[i].blockCount : days[i].records.length);
+    }
+    starts[days.length] = total;
+
+    return _TimelineIndex._(starts, total);
+  }
+
+  int dayIndexOf(int itemIndex) {
+    var low = 0;
+    var high = starts.length - 2;
+
+    while (low < high) {
+      final mid = (low + high + 1) >> 1;
+      if (starts[mid] <= itemIndex) {
+        low = mid;
+      } else {
+        high = mid - 1;
+      }
+    }
+    return low;
+  }
+}
+
+// ── 日付ヘッダー ──────────────────────────────────────────────────
+
+class _DayHeader extends StatelessWidget {
+  final int date;
+  final List<HistoryRecord> records;
+
+  const _DayHeader({required this.date, required this.records});
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = L10n.of(context);
+    final dateLabel = date == Common.today() ? 'Today' : _dateLabel(date);
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 4, bottom: 6),
+      child: Row(
+        children: [
+          Text(
+            dateLabel,
+            style: TextStyle(
+              color: Colors.grey.shade800,
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            l10n.historyDayCount(records.length),
+            style: TextStyle(color: Colors.grey.shade600, fontSize: 11),
+          ),
+        ],
+      ),
     );
   }
 }
+
+// ── 5分ブロック ───────────────────────────────────────────────────
 
 class _HistoryBlock {
   final int startEpoch;
   final List<HistoryRecord> records;
 
   _HistoryBlock({required this.startEpoch, required this.records});
+}
+
+int _countBlocks(List<HistoryRecord> ascending) {
+  final window = Common.historyMergeWindow.inMilliseconds;
+  var count = 0;
+  int? startEpoch;
+
+  for (final record in ascending) {
+    if (startEpoch == null || record.epoch - startEpoch > window) {
+      count++;
+      startEpoch = record.epoch;
+    }
+  }
+
+  return count;
 }
 
 List<_HistoryBlock> _buildBlocks(List<HistoryRecord> records) {
@@ -720,6 +781,8 @@ List<_HistoryBlock> _buildBlocks(List<HistoryRecord> records) {
 
   return blocks..sort((a, b) => b.startEpoch.compareTo(a.startEpoch));
 }
+
+// ── 表示コンポーネント ────────────────────────────────────────────
 
 class _HistoryBlockCard extends StatefulWidget {
   final StationManager stationManager;
@@ -968,9 +1031,6 @@ class _HistoryRecordRow extends StatelessWidget {
     );
   }
 }
-
-String _monthLabel(int month) =>
-    '${(month ~/ 100).toString().padLeft(4, '0')}-${_two(month % 100)}';
 
 String _dateLabel(int date) =>
     '${Common.yearOf(date).toString().padLeft(4, '0')}'
