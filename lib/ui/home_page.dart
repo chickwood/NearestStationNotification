@@ -5,10 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_styled_toast/flutter_styled_toast.dart';
 
-import 'history_page.dart';
-import 'info_page.dart';
-import 'settings_page.dart';
-
 import '../common.dart';
 import '../coordinator.dart';
 import '../l10n.dart';
@@ -16,9 +12,13 @@ import '../manager/event_manager.dart';
 import '../manager/history_manager.dart';
 import '../manager/settings_manager.dart';
 import '../manager/station_manager.dart';
+import '../service/history_archive_service.dart';
 import '../service/history_backup_service.dart';
 import '../service/info_import_service.dart';
 import '../service/settings_save_service.dart';
+import 'history_page.dart';
+import 'info_page.dart';
+import 'settings_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -39,6 +39,7 @@ class _HomePageState extends ResetableState<HomePage>
   late final InfoImportService _infoImportService;
   late final SettingsSaveService _settingsSaveService;
   late final HistoryBackupService _historyBackupService;
+  late final HistoryArchiveService _historyArchiveService;
 
   int _positionVisibility = 0; // 坐标显示/关闭
 
@@ -49,9 +50,15 @@ class _HomePageState extends ResetableState<HomePage>
     _infoImportService = InfoImportService();
     _settingsSaveService = SettingsSaveService();
     _historyBackupService = HistoryBackupService();
+    _historyArchiveService = HistoryArchiveService();
     _infoImportService.last.addListener(_handleInfoImportResultNotified);
     _settingsSaveService.last.addListener(_handleSettingsSaveResultNotified);
     _historyBackupService.last.addListener(_handleHistoryBackupResultNotified);
+    _historyArchiveService.last.addListener(
+      _handleHistoryArchiveResultNotified,
+    );
+    _historyArchiveService.busy.addListener(_handleHistoryArchiveChanged);
+    _historyArchiveService.progress.addListener(_handleHistoryArchiveChanged);
 
     WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -69,9 +76,18 @@ class _HomePageState extends ResetableState<HomePage>
     _historyBackupService.last.removeListener(
       _handleHistoryBackupResultNotified,
     );
+    _historyArchiveService.last.removeListener(
+      _handleHistoryArchiveResultNotified,
+    );
+    _historyArchiveService.busy.removeListener(_handleHistoryArchiveChanged);
+    _historyArchiveService.progress.removeListener(
+      _handleHistoryArchiveChanged,
+    );
+    _historyArchiveService.cancel();
     _infoImportService.dispose();
     _settingsSaveService.dispose();
     _historyBackupService.dispose();
+    _historyArchiveService.dispose();
 
     _coordinator?.removeLocationResultHandler(_handleLocationResultReceived);
     _coordinator?.removeRunningStatusHandler(_handleRunningStatusChanged);
@@ -150,10 +166,7 @@ class _HomePageState extends ResetableState<HomePage>
               ),
             // 开始/停止
             AppBarAction(
-              onPressed:
-                  _coordinator!.runningStatus == RunningStatus.stopped
-                      ? _start
-                      : _stop,
+              onPressed: _handlePlay,
               icon:
                   _coordinator!.runningStatus == RunningStatus.running
                       ? const Icon(Icons.stop)
@@ -163,13 +176,16 @@ class _HomePageState extends ResetableState<HomePage>
                       ? const Color(0xFFA0C0FF)
                       : Colors.white,
             ),
-            // 设置 / 信息菜单（starting 中は無効化）
+            // 设置 / 信息菜单（starting 中・アーカイブ中は無効化）
             AppBarMenu<HomeMenuAction>(
-              enabled: _coordinator!.runningStatus != RunningStatus.starting,
+              enabled:
+                  !_historyArchiveService.busy.value &&
+                  _coordinator!.runningStatus != RunningStatus.starting,
               position: PopupMenuPosition.under,
               icon: const Icon(Icons.menu),
               iconColor:
-                  _coordinator!.runningStatus == RunningStatus.starting
+                  _historyArchiveService.busy.value ||
+                          _coordinator!.runningStatus == RunningStatus.starting
                       ? const Color(0xFFA0C0FF)
                       : Colors.white,
               onSelected: (action) {
@@ -178,7 +194,9 @@ class _HomePageState extends ResetableState<HomePage>
                     _showSettingsPage();
                     break;
                   case HomeMenuAction.history:
-                    _showHistoryPage();
+                    if (_settingsManager!.historyEnabled) {
+                      _showHistoryPage();
+                    }
                     break;
                   case HomeMenuAction.info:
                     _showInfoPage();
@@ -193,7 +211,14 @@ class _HomePageState extends ResetableState<HomePage>
                     ),
                     PopupMenuItem(
                       value: HomeMenuAction.history,
-                      child: Text(l10n.historyTitle),
+                      enabled: _settingsManager!.historyEnabled,
+                      child: Text(
+                        l10n.historyTitle,
+                        style:
+                            _settingsManager!.historyEnabled
+                                ? null
+                                : const TextStyle(color: Colors.grey),
+                      ),
                     ),
                     PopupMenuItem(
                       value: HomeMenuAction.info,
@@ -203,18 +228,34 @@ class _HomePageState extends ResetableState<HomePage>
             ),
           ],
         ),
-        body: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              children: [
-                if (_coordinator!.runningStatus == RunningStatus.running &&
-                    _positionVisibility > 0)
-                  ..._buildPositionResult(l10n), // 位置信息: リストの上、可隐藏
-                _buildStationResultsExpanded(l10n), // 车站列表: リスト部分のみスクロール
-              ],
+        body: Column(
+          children: [
+            if (_historyArchiveService.busy.value)
+              LinearProgressIndicator(
+                value:
+                    _historyArchiveService.progress.value > 0
+                        ? _historyArchiveService.progress.value
+                        : null,
+                color: const Color(0xFF4080FF),
+                backgroundColor: const Color(0xFFDCECFF),
+              ),
+            Expanded(
+              child: SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    children: [
+                      if (_coordinator!.runningStatus ==
+                              RunningStatus.running &&
+                          _positionVisibility > 0)
+                        ..._buildPositionResult(l10n), // 位置信息: リストの上、可隐藏
+                      _buildStationResultsExpanded(l10n), // 车站列表: リスト部分のみスクロール
+                    ],
+                  ),
+                ),
+              ),
             ),
-          ),
+          ],
         ),
       ),
     );
@@ -266,7 +307,7 @@ class _HomePageState extends ResetableState<HomePage>
         _historyManager = historyManager;
       });
 
-      unawaited(historyManager.consolidateIfDue());
+      unawaited(_historyArchiveService.start(historyManager));
     } catch (e) {
       // 其他错误（文件读取失败等）
       debugPrint(e.toString());
@@ -275,6 +316,20 @@ class _HomePageState extends ResetableState<HomePage>
   }
 
   // ── ボタンイベント ────────────────────────────────────────────────
+
+  /// アーカイブ中はキャンセルのみ、それ以外は開始 / 停止
+  Future<void> _handlePlay() async {
+    if (_historyArchiveService.busy.value) {
+      _historyArchiveService.cancel();
+      return;
+    }
+
+    if (_coordinator!.runningStatus == RunningStatus.stopped) {
+      await _start();
+    } else {
+      await _stop();
+    }
+  }
 
   /// 起動ボタン押下時
   /// 権限リクエスト + 定位開始
@@ -326,6 +381,7 @@ class _HomePageState extends ResetableState<HomePage>
 
   void _handleLocationResultReceived(_, _) => resetState();
   void _handleRunningStatusChanged(_) => resetState();
+  void _handleHistoryArchiveChanged() => resetState();
 
   // ── Service results ──────────────────────────────────────────────
 
@@ -403,6 +459,19 @@ class _HomePageState extends ResetableState<HomePage>
     }
   }
 
+  void _handleHistoryArchiveResultNotified() {
+    final result = _historyArchiveService.last.value;
+    if (!mounted || result == null || result.cancelled) return;
+
+    final l10n = L10n.of(context);
+    if (!result.succeeded) {
+      _showToast(l10n.historyArchiveFailed, isError: true);
+      return;
+    }
+
+    _showToast(l10n.historyArchiveSucceeded);
+  }
+
   // ── Settings Page ─────────────────────────────────────────────────────
 
   void _showSettingsPage() {
@@ -416,16 +485,28 @@ class _HomePageState extends ResetableState<HomePage>
 
   // ── History Page ───────────────────────────────────────────────────
 
+  Future<bool> _changeHistoryMergeView(bool value) async {
+    final current = _settingsManager;
+    if (current == null) return false;
+    if (value && !current.historyEnabled) return false;
+    if (current.historyMergeView == value) return true;
+
+    final updated = current.copyWith(historyMergeView: value);
+    return _settingsSaveService.save(updated);
+  }
+
   void _showHistoryPage() {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder:
             (_) => HistoryPage(
+              _coordinator!.historyConsumer,
               _historyManager!,
               _historyBackupService,
               _stationManager!,
               _settingsManager!.historySettingsManager,
-              _coordinator!.historyConsumer,
+              _changeHistoryMergeView,
+              Common.today(),
             ),
       ),
     );
@@ -446,91 +527,122 @@ class _HomePageState extends ResetableState<HomePage>
   // ── Station results (expanded) ────────────────────────────────────────────────
 
   Widget _buildStationResultsExpanded(L10n l10n) {
+    final archiving =
+        _historyArchiveService.busy.value &&
+        _coordinator!.runningStatus == RunningStatus.stopped;
+
     return Expanded(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (_stationManager!.count > 0)
-            if (_coordinator!.runningStatus == RunningStatus.stopped)
-              Align(
-                alignment: Alignment.topCenter,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      l10n.notStarted,
+        children:
+            archiving
+                ? [_buildArchiveGuide(l10n)]
+                : _stationManager!.count > 0
+                ? _buildStationContent(l10n)
+                : [
+                  Align(
+                    alignment: Alignment.topCenter,
+                    child: Text(
+                      l10n.countStations(0),
                       style: const TextStyle(color: Colors.grey),
                     ),
-                    Text(
-                      l10n.tapToStart,
-                      style: const TextStyle(color: Colors.grey),
-                    ),
-                    if (_stationManager!.isSampleData) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        l10n.sampleDataGuide,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(color: Colors.grey),
-                      ),
-                    ],
-                  ],
-                ),
-              )
-            else if (_coordinator!.runningStatus == RunningStatus.starting)
-              Align(
-                alignment: Alignment.topCenter,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      l10n.waitingForLocation,
-                      style: const TextStyle(color: Colors.grey),
-                    ),
-                    Text(
-                      l10n.waitingForLongtime,
-                      style: const TextStyle(color: Colors.grey),
-                    ),
-                  ],
-                ),
-              )
-            else ...[
-              Text(l10n.nearbyStations),
-              const SizedBox(height: 8),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 2),
-                  child: ListView.separated(
-                    itemCount: _coordinator!.stationResults!.length,
-                    itemBuilder: (context, index) {
-                      final stationResult =
-                          _coordinator!.stationResults![index];
-
-                      return _StationTile(
-                        index: index,
-                        name: stationResult.name ?? '',
-                        distance: stationResult.distanceInUnit,
-                        direction: l10n.direction(stationResult.bearingIndex),
-                        part: _settingsManager!.stationCount.part(index),
-                      );
-                    },
-                    separatorBuilder: (BuildContext context, int index) {
-                      return const SizedBox(height: 4);
-                    },
                   ),
-                ),
-              ),
-            ]
-          else
-            Align(
-              alignment: Alignment.topCenter,
-              child: Text(
-                l10n.countStations(0),
-                style: const TextStyle(color: Colors.grey),
-              ),
-            ),
+                ],
+      ),
+    );
+  }
+
+  Widget _buildArchiveGuide(L10n l10n) {
+    return Align(
+      alignment: Alignment.topCenter,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            l10n.historyArchiving,
+            style: const TextStyle(color: Colors.grey),
+          ),
+          Text(
+            l10n.historyArchivingHint,
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Colors.grey),
+          ),
         ],
       ),
     );
+  }
+
+  List<Widget> _buildStationContent(L10n l10n) {
+    if (_coordinator!.runningStatus == RunningStatus.stopped) {
+      return [
+        Align(
+          alignment: Alignment.topCenter,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(l10n.notStarted, style: const TextStyle(color: Colors.grey)),
+              Text(l10n.tapToStart, style: const TextStyle(color: Colors.grey)),
+              if (_stationManager!.isSampleData) ...[
+                const SizedBox(height: 4),
+                Text(
+                  l10n.sampleDataGuide,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.grey),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ];
+    }
+
+    if (_coordinator!.runningStatus == RunningStatus.starting) {
+      return [
+        Align(
+          alignment: Alignment.topCenter,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                l10n.waitingForLocation,
+                style: const TextStyle(color: Colors.grey),
+              ),
+              Text(
+                l10n.waitingForLongtime,
+                style: const TextStyle(color: Colors.grey),
+              ),
+            ],
+          ),
+        ),
+      ];
+    }
+
+    return [
+      Text(l10n.nearbyStations),
+      const SizedBox(height: 8),
+      Expanded(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2),
+          child: ListView.separated(
+            itemCount: _coordinator!.stationResults!.length,
+            itemBuilder: (context, index) {
+              final stationResult = _coordinator!.stationResults![index];
+
+              return _StationTile(
+                index: index,
+                name: stationResult.name ?? '',
+                distance: stationResult.distanceInUnit,
+                direction: l10n.direction(stationResult.bearingIndex),
+                part: _settingsManager!.stationCount.part(index),
+              );
+            },
+            separatorBuilder: (BuildContext context, int index) {
+              return const SizedBox(height: 4);
+            },
+          ),
+        ),
+      ),
+    ];
   }
 
   // ── Position result ────────────────────────────────────────────────
@@ -659,7 +771,7 @@ class _StationTile extends StatelessWidget {
     StationCountPart.natsume: const Color(0xFFFFF0B0),
   };
   static final _partFillColors = <StationCountPart, Color>{
-    StationCountPart.friend: Colors.grey.shade100,
+    StationCountPart.friend: Colors.grey.shade200,
     StationCountPart.event: const Color(0xFFDCECFF),
     StationCountPart.radar: const Color(0xFFE0F4E8),
     StationCountPart.natsume: const Color(0xFFFFF9E0),

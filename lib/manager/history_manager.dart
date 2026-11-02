@@ -10,6 +10,20 @@ import 'package:path_provider/path_provider.dart';
 
 import '../common.dart';
 
+class HistoryArchiveOutcome {
+  final int total;
+  final int completed;
+  final int failed;
+  final bool cancelled;
+
+  const HistoryArchiveOutcome({
+    required this.total,
+    required this.completed,
+    required this.failed,
+    required this.cancelled,
+  });
+}
+
 class HistoryManager {
   static const _backupChannel = MethodChannel(
     'name.w57.nearest_station_notification/backup',
@@ -79,14 +93,76 @@ class HistoryManager {
     });
   }
 
-  Future<void> consolidateIfDue() async {
-    if (_directory == null) return;
+  Future<List<int>> listUnarchivedMonths() async {
+    if (_directory == null) return const [];
+    return _withLock(() => _unarchivedMonthsLocked(Common.currentMonth()));
+  }
 
-    try {
-      await _withLock(_consolidateLocked);
-    } catch (e, st) {
-      debugPrint('error: $e\n$st');
+  Future<HistoryArchiveOutcome> consolidateMonths(
+    List<int> months, {
+    void Function(int done, int total)? onProgress,
+    bool Function()? isCancelled,
+  }) async {
+    final currentMonth = Common.currentMonth();
+    final targets =
+        months
+            .where(
+              (month) => Common.isValidMonth(month) && month < currentMonth,
+            )
+            .toSet()
+            .toList()
+          ..sort();
+
+    final total = targets.length;
+    if (_directory == null) {
+      return HistoryArchiveOutcome(
+        total: total,
+        completed: 0,
+        failed: 0,
+        cancelled: isCancelled?.call() ?? false,
+      );
     }
+
+    return _withLock(() async {
+      var done = 0;
+      var completed = 0;
+      var failed = 0;
+      var cancelled = false;
+
+      for (final month in targets) {
+        if (isCancelled?.call() ?? false) {
+          cancelled = true;
+          break;
+        }
+
+        try {
+          final archived = await _archiveMonth(month, isCancelled: isCancelled);
+          if (archived) {
+            completed++;
+            if (isCancelled?.call() ?? false) cancelled = true;
+          } else {
+            cancelled = true;
+          }
+        } catch (e, st) {
+          debugPrint('error: $e\n$st');
+          failed++;
+        }
+
+        done++;
+        onProgress?.call(done, total);
+
+        if (cancelled) break;
+      }
+
+      if (!cancelled && (isCancelled?.call() ?? false)) cancelled = true;
+
+      return HistoryArchiveOutcome(
+        total: total,
+        completed: completed,
+        failed: failed,
+        cancelled: cancelled,
+      );
+    });
   }
 
   Future<List<int>> listMonths() async {
@@ -152,6 +228,11 @@ class HistoryManager {
           .where((record) => Common.dateOfEpoch(record.epoch) == date)
           .toList(growable: false);
     });
+  }
+
+  Future<List<HistoryRecord>> readDayFile(int date) async {
+    if (_directory == null || !Common.isValidDate(date)) return const [];
+    return _withLock(() async => _dedupeSort(await _readDayFileUnlocked(date)));
   }
 
   Future<int> createBackup(
@@ -325,43 +406,32 @@ class HistoryManager {
     }
   }
 
-  Future<void> _consolidateLocked() async {
-    if (_directory == null) return;
-
-    final months = await _unarchivedMonthsLocked(Common.currentMonth());
-    if (months.isEmpty) return;
-
-    for (final month in months) {
-      try {
-        await _archiveMonth(month);
-      } catch (e, st) {
-        debugPrint('error: $e\n$st');
-      }
-    }
-  }
-
   Future<List<int>> _unarchivedMonthsLocked(int currentMonth) async {
     final directory = _directory!;
     final archiveMonths = <int>{};
     final dayMonths = <int>{};
 
-    await for (final entity in directory.list()) {
-      if (entity is! File) continue;
-      final name = _basename(entity.path);
+    try {
+      await for (final entity in directory.list()) {
+        if (entity is! File) continue;
+        final name = _basename(entity.path);
 
-      final monthMatch = _monthZipPattern.firstMatch(name);
-      if (monthMatch != null) {
-        final month = int.parse(monthMatch.group(1)!);
-        if (Common.isValidMonth(month)) archiveMonths.add(month);
-        continue;
-      }
+        final monthMatch = _monthZipPattern.firstMatch(name);
+        if (monthMatch != null) {
+          final month = int.parse(monthMatch.group(1)!);
+          if (Common.isValidMonth(month)) archiveMonths.add(month);
+          continue;
+        }
 
-      final dayMatch = _dayFilePattern.firstMatch(name);
-      if (dayMatch != null) {
-        final date = int.parse(dayMatch.group(1)!);
-        if (!Common.isValidDate(date)) continue;
-        dayMonths.add(Common.monthDateOf(date));
+        final dayMatch = _dayFilePattern.firstMatch(name);
+        if (dayMatch != null) {
+          final date = int.parse(dayMatch.group(1)!);
+          if (!Common.isValidDate(date)) continue;
+          dayMonths.add(Common.monthDateOf(date));
+        }
       }
+    } catch (e, st) {
+      debugPrint('error: $e\n$st');
     }
 
     final target = <int>{...archiveMonths, ...dayMonths};
@@ -379,9 +449,13 @@ class HistoryManager {
     return result;
   }
 
-  Future<void> _archiveMonth(int month) async {
+  Future<bool> _archiveMonth(int month, {bool Function()? isCancelled}) async {
     final directory = _directory!;
     final dayFiles = <File>[];
+
+    bool cancelled() => isCancelled?.call() ?? false;
+
+    if (cancelled()) return false;
 
     await for (final entity in directory.list()) {
       if (entity is! File) continue;
@@ -395,16 +469,20 @@ class HistoryManager {
       dayFiles.add(entity);
     }
 
+    if (cancelled()) return false;
+
     final merged = <HistoryRecord>[];
     final mergedFiles = <File>[];
     final archive = File('${directory.path}/$month.zip');
 
     if (await archive.exists()) {
+      if (cancelled()) return false;
       final records = _readMonthZipRecords(await archive.readAsBytes(), month);
       merged.addAll(records);
     }
 
     for (final file in dayFiles) {
+      if (cancelled()) return false;
       try {
         final parsed = _parseNdjson(await file.readAsBytes());
         if (parsed == null) {
@@ -418,7 +496,10 @@ class HistoryManager {
       }
     }
 
+    if (cancelled()) return false;
+
     final records = _dedupeSort(merged);
+    if (cancelled()) return false;
     final ndjsonBytes = _encodeNdjson(records);
     final hash = sha256.convert(ndjsonBytes).toString();
     final sumsBytes = Uint8List.fromList(utf8.encode('$hash  $month.ndjson\n'));
@@ -430,7 +511,9 @@ class HistoryManager {
     var closed = false;
 
     try {
+      if (cancelled()) return false;
       await tempNdjson.writeAsBytes(ndjsonBytes, flush: true);
+      if (cancelled()) return false;
       encoder.create(tempZip.path);
       await encoder.addFile(tempNdjson, '$month.ndjson');
       encoder.addArchiveFile(
@@ -438,6 +521,8 @@ class HistoryManager {
       );
       await encoder.close();
       closed = true;
+
+      if (cancelled()) return false;
 
       try {
         await tempZip.rename(archive.path);
@@ -460,12 +545,15 @@ class HistoryManager {
     }
 
     for (final file in mergedFiles) {
+      if (cancelled()) break;
       try {
         await file.delete();
       } catch (e, st) {
         debugPrint('error: $e\n$st');
       }
     }
+
+    return true;
   }
 
   Future<List<int>> _listMonthsUnlocked() async {
