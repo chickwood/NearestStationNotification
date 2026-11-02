@@ -288,16 +288,16 @@ class L10n {
     return 'Merge repeat switches within 5 minutes';
   }
 
+  String historyMergeViewState(bool enabled) {
+    if (_isJa) return enabled ? '5分グループ表示：オン' : '5分グループ表示：オフ';
+    if (_isZhHans) return enabled ? '5分钟分组：开' : '5分钟分组：关';
+    return enabled ? '5-minute grouping: on' : '5-minute grouping: off';
+  }
+
   String get historyTitle {
     if (_isJa) return '履歴';
     if (_isZhHans) return '历史记录';
     return 'History';
-  }
-
-  String get historyMonthEmpty {
-    if (_isJa) return '今月の履歴はありません';
-    if (_isZhHans) return '本月暂无历史记录';
-    return 'No history this month';
   }
 
   String get historyDayEmpty {
@@ -318,28 +318,34 @@ class L10n {
     return 'Failed to load history';
   }
 
-  String get historyRefresh {
-    if (_isJa) return '更新';
-    if (_isZhHans) return '刷新';
-    return 'Refresh';
-  }
-
   String get historyJumpMonth {
     if (_isJa) return '月を選択';
     if (_isZhHans) return '选择月份';
     return 'Select month';
   }
 
-  String get historyPrevMonth {
-    if (_isJa) return '前月';
-    if (_isZhHans) return '上一月';
-    return 'Previous month';
+  String get historyArchiving {
+    if (_isJa) return 'アーカイブ中...';
+    if (_isZhHans) return '正在归档中...';
+    return 'Archiving...';
   }
 
-  String get historyNextMonth {
-    if (_isJa) return '翌月';
-    if (_isZhHans) return '下一月';
-    return 'Next month';
+  String get historyArchivingHint {
+    if (_isJa) return '履歴をアーカイブ中...長時間終わらない場合は右上の停止をクリック';
+    if (_isZhHans) return '历史记录归档中...长时间未完成点击右上角停止';
+    return 'Archiving history... If it takes too long, tap stop in the top right.';
+  }
+
+  String get historyArchiveSucceeded {
+    if (_isJa) return '履歴のアーカイブが完了しました';
+    if (_isZhHans) return '历史记录归档完成';
+    return 'History archive completed';
+  }
+
+  String get historyArchiveFailed {
+    if (_isJa) return '履歴のアーカイブに失敗しました';
+    if (_isZhHans) return '历史记录归档失败';
+    return 'Failed to archive history';
   }
 
   String get historyTime {

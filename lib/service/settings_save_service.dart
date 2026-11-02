@@ -29,16 +29,18 @@ class SettingsSaveService {
   final ValueNotifier<SettingsSaveResult?> last = ValueNotifier(null);
   final ValueNotifier<bool> busy = ValueNotifier(false);
 
-  Future<void> save(SettingsManager settings) async {
-    if (busy.value) return;
+  Future<bool> save(SettingsManager settings) async {
+    if (busy.value) return false;
 
     busy.value = true;
     try {
       await settings.save();
       last.value = SettingsSaveResult.success(settings);
+      return true;
     } catch (e, st) {
       debugPrint('error: $e\n$st');
       last.value = SettingsSaveResult.failure(e);
+      return false;
     } finally {
       busy.value = false;
     }

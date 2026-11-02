@@ -30,6 +30,9 @@ class _SettingsPageState extends ResetableState<SettingsPage> {
 
     // ページ内操作的临时副本，离开则丢弃
     _draft = widget.settingsManager.copyWith();
+    if (!_draft.historyEnabled) {
+      _draft = _draft.copyWith(historyMergeView: false);
+    }
     widget.settingsSaveService.last.addListener(_handleLastChanged);
     widget.settingsSaveService.busy.addListener(_handleBusyChanged);
   }
@@ -104,17 +107,23 @@ class _SettingsPageState extends ResetableState<SettingsPage> {
                 label: l10n.settingsHistoryEnabled,
                 value: _draft.historyEnabled,
                 onChanged:
-                    (v) => setState(
-                      () => _draft = _draft.copyWith(historyEnabled: v),
-                    ),
+                    (v) => setState(() {
+                      _draft = _draft.copyWith(
+                        historyEnabled: v,
+                        historyMergeView: v ? _draft.historyMergeView : false,
+                      );
+                    }),
               ),
+              const SizedBox(height: 4),
               _CheckboxRow(
                 label: l10n.settingsHistoryMergeView,
-                value: _draft.historyMergeView,
+                value: _draft.historyEnabled && _draft.historyMergeView,
                 onChanged:
-                    (v) => setState(
-                      () => _draft = _draft.copyWith(historyMergeView: v),
-                    ),
+                    (v) => setState(() {
+                      _draft = _draft.copyWith(historyMergeView: v);
+                    }),
+                addPaddingLeft: 24,
+                enabled: _draft.historyEnabled,
               ),
             ],
           ),
@@ -162,7 +171,7 @@ class _SegmentedRow<T> extends StatelessWidget {
                         color:
                             isSelected
                                 ? const Color(0xFF4080FF)
-                                : Colors.grey.shade200,
+                                : Colors.grey.shade300,
                       ),
                       borderRadius: BorderRadius.circular(8),
                     ),
@@ -208,41 +217,65 @@ class _CheckboxRow extends StatelessWidget {
   final String label;
   final bool value;
   final ValueChanged<bool> onChanged;
+  final double addPaddingLeft;
+  final bool enabled;
 
   const _CheckboxRow({
     required this.label,
     required this.value,
     required this.onChanged,
+    this.addPaddingLeft = 0,
+    this.enabled = true,
   });
 
   @override
   Widget build(BuildContext context) {
+    final active = enabled && value;
+
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: () => onChanged(!value),
+      onTap: enabled ? () => onChanged(!value) : null,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 2),
+        padding: EdgeInsets.only(left: 2 + addPaddingLeft, right: 2),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
-            color: value ? const Color(0xFFDCECFF) : Colors.white,
+            color:
+                active
+                    ? const Color(0xFFDCECFF)
+                    : enabled
+                    ? Colors.white
+                    : Colors.transparent,
             border: Border.all(
-              color: value ? const Color(0xFF4080FF) : Colors.grey.shade200,
+              color:
+                  active
+                      ? const Color(0xFF4080FF)
+                      : enabled
+                      ? Colors.grey.shade300
+                      : Colors.transparent,
             ),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Row(
             children: [
               Icon(
-                value ? Icons.check_box : Icons.check_box_outline_blank,
-                color: value ? const Color(0xFF4080FF) : Colors.grey,
+                active ? Icons.check_box : Icons.check_box_outline_blank,
+                color:
+                    active
+                        ? const Color(0xFF4080FF)
+                        : enabled
+                        ? Colors.grey
+                        : Colors.grey.shade300,
                 size: 20,
               ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   label,
-                  style: TextStyle(color: Colors.grey.shade800, fontSize: 12),
+                  style: TextStyle(
+                    color: enabled ? Colors.grey.shade800 : Colors.grey,
+                    fontSize: 12,
+                  ),
                 ),
               ),
             ],

@@ -7,10 +7,18 @@ import 'package:flutter/material.dart';
 ///
 /// [availableMonths] 为扫描到的可查看月份（`yyyyMM`）；
 /// 当前月会自动加入，仅这些月份及其所在年份可选择。
+///
+/// [availableDates] 为当前月有记录的日期（`yyyyMMdd`）；
+/// 当前月的今天始终可选，今天之前的日期只有存在于该集合时才可选。
+///
+/// [selectedDate] 为当前展示的日期（`yyyyMMdd`），用于高亮；月视图则高亮
+/// [initialMonth] 对应的月份。
 Future<int?> showHistoryDatePicker(
   BuildContext context, {
   required Iterable<int> availableMonths,
+  required Iterable<int> availableDates,
   int? initialMonth,
+  int? selectedDate,
   DateTime? now,
 }) {
   final current = now ?? DateTime.now();
@@ -37,9 +45,11 @@ Future<int?> showHistoryDatePicker(
     builder:
         (context) => _HistoryDatePickerDialog(
           availableMonths: months,
+          availableDates: availableDates.toSet(),
           currentMonth: currentMonth,
           today: today,
           initialMonth: initial,
+          selectedDate: selectedDate,
         ),
   );
 }
@@ -50,15 +60,19 @@ bool _isValidMonth(int month) =>
 class _HistoryDatePickerDialog extends StatefulWidget {
   const _HistoryDatePickerDialog({
     required this.availableMonths,
+    required this.availableDates,
     required this.currentMonth,
     required this.today,
     required this.initialMonth,
+    required this.selectedDate,
   });
 
   final Set<int> availableMonths;
+  final Set<int> availableDates;
   final int currentMonth;
   final int today;
   final int initialMonth;
+  final int? selectedDate;
 
   @override
   State<_HistoryDatePickerDialog> createState() =>
@@ -90,6 +104,7 @@ class _HistoryDatePickerDialogState extends State<_HistoryDatePickerDialog> {
   @override
   Widget build(BuildContext context) {
     return Dialog(
+      backgroundColor: Theme.of(context).colorScheme.surface,
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 360),
         child: SingleChildScrollView(
@@ -146,28 +161,30 @@ class _HistoryDatePickerDialogState extends State<_HistoryDatePickerDialog> {
           mainAxisSpacing: 8,
           crossAxisSpacing: 8,
           children: [
-            for (var month = 1; month <= 12; month++)
-              _buildMonthCell(context, month),
+            for (var month = 1; month <= 12; month++) _buildMonthCell(month),
           ],
         ),
       ],
     );
   }
 
-  Widget _buildMonthCell(BuildContext context, int month) {
+  Widget _buildMonthCell(int month) {
     final key = _year * 100 + month;
     final enabled = widget.availableMonths.contains(key);
-    final isCurrent = key == widget.currentMonth;
+    final selected = key == widget.initialMonth;
 
-    return OutlinedButton(
-      onPressed: enabled ? () => _selectMonth(key) : null,
-      style:
-          isCurrent
-              ? OutlinedButton.styleFrom(
-                backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-              )
-              : null,
-      child: Text(month.toString().padLeft(2, '0')),
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: enabled ? () => _selectMonth(key) : null,
+      child: Container(
+        decoration: _cellDecoration(selected: selected, enabled: enabled),
+        child: Center(
+          child: Text(
+            month.toString().padLeft(2, '0'),
+            style: _cellTextStyle(selected: selected, enabled: enabled),
+          ),
+        ),
+      ),
     );
   }
 
@@ -252,8 +269,14 @@ class _HistoryDatePickerDialogState extends State<_HistoryDatePickerDialog> {
               _buildDayCell(
                 context,
                 day,
-                enabled: day <= todayDay,
-                isToday: day == todayDay,
+                enabled:
+                    day <= todayDay &&
+                    (day == todayDay ||
+                        widget.availableDates.contains(
+                          widget.currentMonth * 100 + day,
+                        )),
+                selected:
+                    widget.selectedDate == widget.currentMonth * 100 + day,
               ),
           ],
         ),
@@ -265,22 +288,53 @@ class _HistoryDatePickerDialogState extends State<_HistoryDatePickerDialog> {
     BuildContext context,
     int day, {
     required bool enabled,
-    required bool isToday,
+    required bool selected,
   }) {
-    return TextButton(
-      onPressed:
-          enabled
-              ? () => Navigator.of(context).pop(widget.currentMonth * 100 + day)
-              : null,
-      style: TextButton.styleFrom(
-        minimumSize: Size.zero,
-        padding: EdgeInsets.zero,
-        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        shape: const CircleBorder(),
-        backgroundColor:
-            isToday ? Theme.of(context).colorScheme.primaryContainer : null,
+    final date = widget.currentMonth * 100 + day;
+
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: enabled ? () => Navigator.of(context).pop(date) : null,
+      child: Container(
+        decoration: _cellDecoration(selected: selected, enabled: enabled),
+        child: Center(
+          child: Text(
+            '$day',
+            style: _cellTextStyle(selected: selected, enabled: enabled),
+          ),
+        ),
       ),
-      child: Text('$day'),
+    );
+  }
+
+  BoxDecoration _cellDecoration({
+    required bool selected,
+    required bool enabled,
+  }) {
+    final borderColor =
+        selected
+            ? const Color(0xFF4080FF)
+            : enabled
+            ? Colors.grey.shade300
+            : Colors.transparent;
+
+    return BoxDecoration(
+      color:
+          selected
+              ? const Color(0xFFDCECFF)
+              : enabled
+              ? Colors.white
+              : Colors.transparent,
+      border: Border.all(color: borderColor),
+      borderRadius: BorderRadius.circular(8),
+    );
+  }
+
+  TextStyle _cellTextStyle({required bool selected, required bool enabled}) {
+    return TextStyle(
+      color: enabled ? Colors.grey.shade800 : Colors.grey,
+      fontSize: 12,
+      fontWeight: selected ? FontWeight.bold : FontWeight.normal,
     );
   }
 }
