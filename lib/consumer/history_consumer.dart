@@ -200,9 +200,9 @@ class HistoryConsumer {
     _append(
       HistoryRecord(
         gcd: first.gcd!,
+        epoch: positionResult.timestamp.millisecondsSinceEpoch,
         latE6: (positionResult.latitude * 1e6).round(),
         lonE6: (positionResult.longitude * 1e6).round(),
-        epoch: positionResult.timestamp.millisecondsSinceEpoch,
       ),
     );
   }
@@ -240,9 +240,9 @@ class HistoryConsumer {
     _append(
       HistoryRecord(
         gcd: gcd,
+        epoch: now,
         latE6: (positionResult.latitude * 1e6).round(),
         lonE6: (positionResult.longitude * 1e6).round(),
-        epoch: now,
       ),
     );
   }

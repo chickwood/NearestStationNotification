@@ -12,13 +12,13 @@ class Common {
   static const sumsFileName = 'SHA256SUMS';
 
   // イベントデータ形式
-  static const eventVersion = 2;
+  static const eventSchemaVersion = 2;
   static const eventFields = <String>['start_epoch', 'end_epoch'];
 
   // 履歴
   static const historyDirName = 'history';
   static const historySchemaVersion = 1;
-  static const historyFields = <String>['gcd', 'lat_e6', 'lon_e6', 'epoch'];
+  static const historyFields = <String>['gcd', 'epoch', 'lat_e6', 'lon_e6'];
   static const historyMergeWindow = Duration(minutes: 5);
   static const historyBlockRowLimit = 5;
   static const historyManifestFileName = 'MANIFEST';
@@ -402,15 +402,15 @@ class PositionResult {
 
 class HistoryRecord {
   final int gcd;
+  final int epoch;
   final int latE6;
   final int lonE6;
-  final int epoch;
 
   const HistoryRecord({
     required this.gcd,
+    required this.epoch,
     required this.latE6,
     required this.lonE6,
-    required this.epoch,
   });
 
   double get latitude => latE6 / 1e6;
@@ -418,25 +418,20 @@ class HistoryRecord {
   DateTime get timestamp => DateTime.fromMillisecondsSinceEpoch(epoch);
   String get key => '$gcd|$epoch|$latE6|$lonE6';
 
-  List<Object?> toRow() => [gcd, latE6, lonE6, epoch];
+  List<Object?> toRow() => [gcd, epoch, latE6, lonE6];
 
   static HistoryRecord? tryParse(Object? value) {
     if (value is! List || value.length != 4) return null;
 
     final gcd = value[0];
-    final latitudeE6 = value[1];
-    final longitudeE6 = value[2];
-    final epoch = value[3];
+    final epoch = value[1];
+    final latE6 = value[2];
+    final lonE6 = value[3];
 
     if (gcd is! int) return null;
-    if (latitudeE6 is! int || longitudeE6 is! int || epoch is! int) return null;
+    if (epoch is! int || latE6 is! int || lonE6 is! int) return null;
 
-    return HistoryRecord(
-      gcd: gcd,
-      latE6: latitudeE6,
-      lonE6: longitudeE6,
-      epoch: epoch,
-    );
+    return HistoryRecord(gcd: gcd, epoch: epoch, latE6: latE6, lonE6: lonE6);
   }
 
   /// 记录键去重后按 epoch / gcd / key 升序排序
