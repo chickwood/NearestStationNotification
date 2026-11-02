@@ -33,9 +33,9 @@ Test
 - NotificationConsumer 保持纯通知
 - StationManager 是唯一站点数据来源（Single Source of Truth）
 - EventManager 是唯一事件数据来源
-- HistoryConsumer 持有未落盘缓冲（pending）并负责记录判定与批量写穿（10 条 / 首条起算 5 分钟，按日批量追加）；HistoryManager 负责持久化；UI 按日合并磁盘与 pending；Coordinator 只公开 HistoryConsumer，由页面直接订阅
+- HistoryConsumer 持有未落盘缓冲（pending）并负责记录判定与批量写穿（10 条 / 首条起算 5 分钟，按日批量追加）；HistoryManager 负责持久化；HistoryPage 日模式按日合并磁盘与 pending，月模式只读整月；Coordinator 只公开 HistoryConsumer，由页面直接订阅
 - Coordinator 只负责协调，不负责业务实现
-- 持久化与导入的异步执行从页面生命周期中解耦（InfoImportService / SettingsSaveService / HistoryBackupService）
+- 持久化与导入的异步执行从页面生命周期中解耦（InfoImportService / SettingsSaveService / HistoryBackupService / HistoryArchiveService）
 - 日期只有一种表示：本地 `yyyyMMdd` 的 `int`（月份为 `date ~/ 100`），值即键，不做多表示并存；`epoch`（int 毫秒）单独命名（见 `Date Representation`）
 - 不为了设计而设计
 - 当前项目规模优先保持职责清晰、依赖简单、易维护
@@ -64,7 +64,7 @@ Test
 | `lib/ui/settings_page.dart` | 设置页面 |
 | `lib/ui/info_page.dart` | 信息页面 |
 | `lib/ui/license_page.dart` | 许可证列表与详情页面 |
-| `lib/ui/history_page.dart` | 历史页：按日 / 按月展示、逐条与区块、日历跳转、备份入口 |
+| `lib/ui/history_page.dart` | 历史页：按日 / 按月展示、逐条与区块、分组开关、日历跳转、备份入口 |
 | `lib/ui/history_date_picker.dart` | 历史日历跳转：当前月选日期、往期选月份 |
 | `lib/l10n.dart` | 中 / 日 / 英文本、locale 严格解析 |
 | `lib/common.dart` | 常量、几何计算、数据类与枚举 |
@@ -133,8 +133,8 @@ lib/
 - **数据快照**（`StationManager`、`EventManager`）：加载后只读；`StationManager` 的数组与元数据、`EventManager` 的期间数据（epoch ms）均不再修改
 - **未落盘缓冲**（`HistoryConsumer`）：`List<HistoryRecord>` 为内部状态，只保留上次 flush 成功后新增的记录；历史页经 `historyConsumer.pendingRecords` 读取，不经 UI 修改
 - **历史存储**（`HistoryManager`）：目录与锁为内部状态，全部私有；对外只提供追加、读取、日期/月份枚举、归档与备份/导入方法，不持有当天内存状态
-- **可变设置**（`SettingsManager`）：字段公开可写；SettingsPage 使用 `copyWith()` 生成草稿，保存后由 Service 持久化
-- **结果服务**（`InfoImportService`、`SettingsSaveService`、`HistoryBackupService`）：对外暴露 `final ValueNotifier last` 与 `final ValueNotifier<bool> busy`（`HistoryBackupService` 另有 `final ValueNotifier<double> progress`），内部不使用 `changeXxx`
+- **可变设置**（`SettingsManager`）：字段公开可写；SettingsPage 使用 `copyWith()` 生成草稿，HistoryPage 分组开关经 HomePage 回调生成新实例并保存；保存后由 Service 持久化
+- **结果服务**（`InfoImportService`、`SettingsSaveService`、`HistoryBackupService`、`HistoryArchiveService`）：对外暴露 `final ValueNotifier last` 与 `final ValueNotifier<bool> busy`（`HistoryBackupService` / `HistoryArchiveService` 另有 `final ValueNotifier<double> progress`），内部不使用 `changeXxx`
 - **UI 组件（Widget）**：字段须 `final` 且公开（`State` 经 `widget.x` 读取）；可变性由配套的 `State` 承接并反映到 UI
 
 ---
@@ -158,8 +158,8 @@ lib/
 - **文件名**：由 `int` 直接插值，日 `$date.ndjson`（8 位）、月 `$month.zip`（6 位），年份 ≥ 1000 时位数天然正确；目录扫描仍以 `^\d{8}$` / `^\d{6}$` 正则取名字，再 `int.parse` 成 `date` / `month`。
 - **状态**：HistoryPage 的当前日 / 当前月直接保存 `int date` / `int month`（`yyyyMMdd` / `yyyyMM`），不使用 `DateTime` 字段或参数；比较直接比较 `int`，月模式只缓存一个月。
 - **分量例外**：除键的生成 / 解析 / 合法性回检与页面标题显示之外，全项目只有以下一处需要用到分量，且不改变「`int date` 是唯一日期表示」的约定：
-  - `showDatePicker` 的 `initialDate` / `firstDate` / `lastDate`：需要年 + 月 + 日构造边界
-- **边界例外**：`DateTime` 只出现在 `DateTime.now()`、`showDatePicker`、与 epoch 互转、UI 文本格式化过程中，不作为字段、参数或 Map key 的日期类型。
+  - 自定义历史日历（`history_date_picker.dart`）的月份网格与月份标题：需要年 + 月构造 `DateTime` 并使用 `DateUtils` 计算
+- **边界例外**：`DateTime` 只出现在 `DateTime.now()`、自定义历史日历的月份网格/标题、与 epoch 互转、UI 文本格式化过程中，不作为字段、参数或 Map key 的日期类型。
 - **`epoch`**：int 毫秒是另一套时间表示，与 `date` 并存但语义不同，命名必须是 `epoch` / `...Epoch`，不得写成 `date*`。
 - **`stamp`**：专指由 epoch 派生的文件名字片段（当前为导出 zip 文件名），不参与数据键，也不等同于 `date`。
 
@@ -187,7 +187,7 @@ lib/
         ├──► NotificationConsumer
         └──► HistoryConsumer ──► HistoryManager
 
-HomePage 另持有 SettingsManager，并将其传入 Coordinator；Coordinator 再向 LocationProcessor 传 `processorSettingsManager`、向 HistoryConsumer 传 `historySettingsManager`；HistoryPage 由 HomePage 三点菜单直接打开，不依赖 Coordinator；
+HomePage 另持有 SettingsManager，并将其传入 Coordinator；Coordinator 再向 LocationProcessor 传 `processorSettingsManager`、向 HistoryConsumer 传 `historySettingsManager`；HistoryPage 由 HomePage 三点菜单直接打开并注入 `HistorySettingsManager` 视图与 `historyMergeView` 写回回调，不依赖 Coordinator；
 BackgroundTask 包裹 HomePage（Android only）。
 ```
 
@@ -207,7 +207,7 @@ BackgroundTask 包裹 HomePage（Android only）。
 - Coordinator 通过 `changeEventData` 将事件期间判定注入 `StationCount.eventPeriod`。
 - Coordinator 不负责 StationManager / EventManager / HistoryManager 的加载与写入实现；HistoryManager 的日文件追加由 HistoryConsumer 触发。
 - InfoImportService / SettingsSaveService / HistoryBackupService / HistoryArchiveService 不依赖 UI，不直接调用 Coordinator 或 Toast。
-- InfoPage / SettingsPage / LicenseListPage 只依赖其显示所需的管理器与 Service；HistoryPage 依赖 `HistoryConsumer`、HistoryManager、HistoryBackupService、StationManager 与 `HistorySettingsManager`。
+- InfoPage / SettingsPage / LicenseListPage 只依赖其显示所需的管理器与 Service；HistoryPage 依赖 `HistoryConsumer`、HistoryManager、HistoryBackupService、StationManager、`HistorySettingsManager` 与 `historyMergeView` 写回回调。
 
 ---
 
@@ -247,6 +247,7 @@ BackgroundTask 包裹 HomePage（Android only）。
 - 设置入口（HomePage 三点菜单 → settings page：设置项编辑与保存）
 - 站点数据管理入口（HomePage 三点菜单 → info page：bin 信息 / 提示 / 导入 / 许可证入口）
 - 历史入口（HomePage 三点菜单 → HistoryPage，打开今天）；`historyEnabled` 关闭时该菜单项禁用
+- 向 HistoryPage 提供 `historyMergeView` 写回回调，经 SettingsSaveService 持久化并触发 `Coordinator.changeSettings`
 - 示例数据引导提示（stopped 且为示例数据时）
 - 通过 Coordinator 的 handler 触发 UI 重建，并通过 getter 读取当前结果和运行状态
 - 向 BackgroundTask 提供 `Coordinator.runningStatus != RunningStatus.stopped` 的 keepBackgroundTask
@@ -256,7 +257,7 @@ BackgroundTask 包裹 HomePage（Android only）。
 可直接使用：
 
 - StationManager / EventManager（站点信息显示、站点与事件数据管理）
-- SettingsManager（站点显示数量、定位间隔、历史记录开关）
+- SettingsManager（站点显示数量、定位间隔、历史记录开关与 5 分钟分组）
 - HistoryManager / HistoryBackupService / HistoryArchiveService（过往历史读取、备份操作与启动归档）
 - Coordinator（直接注入历史页，提供当天记录与 pending）
 
@@ -338,9 +339,9 @@ SearchEngine 属于 LocationProcessor 的内部依赖。
 
 平台参数：
 
-- Android：`AndroidSettings`，高精度、`intervalDuration`、自适应 distanceFilter、Location 前台服务通知、wake lock
-- iOS / macOS：`AppleSettings`，`bestForNavigation`、`otherNavigation`、显示后台定位指示
-- 其他平台：`LocationSettings`，高精度
+- 统一使用 `location` 包的 `Location.instance`：`changeSettings` 设置高精度、`interval` / `backgroundInterval` 为设置间隔、`distanceFilter` 按采样模式、`pausesLocationUpdatesAutomatically: false`
+- `changeNotificationOptions` 使用本地化的前台服务通知文本与 `Common.flnNotificationIcon`；`enableBackgroundMode(enable: true, requireBackgroundPermission: false)` 启用后台，停止时关闭
+- 平台差异由 `location` 插件处理（Android 前台服务/通知、iOS 后台定位）
 
 ---
 
@@ -468,7 +469,7 @@ schema：
 | `settings_history_merge_view` | bool |
 
 - 读取时对越界索引回退默认值（`StationCount.game` / `LocationInterval.s1`）；布尔键缺失回退 false
-- `copyWith()` 生成 SettingsPage 草稿；`save()` 写入全部键
+- `copyWith()` 生成 SettingsPage 草稿，也用于 HistoryPage 分组开关写回；`save()` 写入全部键
 - `processorSettingsManager` 向 LocationProcessor 暴露 `stationCount` / `locationInterval`；`historySettingsManager` 向历史功能暴露 `historyEnabled` / `historyMergeView`，二者均为不可变的命名记录
 - `historyEnabled` 控制记录；历史关闭时设置页禁用并清除 `historyMergeView`（取消勾选），历史开启时才可配置 `historyMergeView`
 - `fromTransferable()` 位置约定：`data[0]` stationCount、`data[1]` locationInterval、`data[2]` historyEnabled、`data[3]` historyMergeView
@@ -555,7 +556,7 @@ schema：
 - 以常驻 handler 注册：pending 必须在 active handler 之前更新，否则 UI 会读到不含本条记录的缓冲
 - flush 单飞：定时器、阈值、stop / 导出 / 导入可能并发触发，共用同一个 future
 - 不持有 Coordinator 引用；`pendingRecords` / `pendingRevision` / `flushCount` 由自身发布，Coordinator 只公开引用
-- `pendingRevision` / `flushCount` 受 `changeActive()` 门控：非活跃期间不通知，恢复时成对递增，让页面重取 pending 与磁盘
+- `pendingRevision` / `flushCount` 受 `changeActive()` 门控：非活跃期间不通知，恢复时成对递增，让页面重取 pending 状态；`flushCount` 仅表示落盘进度，不再触发磁盘重读
 - 由 Coordinator 公开 `historyConsumer`，HomePage 在三点菜单中打开 HistoryPage
 - 写入失败只记录日志，不抛出
 - 日模式由 HistoryPage 合并 `readDayFile(int date)` 与同日的 `historyConsumer.pendingRecords`，不假设 pending 覆盖整天；月模式不混入 pending
@@ -660,8 +661,8 @@ ZIP 限制与规则：
 
 文件格式：
 
-- 首行 header：`{"v":1,"fields":["gcd","lat_e6","lon_e6","epoch"]}`
-- 数据行：`[gcd,lat_e6,lon_e6,epoch]`
+- 首行 header：`{"v":1,"fields":["gcd","epoch","lat_e6","lon_e6"]}`
+- 数据行：`[gcd,epoch,lat_e6,lon_e6]`
 - `gcd` 必须为非空整数；坐标 ×1e6 四舍五入；版本只在 header
 - 读取时校验 header 的 `v` / `fields`；坏行跳过，不导致崩溃
 - 月度 ZIP 与备份外层 ZIP 均无子目录；`SHA256SUMS` 为 `sha256sum` 文本格式
@@ -732,15 +733,16 @@ ZIP 限制与规则：
 
 职责：
 
-- 注入 HistoryConsumer、`HistoryManager`、`HistoryBackupService`、`StationManager` 与 `HistorySettingsManager`
+- 注入 HistoryConsumer、`HistoryManager`、`HistoryBackupService`、`StationManager`、`HistorySettingsManager` 与 `historyMergeView` 写回回调
 - 单一页面两种模式：日模式只读所选日期（`readDayFile()`），月模式一次加载整月（`readMonth()`）并按日期降序展示所有有记录日期
 - 打开时默认今天：当前月进入日模式；构造日期属于往月时进入月模式；今天日期头显示 `Today`
 - 日模式：`readDayFile(_selectedDate)` + 同日 pending 按 `key` 去重合并（`HistoryRecord.mergeDedup`）；无记录显示日空状态；不加载同月其他日期
 - 月模式：按 `Common.dateOfEpoch` 分组，只保留有记录日期，不插入空日期节点；初始顶部为最后有记录日；不加载前后月份；只缓存一个月，切换月份直接替换
 - 订阅 `historyConsumer.pendingRevision`：日模式合并所选日期；月模式不混入当前月 pending；不订阅 `flushCount`
 - 订阅 `HistoryBackupService.busy` / `progress`：显示进度；结束时重载可用月份与当前模式；不订阅 `last`
-- 日历：可用月份来自 `listMonths()` + pending 月份，当前月无条件加入；当月选日进入日模式，往月选月进入月模式；今天始终可选，当前月今天之前的日期仅在有记录（含 pending）时可选；未来日期与无数据往月禁用
-- 日历对话框背景与导入确认对话框一致（`colorScheme.surface`）；按钮三态：选中月/日（当前展示月/日）为蓝色外框 + 淡蓝色底色 + 灰色文字；可选月/日为 `grey500` 外框 + 白色底色 + 灰色文字；不可选月/日为无外框 + 无背景 + 淡灰色文字
+- 日历：可用月份来自 `listMonths()` + pending 月份，当前月无条件加入；当前月可用日期来自 `listDays(当前月)` + pending 日期；当月选日进入日模式，往月选月进入月模式；今天始终可选，当前月今天之前的日期仅在有记录（含 pending）时可选；未来日期与无数据往月禁用
+- 日历对话框背景与导入确认对话框一致（`colorScheme.surface`）；按钮三态：选中月/日（当前展示月/日）为蓝色外框 + 淡蓝色底色 + `grey800` 文字；可选月/日为 `grey300` 外框 + 白色底色 + `grey800` 文字；不可选月/日为无外框 + 无背景 + `grey500` 文字
+- 日历选择器接口：`showHistoryDatePicker(context, {availableMonths, availableDates, initialMonth, selectedDate, now})` 返回 `yyyyMMdd` / `yyyyMM` / `null`；`availableDates` 只约束当前月日期
 - 切换模式 / 月份时递增 `_loadGeneration`，丢弃旧结果，清空旧数据、日索引与区块缓存
 - 月模式懒构建：维护 `_DayMeta`（date / records / blockCount）与 `_TimelineIndex`（`starts` 前缀数组 + 二分 + `itemCount`），用 `CustomScrollView` + `SliverList.builder`；日期头占 1 项，其余为记录或区块；不预生成逐条 entry，不构建整月 / 整天 `Column`
 - `blockCount` 在月缓存加载时按日扫描一次；`_blocksByDay` 只在区块视图首次显示某日时构建；合并展示切换时清空区块缓存
@@ -789,7 +791,7 @@ settings page：
 
 history page：
 
-- 从 HomePage 三点菜单打开，始终以今天为起点；页面内不再有月份导航或日期列表
+- 从 HomePage 三点菜单打开，始终以今天为起点；页面内不再有月份导航或独立日期列表（月模式仅显示有记录日期的日期头）
 - 日模式只加载所选日期；月模式加载整月有记录日期并按日期降序展示，不插入空日期、不加载前后月份
 - 日期可用性：今天始终可选，日头显示 `Today`；当前月即使无记录也保留激活；当前月今天之前的日期仅在有记录（含 pending）时可选；过往无数据月份禁用；未来日期禁用
 - 日模式按同日 pending 增量合并，不整月重读；月模式不混入当前月 pending
@@ -819,7 +821,8 @@ info page：
 - 定位流程进行中（starting/running）按返回键不销毁 Activity，而是调用 Android `moveTaskToBack(true)`。
 - 系统杀死进程后的冷启动不恢复旧 Coordinator 状态。
 - 使用 Android 默认的应用 task affinity（包名 `name.w57.nearest_station_notification`），不额外设置 `taskAffinity`。
-- 声明定位、前台服务、通知与 wake lock 权限；注册 Location 前台服务与通知图标元数据。
+- Android manifest 声明 `ACCESS_COARSE_LOCATION` / `ACCESS_FINE_LOCATION` / `FOREGROUND_SERVICE_LOCATION` / `FOREGROUND_SERVICE` / `POST_NOTIFICATIONS` / `WAKE_LOCK`，并注册通知图标元数据；前台服务由 `location` 插件提供。
+- iOS `Info.plist` 声明 `UIBackgroundModes`（`location` / `fetch`）与定位用途说明。
 
 ---
 
@@ -871,18 +874,18 @@ SearchEngine 不解析站名。
 定义于 `common.dart`，与 `StationResult` / `PositionResult` 同处。
 
 - `gcd`：非空 int（车站 ID）
-- `latitudeE6` / `longitudeE6`：经纬度 ×1e6 四舍五入的 int
 - `epoch`：`PositionResult.timestamp.millisecondsSinceEpoch`；主开关补记使用开启时刻
+- `latE6` / `lonE6`：经纬度 ×1e6 四舍五入的 int
 - `date`：由 `epoch` 经 `Common` 日期入口得到的本地 `yyyyMMdd` int，供分组、比较、排序与文件名共用；不落盘
 - 派生显示值：本地时间 `HH:mm:ss.SSS`、坐标 6 位小数
-- 记录键：`(gcd, epoch, latitudeE6, longitudeE6)`，用于合并去重
+- 记录键：`(gcd, epoch, latE6, lonE6)`，用于合并去重
 - 站名不落盘；展示时由 HistoryPage 通过 `StationManager.getStationNameByGcd(gcd)` 查询，查不到显示 `--`
 
 历史 NDJSON：
 
 ```text
-{"v":1,"fields":["gcd","lat_e6","lon_e6","epoch"]}
-[1130101,35681236,139767125,1792686228385]
+{"v":1,"fields":["gcd","epoch","lat_e6","lon_e6"]}
+[1130101,1792686228385,35681236,139767125]
 ```
 
 - 文件名使用本地日期：日 `YYYYMMDD`（`$date`）、月 `YYYYMM`（`$month`），由上述 `int` 直接插值，见 `Date Representation`。
@@ -991,7 +994,7 @@ Coordinator.changeActive()
 HomePage.dispose 时：
 
 - 移除生命周期观察者与 Service 监听
-- 释放 InfoImportService / SettingsSaveService / HistoryBackupService
+- 释放 InfoImportService / SettingsSaveService / HistoryBackupService / HistoryArchiveService（归档先 `cancel()` 再 `dispose()`）
 - 移除 Coordinator 的 handler 并调用 `stop()`（等待 pending 写入完成）
 
 当天的历史持久化：
@@ -1104,6 +1107,23 @@ HistoryBackupService.last = success / cancelled / failure
         └─ HomePage：Toast（历史页自行重载）
 ```
 
+历史分组开关（HistoryPage AppBar）：
+
+```text
+HistoryPage 点击分组开关
+        │  onHistoryMergeViewChanged(next)
+        ▼
+HomePage._changeHistoryMergeView
+        │  SettingsManager.copyWith(historyMergeView)
+        ▼
+SettingsSaveService.save(updated)
+        │  SettingsManager.save / last
+        ▼
+HomePage：_settingsManager 更新 + Coordinator.changeSettings + Toast
+        │
+        └─ HistoryPage：乐观更新当前模式索引/区块；失败时回滚
+```
+
 启动归档：
 
 ```text
@@ -1149,7 +1169,7 @@ HistoryArchiveService.last = success / cancelled / failure
 - 当天记录先进入 HistoryConsumer 的 pending；达到 10 条或自首条入队起满 5 分钟后，按日期分组批量写入 `history/YYYYMMDD.ndjson`，成功即移出 pending。
 - 日期 / 月份在代码中均为 `int`（`date` / `month`），字符串只在拼接路径与扫描目录时出现。
 - 已归档月份使用 `history/YYYYMM.zip`，内含 `YYYYMM.ndjson` + `SHA256SUMS`。
-- 月度 ZIP 成功后删除该月日文件；迟到日文件由 `readDayFile` / `readMonth` / `listDays` 合并，下次合并并入月度 ZIP 并删除。
+- 月度 ZIP 成功后删除该月日文件；迟到日文件由 `readMonth` 合并、`listDays` 枚举；下次合并并入月度 ZIP 并删除。
 - 日模式只调用 `readDayFile($date)` 读取当天 `YYYYMMDD.ndjson`，不扫描同月其他日文件、不读取月度 ZIP；月模式调用一次 `readMonth($month)` 读取 ZIP + 目录日文件。
 - 历史记录不设条数上限，不删除月度归档，不提供清空。
 - 当前只有 v1，不存在旧版历史数据迁移；读取时坏行跳过，坏文件保留并记录日志。
@@ -1158,7 +1178,7 @@ HistoryArchiveService.last = success / cancelled / failure
 
 以下是设计期容量估算，不是运行时统计，也不是强制上限：
 
-- 当前 v1 每条数据行约 40–50 B（7 位 gcd、8 位纬度 e6、9 位经度 e6、13 位 epoch、分隔符与换行），每个日文件另加约 50–60 B header。
+- 当前 v1 每条数据行约 40–50 B（7 位 gcd、13 位 epoch、8 位纬度 e6、9 位经度 e6、分隔符与换行），每个日文件另加约 50–60 B header。
 - 标准低档 533 条/天：约 21–27 KB/天；31 天约 16,523 条、0.66–0.83 MB/月；10 年约 194.5 万条、78–98 MB。
 - 标准高档 800 条/天：约 32–40 KB/天；31 天约 24,800 条、0.99–1.24 MB/月；10 年约 292 万条、117–146 MB。
 - 以上均按 v1 未压缩 NDJSON 估算，不含文件系统块开销；ZIP 备份通常更小。
