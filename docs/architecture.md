@@ -314,7 +314,7 @@ Coordinator 只负责协调（Coordinate），不负责业务实现（Implement�
 
 职责：
 
-- Geolocator Stream 的建立、重启与停止
+- Location Stream 的建立、重启与停止
 - 按速度选择 distanceFilter，并按更新频率切换采样参数
 - GPS 漂移过滤（近距过滤 + 1 秒间隔下的观察者模式）
 - 调用 SearchEngine
@@ -338,7 +338,7 @@ SearchEngine 属于 LocationProcessor 的内部依赖。
 
 平台参数：
 
-- Android：`AndroidSettings`，高精度、`intervalDuration`、自适应 distanceFilter、Geolocator 前台服务通知、wake lock
+- Android：`AndroidSettings`，高精度、`intervalDuration`、自适应 distanceFilter、Location 前台服务通知、wake lock
 - iOS / macOS：`AppleSettings`，`bestForNavigation`、`otherNavigation`、显示后台定位指示
 - 其他平台：`LocationSettings`，高精度
 
@@ -819,7 +819,7 @@ info page：
 - 定位流程进行中（starting/running）按返回键不销毁 Activity，而是调用 Android `moveTaskToBack(true)`。
 - 系统杀死进程后的冷启动不恢复旧 Coordinator 状态。
 - 使用 Android 默认的应用 task affinity（包名 `name.w57.nearest_station_notification`），不额外设置 `taskAffinity`。
-- 声明定位、前台服务、通知与 wake lock 权限；注册 Geolocator 前台服务与通知图标元数据。
+- 声明定位、前台服务、通知与 wake lock 权限；注册 Location 前台服务与通知图标元数据。
 
 ---
 

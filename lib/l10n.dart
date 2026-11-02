@@ -212,7 +212,7 @@ class L10n {
   //   return '${flnNotificationGcd(gcd)}\nDistance: $distanceInUnit';
   // }
 
-  // Geolocator 服务通知标题
+  // Location 服务通知标题
   String get fgnChannelName => fgnNotificationTitle; // 定义别名区分使用位置
   String get fgnNotificationTitle {
     if (_isJa) return 'アプリ常駐通知';
@@ -220,7 +220,7 @@ class L10n {
     return 'Persistent Service Notification';
   }
 
-  // Geolocator 服务通知正文
+  // Location 服务通知正文
   String get fgnNotificationBody {
     if (_isJa) return '長押しでこの常駐通知の非表示を推奨します';
     if (_isZhHans) return '建议长按关闭常驻服务通知';

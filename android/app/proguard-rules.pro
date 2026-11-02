@@ -6,8 +6,8 @@
 -keep class io.flutter.embedding.engine.loader.FlutterLoader { *; }
 -keep class io.flutter.util.PathUtils { *; }
 
-# Plugins (Geolocator, FLN)
--keep class com.baseflow.geolocator.** { *; }
+# Plugins (Location, FLN)
+-keep class com.lyokone.location.** { *; }
 -keep class com.dexterous.flutterlocalnotifications.** { *; }
 
 # =========================================================

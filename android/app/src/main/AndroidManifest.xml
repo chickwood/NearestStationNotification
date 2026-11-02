@@ -45,10 +45,6 @@
         <meta-data
             android:name="name.w57.nearest_station_notification.ic_notification"
             android:resource="@drawable/ic_notification" />
-        <service
-            android:name="com.baseflow.geolocator.GeolocatorLocationService"
-            android:foregroundServiceType="location"
-            android:exported="false" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and
