@@ -55,7 +55,7 @@ class _HistoryPageState extends ResetableState<HistoryPage> {
   int _loadGeneration = 0;
   bool _pickingMonth = false;
   bool _hasHistory = false;
-  late bool _mergeView;
+  bool _mergeView = false;
   bool _savingMergeView = false;
 
   bool _backupWasBusy = false;
@@ -66,6 +66,7 @@ class _HistoryPageState extends ResetableState<HistoryPage> {
     super.initState();
 
     _mergeView = widget.settingsManager.historyMergeView;
+
     _selectedDate = widget.date;
     _selectedMonth = Common.monthDateOf(widget.date);
     _mode =
@@ -414,6 +415,7 @@ class _HistoryPageState extends ResetableState<HistoryPage> {
   Widget build(BuildContext context) {
     final l10n = L10n.of(context);
     final backupBusy = widget.historyBackupService.busy.value;
+    final mergeViewDisabled = backupBusy || _savingMergeView;
     final calendarDisabled = backupBusy || _pickingMonth;
     final exportDisabled = backupBusy || _runningAction != null || !_hasHistory;
     final importDisabled = backupBusy || _runningAction != null;
@@ -426,10 +428,11 @@ class _HistoryPageState extends ResetableState<HistoryPage> {
         title: Text(l10n.historyTitle),
         actions: [
           AppBarAction(
-            onPressed: _savingMergeView ? null : _toggleMergeView,
-            icon: Icon(_mergeView ? Icons.view_agenda : Icons.view_list),
-            color: _mergeView ? Colors.white : const Color(0xFFA0C0FF),
-            disabledColor: _mergeView ? Colors.white : const Color(0xFFA0C0FF),
+            onPressed: mergeViewDisabled ? null : _toggleMergeView,
+            icon:
+                _mergeView
+                    ? const Icon(Icons.view_agenda)
+                    : const Icon(Icons.view_list),
             tooltip: l10n.historyMergeViewState(_mergeView),
           ),
           AppBarAction(
