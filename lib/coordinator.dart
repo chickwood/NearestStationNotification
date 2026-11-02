@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:geolocator/geolocator.dart';
+import 'package:location/location.dart';
 
 import 'common.dart';
 import 'l10n.dart';
@@ -218,15 +218,15 @@ class Coordinator {
   // ── 権限 ────────────────────────────────────────────────────────
 
   Future<bool> _requestLocationPermissions() async {
-    if (!await Geolocator.isLocationServiceEnabled()) return false;
+    if (!await Location.instance.serviceEnabled()) return false;
 
-    LocationPermission perm = await Geolocator.checkPermission();
-    if (perm == LocationPermission.denied) {
-      perm = await Geolocator.requestPermission();
+    PermissionStatus perm = await Location.instance.hasPermission();
+    if (perm == PermissionStatus.denied) {
+      perm = await Location.instance.requestPermission();
     }
-    // 仅接受 whileInUse，严禁引导开启 always
-    return perm == LocationPermission.whileInUse ||
-        perm == LocationPermission.always;
+
+    return perm == PermissionStatus.granted ||
+        perm == PermissionStatus.grantedLimited;
   }
 
   Future<bool> _requestNotificationPermissions() async {

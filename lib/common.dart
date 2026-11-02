@@ -333,15 +333,15 @@ class PositionResult {
 enum RunningStatus { stopped, starting, running }
 
 enum SamplingMode {
-  staying(speed: 0, filter: 4), // 静止
-  walking(speed: 1, filter: 4), // 步行 >= 1 m/s
-  cycling(speed: 4, filter: 4), // 骑自行车 >= 4 m/s
-  transit(speed: 8, filter: 16); // 乘车 >= 8 m/s（~ 30 km/h）
+  staying(speed: 0.0), // 静止
+  walking(speed: 1.0), // 步行 >= 1 m/s
+  cycling(speed: 4.0), // 骑自行车 >= 4 m/s
+  transit(speed: 8.0, filter: 16.0); // 乘车 >= 8 m/s（~ 30 km/h）
 
   final double speed;
-  final int filter;
+  final double filter;
 
-  const SamplingMode({required this.speed, required this.filter});
+  const SamplingMode({required this.speed, this.filter = 4.0});
 
   @override
   String toString() {
