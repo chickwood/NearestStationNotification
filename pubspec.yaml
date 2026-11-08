@@ -16,9 +16,9 @@ dependencies:
   archive: ^4.6.0
   crypto: ^3.0.8
   file_picker: ^13.3.2
-  flutter_local_notifications: ^22.3.3
+  flutter_local_notifications: ^23.0.0
   flutter_styled_toast: ^2.3.0
-  location: ^10.0.2
+  location: ^10.1.0
   package_info_plus: ^10.2.2
   path_provider: ^2.1.6
   shared_preferences: ^2.5.6

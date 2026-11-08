@@ -12,7 +12,9 @@
         android:name="${applicationName}"
         android:label="@string/app_title"
         android:icon="@mipmap/ic_launcher"
-        android:localeConfig="@xml/locales_config">
+        android:localeConfig="@xml/locales_config"
+        android:fullBackupContent="@xml/backup_rules"
+        android:dataExtractionRules="@xml/data_extraction_rules">
         <activity
             android:name=".MainActivity"
             android:label="@string/app_title"
@@ -43,10 +45,6 @@
         <meta-data
             android:name="name.w57.nearest_station_notification.ic_notification"
             android:resource="@drawable/ic_notification" />
-        <service
-            android:name="com.baseflow.geolocator.GeolocatorLocationService"
-            android:foregroundServiceType="location"
-            android:exported="false" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

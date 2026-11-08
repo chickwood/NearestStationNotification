@@ -2,13 +2,14 @@ import 'dart:async';
 
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
-import 'common.dart';
-import 'l10n.dart';
+import '../common.dart';
+import '../l10n.dart';
 
-/// 業務通知専用ゲートウェイ（FLN ラッパー）
-/// 呼び出し側（Coordinator）から渡されたデータで通知を表示する
-/// 通知表示に必要な内部状態（現在言語 / 最近の定位結果 / 最近通知した駅 / 更新ロック）を保持する
-class NotificationGateway {
+/// 定位結果の常駐コンシューマ（通知担当）
+/// - Coordinator の常駐 handler として登録され、放送されたデータで通知を表示する
+/// - 通知表示に必要な内部状態（現在言語 / 最近の定位結果 / 最近通知した駅 / 更新ロック）を保持する
+/// - Coordinator のスナップショットは読まず、放送された payload のみを使う
+class NotificationConsumer {
   L10n _l10n;
 
   late final FlutterLocalNotificationsPlugin _fln;
@@ -17,7 +18,7 @@ class NotificationGateway {
   StationResult? _lastNearestResult; // 最近车站切换检测用
   List<StationResult>? _stationResults;
 
-  NotificationGateway(this._l10n) {
+  NotificationConsumer(this._l10n) {
     _fln = FlutterLocalNotificationsPlugin();
   }
 
@@ -99,16 +100,16 @@ class NotificationGateway {
     _isNotificationUpdating = true;
     try {
       if (stationResults case [final first, ...]) {
-        final isStationChanged = _lastNearestResult?.gcd != first.gcd;
+        final stationChanged = _lastNearestResult?.gcd != first.gcd;
         _lastNearestResult = first;
 
         // 最近车站切换时取消当前通知重新显示
-        if (isStationChanged) await _fln.cancelAll();
+        if (stationChanged) await _fln.cancelAll();
         // 通知模式是每次定位更新时更新通知内的距离
         // if (forceUpdate ||
         //     isStationChanged ||
         //     _settings?.notificationMode == NotificationMode.location) {
-        if (forceUpdate || isStationChanged) {
+        if (forceUpdate || stationChanged) {
           await _fln.show(
             id: Common.flnNotificationId,
             title: _l10n.flnNotificationTitle(first.name),
@@ -122,9 +123,9 @@ class NotificationGateway {
                 _l10n.flnChannelName, // channelName
                 channelDescription: _l10n.flnChannelDescription,
                 icon: Common.flnNotificationIcon,
-                importance: // isStationChanged ? Importance.high : Importance.low,
+                importance: // stationChanged ? Importance.high : Importance.low,
                     Importance.high,
-                priority: // isStationChanged ? Priority.high : Priority.low,
+                priority: // stationChanged ? Priority.high : Priority.low,
                     Priority.high,
                 showWhen: true,
                 playSound: false, // 不发出提示音

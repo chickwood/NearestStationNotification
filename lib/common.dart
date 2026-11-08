@@ -1,17 +1,40 @@
 import 'dart:math';
 
+import 'package:flutter/material.dart';
+
 class Common {
   // ── 动态包名常驻内存（由 main 在冷启动时注入） ───────────────────────
   static late final String appName;
 
-  // 駅情報・イベント情報
+  // 駅情報
   static const binFileName = 'station_data_xyz.bin';
-  static const eventFileName = 'event_data.ndjson';
-  static const sumsFileName = 'SHA256SUMS';
 
-  // イベントデータ形式
-  static const eventVersion = 2;
+  // イベント情報
+  static const eventFileName = 'event_data.ndjson';
+  static const eventSchemaVersion = 2;
   static const eventFields = <String>['start_epoch', 'end_epoch'];
+
+  // 履歴
+  static const historyDirName = 'history';
+  static const historySchemaVersion = 1;
+  static const historyFields = <String>['gcd', 'epoch', 'lat_e6', 'lon_e6'];
+  static const historyMergeWindow = Duration(minutes: 5);
+
+  // 车站历史汇总
+  static const summaryFileName = 'summary.ndjson';
+  static const summarySchemaVersion = 1;
+  static const summaryFields = <String>[
+    'gcd',
+    'first_epoch',
+    'first_lat_e6',
+    'first_lon_e6',
+    'last_epoch',
+    'last_lat_e6',
+    'last_lon_e6',
+  ];
+
+  static const sumsFileName = 'SHA256SUMS';
+  static const manifestFileName = 'MANIFEST';
 
   // ── 导入 zip 限制 ──────────────────────────────────────────────
   static const maxZipSize = 20 * 1024 * 1024;
@@ -52,6 +75,66 @@ class Common {
 
   // int(UInt32) 最大值
   static const intMaxValue = 4294967295;
+
+  // ── 日期（int yyyyMMdd / yyyyMM，见 architecture.md 的 Date Representation）
+  /// 本地日期键：`yyyyMMdd`
+  static int dateOf(DateTime time) =>
+      time.year * 10000 + time.month * 100 + time.day;
+
+  /// epoch 毫秒 → 本地日期键
+  static int dateOfEpoch(int epoch) =>
+      dateOf(DateTime.fromMillisecondsSinceEpoch(epoch));
+
+  /// 日期键 → 月份键：`yyyyMM`
+  static int monthDateOf(int date) => date ~/ 100;
+
+  /// 当前本地日期键：`yyyyMMdd`
+  static int today() => dateOf(DateTime.now());
+
+  /// 当前本地月份键：`yyyyMM`
+  static int currentMonth() => monthDateOf(today());
+
+  /// 月份键加减
+  /// 处理跨年：`202601` + (-1) → `202512`
+  static int addMonths(int month, int delta) {
+    final index = (month ~/ 100) * 12 + (month % 100 - 1) + delta;
+    return (index ~/ 12) * 100 + index % 12 + 1;
+  }
+
+  /// 年
+  static int yearOf(int date) => date ~/ 10000;
+
+  /// 月（1–12）
+  static int monthOf(int date) => date ~/ 100 % 100;
+
+  /// 日（1–31）
+  static int dayOf(int date) => date % 100;
+
+  /// 合法日期键
+  /// 0 表示未设置
+  static bool isValidDate(int date) {
+    if (date == 0) return true;
+    if (date < 10000101 || date > 99991231) return false;
+
+    final year = yearOf(date);
+    final month = monthOf(date);
+    final day = dayOf(date);
+    if (month < 1 || month > 12) return false;
+    if (day < 1 || day > 31) return false;
+
+    final time = DateTime(year, month, day);
+    return time.year == year && time.month == month && time.day == day;
+  }
+
+  /// 合法月份键
+  /// 0 表示未设置
+  static bool isValidMonth(int month) {
+    if (month == 0) return true;
+    if (month < 100001 || month > 999912) return false;
+
+    final monthOfYear = month % 100;
+    return monthOfYear >= 1 && monthOfYear <= 12;
+  }
 
   // 地球半径常数（米）
   static const _earthRadius = 6371000.0;
@@ -213,10 +296,11 @@ class Common {
     return 2 * asin(score > 4.0 ? 1.0 : sqrt(score) * 0.5) * _earthRadius;
   }
 
-  static Direction direction(double degrees, {double? speed}) {
+  static Direction direction(double? degrees, {double? speed}) {
     // 阈值定义
     // 低于此速度认为方向不可信
-    if (speed != null && sampling(speed) == SamplingMode.staying) {
+    if (degrees == null ||
+        (speed != null && sampling(speed) == SamplingMode.staying)) {
       return Direction.staying;
     }
 
@@ -240,38 +324,37 @@ class Common {
 }
 
 class StationResult {
-  final int index;
+  final int node;
   final int? gcd; // SearchEngine 原产出无此資訊，由 Coordinator 補全
   final String? name; // SearchEngine 原产出无此資訊，由 Coordinator 補全
-  final double distance;
-  final double bearing;
+  final double? distance;
+  final double? bearing;
 
   StationResult({
-    required this.index,
+    required this.node,
     this.gcd,
     this.name,
-    required this.distance,
-    required this.bearing,
+    this.distance,
+    this.bearing,
   });
 
-  @override
-  String toString() {
-    return '{index: $index, gcd: $gcd, name: $name, distance: $distance}';
+  String get distanceInUnit {
+    final d = distance == null || distance! < 0.0 ? 0.0 : distance!;
+
+    return d < 1000.0
+        ? '${d.toStringAsFixed(1)} m'
+        : '${(d / 1000.0).toStringAsFixed(2)} km';
   }
 
-  String get distanceInUnit =>
-      distance < 1000.0
-          ? '${distance.toStringAsFixed(1)} m'
-          : '${(distance / 1000.0).toStringAsFixed(2)} km';
   Direction get bearingIndex => Common.direction(bearing);
 
   // // 序列化（暂存，未来可能用于 Isolate 间通信，当前无调用）
-  // List<dynamic> toTransferable() => [index, gcd, name, distance, bearing];
+  // List<dynamic> toTransferable() => [node, gcd, name, distance, bearing];
 
   // // 反序列化
   // // 添加显式强制转换
   // factory StationResult.fromTransferable(List<dynamic> data) => StationResult(
-  //       index: data[0] as int,
+  //       node: data[0] as int,
   //       gcd: data[1] as int?,
   //       name: data[2] as String?,
   //       distance: (data[3] as num).toDouble(),
@@ -328,6 +411,166 @@ class PositionResult {
   //       heading: (data[4] as num).toDouble(),
   //       timestamp: DateTime.fromMillisecondsSinceEpoch(data[5] as int),
   //     );
+}
+
+class HistoryRecord {
+  final int gcd;
+  final int epoch;
+  final int latE6;
+  final int lonE6;
+
+  const HistoryRecord({
+    required this.gcd,
+    required this.epoch,
+    required this.latE6,
+    required this.lonE6,
+  });
+
+  double get latitude => latE6 / 1e6;
+  double get longitude => lonE6 / 1e6;
+  DateTime get timestamp => DateTime.fromMillisecondsSinceEpoch(epoch);
+  String get key => '$gcd|$epoch|$latE6|$lonE6';
+
+  List<Object?> toRow() => [gcd, epoch, latE6, lonE6];
+
+  static HistoryRecord? tryParse(Object? value) {
+    if (value is! List || value.length != 4) return null;
+
+    final gcd = value[0];
+    final epoch = value[1];
+    final latE6 = value[2];
+    final lonE6 = value[3];
+
+    if (gcd is! int) return null;
+    if (epoch is! int || latE6 is! int || lonE6 is! int) return null;
+
+    return HistoryRecord(gcd: gcd, epoch: epoch, latE6: latE6, lonE6: lonE6);
+  }
+
+  /// 记录键去重后按 epoch / gcd / key 升序排序
+  /// 磁盘读取与页面合并共用同一实现，避免两处排序不一致
+  static List<HistoryRecord> mergeDedup(Iterable<HistoryRecord> input) {
+    final unique = <String, HistoryRecord>{};
+    for (final record in input) {
+      unique.putIfAbsent(record.key, () => record);
+    }
+
+    final records = unique.values.toList();
+    records.sort((a, b) {
+      final byEpoch = a.epoch.compareTo(b.epoch);
+      if (byEpoch != 0) return byEpoch;
+
+      final byStation = a.gcd.compareTo(b.gcd);
+      if (byStation != 0) return byStation;
+
+      return a.key.compareTo(b.key);
+    });
+    return records;
+  }
+}
+
+class StationSummary {
+  final HistoryRecord first;
+  final HistoryRecord last;
+
+  const StationSummary({required this.first, required this.last});
+
+  int get gcd => first.gcd;
+
+  factory StationSummary.fromRecord(HistoryRecord record) =>
+      StationSummary(first: record, last: record);
+
+  /// 時間順序固定為 `(epoch, latE6, lonE6)` 升序
+  static int compare(HistoryRecord a, HistoryRecord b) {
+    final byEpoch = a.epoch.compareTo(b.epoch);
+    if (byEpoch != 0) return byEpoch;
+
+    final byLat = a.latE6.compareTo(b.latE6);
+    if (byLat != 0) return byLat;
+
+    return a.lonE6.compareTo(b.lonE6);
+  }
+
+  StationSummary merge(HistoryRecord record) {
+    assert(record.gcd == gcd);
+    return StationSummary(
+      first: compare(record, first) < 0 ? record : first,
+      last: compare(record, last) > 0 ? record : last,
+    );
+  }
+
+  StationSummary mergeSummary(StationSummary other) {
+    assert(other.gcd == gcd);
+    return StationSummary(
+      first: compare(other.first, first) < 0 ? other.first : first,
+      last: compare(other.last, last) > 0 ? other.last : last,
+    );
+  }
+
+  List<Object?> toRow() => [
+    gcd,
+    first.epoch,
+    first.latE6,
+    first.lonE6,
+    last.epoch,
+    last.latE6,
+    last.lonE6,
+  ];
+
+  static StationSummary? tryParse(Object? value) {
+    if (value is! List || value.length != 7) return null;
+
+    final gcd = value[0];
+    final firstEpoch = value[1];
+    final firstLatE6 = value[2];
+    final firstLonE6 = value[3];
+    final lastEpoch = value[4];
+    final lastLatE6 = value[5];
+    final lastLonE6 = value[6];
+
+    if (gcd is! int ||
+        firstEpoch is! int ||
+        firstLatE6 is! int ||
+        firstLonE6 is! int ||
+        lastEpoch is! int ||
+        lastLatE6 is! int ||
+        lastLonE6 is! int) {
+      return null;
+    }
+
+    final first = HistoryRecord(
+      gcd: gcd,
+      epoch: firstEpoch,
+      latE6: firstLatE6,
+      lonE6: firstLonE6,
+    );
+    final last = HistoryRecord(
+      gcd: gcd,
+      epoch: lastEpoch,
+      latE6: lastLatE6,
+      lonE6: lastLonE6,
+    );
+    if (compare(first, last) > 0) return null;
+
+    return StationSummary(first: first, last: last);
+  }
+
+  static Map<int, StationSummary> mergeAll(Iterable<HistoryRecord> records) =>
+      mergeInto(<int, StationSummary>{}, records);
+
+  static Map<int, StationSummary> mergeInto(
+    Map<int, StationSummary> base,
+    Iterable<HistoryRecord> records,
+  ) {
+    for (final record in records) {
+      final existing = base[record.gcd];
+      base[record.gcd] =
+          existing == null
+              ? StationSummary.fromRecord(record)
+              : existing.merge(record);
+    }
+    return base;
+  }
 }
 
 enum RunningStatus { stopped, starting, running }
@@ -415,16 +658,16 @@ enum StationCount {
   // 传入 engine 的实际 count
   int get count => friend + (eventPeriod() ? event : 0) + radar + natsume;
 
-  StationCountPart part(int index) {
-    if (index < friend) {
+  StationCountPart part(int part) {
+    if (part < friend) {
       return StationCountPart.friend;
     } else {
       if (eventPeriod()) {
-        if (index < friend + event) return StationCountPart.event;
-        if (index < friend + event + radar) return StationCountPart.radar;
+        if (part < friend + event) return StationCountPart.event;
+        if (part < friend + event + radar) return StationCountPart.radar;
         return StationCountPart.natsume;
       } else {
-        if (index < friend + radar) return StationCountPart.radar;
+        if (part < friend + radar) return StationCountPart.radar;
         return StationCountPart.natsume;
       }
     }
@@ -438,3 +681,59 @@ enum StationCount {
 }
 
 enum StationCountPart { friend, event, radar, natsume }
+
+abstract class ResetableState<T extends StatefulWidget> extends State<T> {
+  void _noop() {}
+
+  void resetState() {
+    if (!mounted) return;
+    setState(_noop);
+  }
+}
+
+class AppBarAction extends IconButton {
+  const AppBarAction({
+    super.key,
+    required super.onPressed,
+    required super.icon,
+    super.tooltip,
+    super.color = Colors.white,
+    super.disabledColor = const Color(0xFFA0C0FF),
+    super.constraints = const BoxConstraints(minWidth: 40, minHeight: 40),
+    super.padding = EdgeInsets.zero,
+    super.style = const ButtonStyle(
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    ),
+  });
+}
+
+class AppBarMenu<T> extends PopupMenuButton<T> {
+  const AppBarMenu({
+    super.key,
+    required super.itemBuilder,
+    super.elevation,
+    super.enabled,
+    super.position,
+    super.tooltip,
+    super.icon,
+    super.iconColor = Colors.white,
+    super.constraints,
+    super.padding = EdgeInsets.zero,
+    super.style = const ButtonStyle(
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      minimumSize: WidgetStatePropertyAll(Size(40, 40)),
+      maximumSize: WidgetStatePropertyAll(Size(40, 40)),
+      padding: WidgetStatePropertyAll(EdgeInsets.zero),
+      foregroundColor: WidgetStateProperty<Color?>.fromMap(
+        <WidgetStatesConstraint, Color?>{
+          WidgetState.disabled: Color(0xFFA0C0FF),
+          WidgetState.any: Colors.white,
+        },
+      ),
+    ),
+    super.shape,
+    super.onSelected,
+  });
+}
+
+enum HomeMenuAction { settings, history, info }

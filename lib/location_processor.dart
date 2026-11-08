@@ -20,10 +20,10 @@ typedef LocationHandler =
 class LocationProcessor {
   L10n _l10n;
   bool _active;
-  SettingsManager _settings;
-  StationManager _manager;
+  StationManager _stationManager;
+  ProcessorSettingsManager _settingsManager;
 
-  late SearchEngine _engine;
+  late SearchEngine _searchEngine;
 
   // 位置ズレフィルタ用キュー
   static const _queueSize = 3;
@@ -34,8 +34,13 @@ class LocationProcessor {
   // 結果コールバック（Coordinator が登録）
   LocationHandler? _onLocationUpdated;
 
-  LocationProcessor(this._l10n, this._active, this._settings, this._manager) {
-    _engine = SearchEngine(_manager);
+  LocationProcessor(
+    this._l10n,
+    this._active,
+    this._stationManager,
+    this._settingsManager,
+  ) {
+    _searchEngine = SearchEngine(_stationManager);
   }
 
   void setLocationHandler(LocationHandler handler) {
@@ -55,20 +60,20 @@ class LocationProcessor {
   // ── 状態の変更 ──────────────────────────────────────────────────────
 
   /// 設定更新
-  Future<void> changeSettings(SettingsManager settings) async {
-    final changeInterval =
-        _settings.locationInterval.milliseconds !=
+  Future<void> changeSettings(ProcessorSettingsManager settings) async {
+    final intervalChanged =
+        _settingsManager.locationInterval.milliseconds !=
         settings.locationInterval.milliseconds;
-    final changeCount =
-        _settings.stationCount.count != settings.stationCount.count;
-    _settings = settings;
+    final countChanged =
+        _settingsManager.stationCount.count != settings.stationCount.count;
+    _settingsManager = settings;
 
     if (_positionSubscription != null) {
-      if (changeInterval) {
+      if (intervalChanged) {
         await _startStream();
       }
 
-      if (changeCount) {
+      if (countChanged) {
         if (_positionQueue case [..., final last]) {
           _updateSearchResult(last);
         }
@@ -79,11 +84,11 @@ class LocationProcessor {
   /// UI 活動状態の変更
   /// active が false → true になった場合は count 分の再検索が必要
   void changeActive(bool active) {
-    final changeActive = _active != active;
+    final activeChanged = _active != active;
     _active = active;
 
     if (_positionSubscription != null) {
-      if (changeActive && _active) {
+      if (activeChanged && _active) {
         if (_positionQueue case [..., final last]) {
           _updateSearchResult(last);
         }
@@ -92,20 +97,20 @@ class LocationProcessor {
   }
 
   /// 系统语言更新
-  void changeLocale(L10n l10n) {
+  Future<void> changeLocale(L10n l10n) async {
     _l10n = l10n;
 
     // 前台通知テキストを即座反映するため流を再起動
     if (_positionSubscription != null) {
-      unawaited(_startStream());
+      await _startStream();
     }
   }
 
   /// 站点数据更新（hot reload）
   /// manager 与 SearchEngine 成对替换（同一同步块，不中断流）
-  void changeData(StationManager manager) {
-    _manager = manager;
-    _engine = SearchEngine(manager);
+  void changeData(StationManager stationManager) {
+    _stationManager = stationManager;
+    _searchEngine = SearchEngine(stationManager);
   }
 
   // ── GPS Stream ───────────────────────────────────────────────────
@@ -115,7 +120,7 @@ class LocationProcessor {
         _positionQueue.isNotEmpty
             ? _positionQueue.last.samplingMode.filter
             : SamplingMode.staying.filter;
-    final milliseconds = _settings.locationInterval.milliseconds;
+    final milliseconds = _settingsManager.locationInterval.milliseconds;
 
     _positionSubscription?.cancel();
     _positionSubscription = null;
@@ -142,8 +147,8 @@ class LocationProcessor {
 
     _positionSubscription = Location.instance.onLocationChanged.listen((
       position,
-    ) {
-      if (_handlePositionUpdated(position) case final positionResult?) {
+    ) async {
+      if (await _handlePositionUpdated(position) case final positionResult?) {
         _updateSearchResult(positionResult);
       }
     });
@@ -160,13 +165,19 @@ class LocationProcessor {
 
   // ── 位置更新処理（GPS Stream）────────────────────────────
 
-  PositionResult? _handlePositionUpdated(LocationData position) {
+  Future<PositionResult?> _handlePositionUpdated(LocationData position) async {
     // 基础数据
     final userLatitude = position.latitude;
     final userLongitude = position.longitude;
     final userHeading = position.heading ?? 0.0;
-    final rawSpeed = position.speed ?? 0.0;
-    final userSpeed = rawSpeed < 0 ? 0.0 : rawSpeed;
+    final rawSpeed = position.speed ?? -1.0;
+    final userSpeed = rawSpeed < 0.0 ? 0.0 : rawSpeed;
+    final userAccuracy = position.accuracy ?? 0.0;
+    final rawTimestamp = position.time ?? -1.0;
+    final userTimestamp =
+        rawTimestamp < 0.0
+            ? DateTime.now()
+            : DateTime.fromMillisecondsSinceEpoch(rawTimestamp.round());
     var userMode = Common.sampling(userSpeed);
 
     // 最新采样点先进入队列
@@ -176,12 +187,9 @@ class LocationProcessor {
         latitude: userLatitude,
         longitude: userLongitude,
         speed: userSpeed,
-        accuracy: position.accuracy ?? 0.0,
+        accuracy: userAccuracy,
         heading: userHeading,
-        timestamp:
-            position.time == null
-                ? DateTime.now()
-                : DateTime.fromMillisecondsSinceEpoch(position.time!.round()),
+        timestamp: userTimestamp,
       ),
     );
 
@@ -211,7 +219,8 @@ class LocationProcessor {
           prevMode == SamplingMode.transit &&
           Common.sampling(_positionQueue[_positionQueue.length - 3].speed) !=
               SamplingMode.transit;
-      if (_settings.locationInterval == LocationInterval.s1 && isObserving) {
+      if (_settingsManager.locationInterval == LocationInterval.s1 &&
+          isObserving) {
         // 下一次定位又变为低速或静止
         // 认为是 GPS 漂移
         if (userMode != SamplingMode.transit) {
@@ -241,12 +250,12 @@ class LocationProcessor {
         // 最新可信采样点是高速
         // 并且当前处于观察者模式
         // 视为进入加速状态或者高速稳定状态
-        if (isObserving) unawaited(_startStream()); // 重启流
+        if (isObserving) await _startStream(); // 重启流
       } else {
         // 最新可信采样点是低速
         // 但是前一个可信采样点是高速
         // 视为进入减速状态
-        if (prevMode == SamplingMode.transit) unawaited(_startStream()); // 重启流
+        if (prevMode == SamplingMode.transit) await _startStream(); // 重启流
       }
     }
 
@@ -260,11 +269,11 @@ class LocationProcessor {
   void _updateSearchResult(PositionResult positionResult) {
     // 取得车站数全部在 engine 内进行分歧判断
     // 取得最小车站数后再填入其他属性返回最小数据集
-    final stationResults = _engine
+    final stationResults = _searchEngine
         .locate(
           positionResult.latitude,
           positionResult.longitude,
-          _settings.stationCount.count,
+          _settingsManager.stationCount.count,
           _active,
         )
         .toList(growable: false);

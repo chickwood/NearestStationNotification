@@ -38,7 +38,7 @@ class InfoImportResult {
 }
 
 /// zip 解析 → SHA-256 → 写入 → load
-/// 异步执行与结果独立于 Dialog 生命周期
+/// 异步执行与结果独立于页面生命周期
 class InfoImportService {
   final ValueNotifier<InfoImportResult?> last = ValueNotifier(null);
   final ValueNotifier<bool> busy = ValueNotifier(false);
