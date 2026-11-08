@@ -48,7 +48,7 @@ class HistoryManager {
 
   Future<void> _lock = Future<void>.value();
 
-  HistoryManager._({required Directory? directory}) : _directory = directory;
+  HistoryManager._({required this._directory});
 
   bool get isAvailable => _directory != null;
 
@@ -777,11 +777,10 @@ class HistoryManager {
       var text = utf8.decode(bytes);
       if (text.startsWith('\uFEFF')) text = text.substring(1);
 
-      final lines =
-          const LineSplitter()
-              .convert(text)
-              .where((line) => line.trim().isNotEmpty)
-              .toList();
+      final lines = const LineSplitter()
+          .convert(text)
+          .where((line) => line.trim().isNotEmpty)
+          .toList();
       if (lines.isEmpty) return null;
 
       final header = jsonDecode(lines.first);
@@ -805,8 +804,9 @@ class HistoryManager {
             continue;
           }
           final existing = summaries[summary.gcd];
-          summaries[summary.gcd] =
-              existing == null ? summary : existing.mergeSummary(summary);
+          summaries[summary.gcd] = existing == null
+              ? summary
+              : existing.mergeSummary(summary);
         } catch (e) {
           debugPrint('summary: $e');
         }
@@ -1013,8 +1013,8 @@ class HistoryManager {
       final archiveMonths =
           (manifest['archiveMonths'] as List<String>).map(int.parse).toList()
             ..sort();
-      final dailyFiles =
-          (manifest['dailyFiles'] as List<String>).toList()..sort();
+      final dailyFiles = (manifest['dailyFiles'] as List<String>).toList()
+        ..sort();
       final hasSummary = manifest['summary'] == true;
 
       final expected = <String>{
@@ -1353,11 +1353,10 @@ class HistoryManager {
       var text = utf8.decode(bytes);
       if (text.startsWith('\uFEFF')) text = text.substring(1);
 
-      final lines =
-          const LineSplitter()
-              .convert(text)
-              .where((line) => line.trim().isNotEmpty)
-              .toList();
+      final lines = const LineSplitter()
+          .convert(text)
+          .where((line) => line.trim().isNotEmpty)
+          .toList();
       if (lines.isEmpty) return null;
 
       final header = jsonDecode(lines.first);
