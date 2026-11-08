@@ -136,6 +136,18 @@ class Common {
     return monthOfYear >= 1 && monthOfYear <= 12;
   }
 
+  static String dateString(int year, int month, int day) {
+    return '${year.toString().padLeft(4, '0')}-'
+        '${month.toString().padLeft(2, '0')}-'
+        '${day.toString().padLeft(2, '0')}';
+  }
+
+  static String timeString(int hour, int minute, int second) {
+    return '${hour.toString().padLeft(2, '0')}:'
+        '${minute.toString().padLeft(2, '0')}:'
+        '${second.toString().padLeft(2, '0')}';
+  }
+
   // 地球半径常数（米）
   static const _earthRadius = 6371000.0;
   // 角度转弧度的常数
@@ -376,16 +388,15 @@ class PositionResult {
 
   @override
   String toString() {
-    return '{latitude: $latitude, longitude: $longitude, speed: $speedString, accuracy: $accuracyString, heading: $headingIndex, datetime: $timestampString}';
+    return '{latitude: $latitude, longitude: $longitude, speed: $speedString, accuracy: $accuracyString, heading: $headingIndex, datetime: $timeString}';
   }
 
-  String get speedString =>
-      speed < SamplingMode.cycling.speed
-          ? '${speed.toStringAsFixed(1)} m/s'
-          : '${(speed * 3.6).toStringAsFixed(2)} km/h';
+  String get speedString => speed < SamplingMode.cycling.speed
+      ? '${speed.toStringAsFixed(1)} m/s'
+      : '${(speed * 3.6).toStringAsFixed(2)} km/h';
   String get accuracyString => '${accuracy.toStringAsFixed(1)} m';
   Direction get headingIndex => Common.direction(heading, speed: speed);
-  String get timestampString =>
+  String get timeString =>
       "${timestamp.hour.toString().padLeft(2, '0')}:${timestamp.minute.toString().padLeft(2, '0')}:${timestamp.second.toString().padLeft(2, '0')}";
   // int get elapsed => DateTime.now().difference(timestamp).inMilliseconds;
   SamplingMode get samplingMode => Common.sampling(speed);
@@ -564,10 +575,9 @@ class StationSummary {
   ) {
     for (final record in records) {
       final existing = base[record.gcd];
-      base[record.gcd] =
-          existing == null
-              ? StationSummary.fromRecord(record)
-              : existing.merge(record);
+      base[record.gcd] = existing == null
+          ? StationSummary.fromRecord(record)
+          : existing.merge(record);
     }
     return base;
   }

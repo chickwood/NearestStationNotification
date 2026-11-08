@@ -76,7 +76,7 @@ class L10n {
 
   String get tapToStart {
     if (_isJa) return '右上の ▶ をクリックして開始';
-    if (_isZhHans) return '点击右上角的 ▶ 开始定位';
+    if (_isZhHans) return '点击右上角的 ▶ 开始';
     return 'Tap ▶ in the title bar to start';
   }
 
@@ -306,10 +306,10 @@ class L10n {
     return 'Today';
   }
 
-  String get historyDayEmpty {
-    if (_isJa) return 'この日の履歴はありません';
-    if (_isZhHans) return '当天暂无历史记录';
-    return 'No history for this day';
+  String get historyEmpty {
+    if (_isJa) return '履歴はありません';
+    if (_isZhHans) return '暂无历史记录';
+    return 'No history';
   }
 
   String historyDayCount(int count) {
@@ -336,7 +336,7 @@ class L10n {
     return 'Archiving...';
   }
 
-  String get historyArchivingHint {
+  String get historyArchivingForLongtime {
     if (_isJa) return '長時間固まる場合は一回 ▶ をクリックして一旦停止';
     if (_isZhHans) return '长时间未能完成时再次点击 ▶ 可以暂时停止';
     return 'Tap ▶ to stop for now while not complete for a long time';

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../common.dart';
+
 /// 返回值：
 /// - 8 位 `yyyyMMdd`：当前月选择了具体日期
 /// - 6 位 `yyyyMM`：往期月份选择了月份
@@ -11,19 +13,16 @@ import 'package:flutter/material.dart';
 /// [availableDates] 为当前月有记录的日期（`yyyyMMdd`）；
 /// 当前月的今天始终可选，今天之前的日期只有存在于该集合时才可选。
 ///
-/// [selectedDate] 为当前展示的日期（`yyyyMMdd`），用于高亮；月视图则高亮
-/// [initialMonth] 对应的月份。
+/// [selectedDateOrMonth] 为当前展示的日期（`yyyyMMdd`），用于高亮；月视图则高亮
+/// [selectedMonth] 对应的月份。
 Future<int?> showHistoryDatePicker(
   BuildContext context, {
   required Iterable<int> availableMonths,
   required Iterable<int> availableDates,
-  int? initialMonth,
-  int? selectedDate,
-  DateTime? now,
+  int? selectedDateOrMonth,
 }) {
-  final current = now ?? DateTime.now();
-  final currentMonth = current.year * 100 + current.month;
-  final today = current.year * 10000 + current.month * 100 + current.day;
+  final today = Common.today();
+  final currentMonth = Common.currentMonth();
 
   final months = <int>{
     for (final month in availableMonths)
@@ -32,25 +31,24 @@ Future<int?> showHistoryDatePicker(
   };
   final sorted = months.toList()..sort();
 
-  var initial = initialMonth ?? currentMonth;
-  if (!months.contains(initial)) {
-    initial = sorted.lastWhere(
-      (month) => month <= initial,
+  var initialMonth = selectedDateOrMonth ?? currentMonth;
+  if (!months.contains(initialMonth)) {
+    initialMonth = sorted.lastWhere(
+      (month) => month <= initialMonth,
       orElse: () => sorted.first,
     );
   }
 
   return showDialog<int>(
     context: context,
-    builder:
-        (context) => _HistoryDatePickerDialog(
-          availableMonths: months,
-          availableDates: availableDates.toSet(),
-          currentMonth: currentMonth,
-          today: today,
-          initialMonth: initial,
-          selectedDate: selectedDate,
-        ),
+    builder: (context) => _HistoryDatePickerDialog(
+      availableDates: availableDates.toSet(),
+      availableMonths: months,
+      today: today,
+      currentMonth: currentMonth,
+      selectedDate: selectedDateOrMonth,
+      selectedMonth: initialMonth,
+    ),
   );
 }
 
@@ -63,7 +61,7 @@ class _HistoryDatePickerDialog extends StatefulWidget {
     required this.availableDates,
     required this.currentMonth,
     required this.today,
-    required this.initialMonth,
+    required this.selectedMonth,
     required this.selectedDate,
   });
 
@@ -71,7 +69,7 @@ class _HistoryDatePickerDialog extends StatefulWidget {
   final Set<int> availableDates;
   final int currentMonth;
   final int today;
-  final int initialMonth;
+  final int selectedMonth;
   final int? selectedDate;
 
   @override
@@ -87,8 +85,8 @@ class _HistoryDatePickerDialogState extends State<_HistoryDatePickerDialog> {
   @override
   void initState() {
     super.initState();
-    _year = widget.initialMonth ~/ 100;
-    _dayMode = widget.initialMonth == widget.currentMonth;
+    _year = widget.selectedMonth ~/ 100;
+    _dayMode = widget.selectedMonth == widget.currentMonth;
     _years =
         widget.availableMonths.map((month) => month ~/ 100).toSet().toList()
           ..sort();
@@ -171,7 +169,7 @@ class _HistoryDatePickerDialogState extends State<_HistoryDatePickerDialog> {
   Widget _buildMonthCell(int month) {
     final key = _year * 100 + month;
     final enabled = widget.availableMonths.contains(key);
-    final selected = key == widget.initialMonth;
+    final selected = key == widget.selectedMonth;
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
@@ -311,20 +309,18 @@ class _HistoryDatePickerDialogState extends State<_HistoryDatePickerDialog> {
     required bool selected,
     required bool enabled,
   }) {
-    final borderColor =
-        selected
-            ? const Color(0xFF4080FF)
-            : enabled
-            ? Colors.grey.shade300
-            : Colors.transparent;
+    final borderColor = selected
+        ? const Color(0xFF4080FF)
+        : enabled
+        ? Colors.grey.shade300
+        : Colors.transparent;
 
     return BoxDecoration(
-      color:
-          selected
-              ? const Color(0xFFDCECFF)
-              : enabled
-              ? Colors.white
-              : Colors.transparent,
+      color: selected
+          ? const Color(0xFFDCECFF)
+          : enabled
+          ? Colors.white
+          : Colors.transparent,
       border: Border.all(color: borderColor),
       borderRadius: BorderRadius.circular(8),
     );
