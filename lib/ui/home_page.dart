@@ -505,115 +505,108 @@ class _HomePageState extends ResetableState<HomePage>
   // ── Station results (expanded) ────────────────────────────────────────────────
 
   Widget _buildStationResultsExpanded(L10n l10n) {
+    if (_historyArchiveService.busy.value) {
+      return Align(
+        alignment: Alignment.topCenter,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              l10n.historyArchiving,
+              style: const TextStyle(color: Colors.grey),
+            ),
+            Text(
+              l10n.historyArchivingForLongtime,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.grey),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_stationManager!.count <= 0) {
+      return Align(
+        alignment: Alignment.topCenter,
+        child: Text(
+          l10n.countStations(0),
+          style: const TextStyle(color: Colors.grey),
+        ),
+      );
+    }
+
+    if (_coordinator!.runningStatus == RunningStatus.stopped) {
+      return Align(
+        alignment: Alignment.topCenter,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(l10n.notStarted, style: const TextStyle(color: Colors.grey)),
+            Text(l10n.tapToStart, style: const TextStyle(color: Colors.grey)),
+            if (_stationManager!.isSampleData) ...[
+              const SizedBox(height: 4),
+              Text(
+                l10n.sampleDataGuide,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.grey),
+              ),
+            ],
+          ],
+        ),
+      );
+    }
+
+    if (_coordinator!.runningStatus == RunningStatus.starting) {
+      return Align(
+        alignment: Alignment.topCenter,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              l10n.waitingForLocation,
+              style: const TextStyle(color: Colors.grey),
+            ),
+            Text(
+              l10n.waitingForLongtime,
+              style: const TextStyle(color: Colors.grey),
+            ),
+          ],
+        ),
+      );
+    }
+
     return Expanded(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: _historyArchiveService.busy.value
-            ? [
-                Align(
-                  alignment: Alignment.topCenter,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        l10n.historyArchiving,
-                        style: const TextStyle(color: Colors.grey),
-                      ),
-                      Text(
-                        l10n.historyArchivingForLongtime,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(color: Colors.grey),
-                      ),
-                    ],
-                  ),
-                ),
-              ]
-            : _stationManager!.count <= 0
-            ? [
-                Align(
-                  alignment: Alignment.topCenter,
-                  child: Text(
-                    l10n.countStations(0),
-                    style: const TextStyle(color: Colors.grey),
-                  ),
-                ),
-              ]
-            : _coordinator!.runningStatus == RunningStatus.stopped
-            ? [
-                Align(
-                  alignment: Alignment.topCenter,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        l10n.notStarted,
-                        style: const TextStyle(color: Colors.grey),
-                      ),
-                      Text(
-                        l10n.tapToStart,
-                        style: const TextStyle(color: Colors.grey),
-                      ),
-                      if (_stationManager!.isSampleData) ...[
-                        const SizedBox(height: 4),
-                        Text(
-                          l10n.sampleDataGuide,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(color: Colors.grey),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ]
-            : _coordinator!.runningStatus == RunningStatus.starting
-            ? [
-                Align(
-                  alignment: Alignment.topCenter,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        l10n.waitingForLocation,
-                        style: const TextStyle(color: Colors.grey),
-                      ),
-                      Text(
-                        l10n.waitingForLongtime,
-                        style: const TextStyle(color: Colors.grey),
-                      ),
-                    ],
-                  ),
-                ),
-              ]
-            : [
-                Text(
-                  l10n.nearbyStations,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 2),
-                    child: ListView.separated(
-                      itemCount: _coordinator!.stationResults!.length,
-                      itemBuilder: (context, index) {
-                        final stationResult =
-                            _coordinator!.stationResults![index];
+        children: [
+          Text(
+            l10n.nearbyStations,
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 2),
+              child: ListView.separated(
+                itemCount: _coordinator!.stationResults!.length,
+                itemBuilder: (_, index) {
+                  final stationResult = _coordinator!.stationResults![index];
 
-                        return _StationTile(
-                          index: index,
-                          name: stationResult.name ?? '',
-                          distance: stationResult.distanceInUnit,
-                          direction: l10n.direction(stationResult.bearingIndex),
-                          part: _settingsManager!.stationCount.part(index),
-                        );
-                      },
-                      separatorBuilder: (BuildContext context, int index) {
-                        return const SizedBox(height: 4);
-                      },
-                    ),
-                  ),
-                ),
-              ],
+                  return _StationTile(
+                    index: index,
+                    name: stationResult.name ?? '',
+                    distance: stationResult.distanceInUnit,
+                    direction: l10n.direction(stationResult.bearingIndex),
+                    part: _settingsManager!.stationCount.part(index),
+                  );
+                },
+                separatorBuilder: (_, _) {
+                  return const SizedBox(height: 4);
+                },
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

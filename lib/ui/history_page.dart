@@ -41,7 +41,7 @@ class _HistoryPageState extends ResetableState<HistoryPage> {
   _MonthCache? _monthCache;
 
   final Map<int, List<_HistoryBlock>> _blocksByDay = {};
-  late _StationNameCache _stationNames;
+  late _StationNameCache _nameCache;
 
   List<int> _availableDates = const [];
   List<int> _availableMonths = const [];
@@ -62,7 +62,7 @@ class _HistoryPageState extends ResetableState<HistoryPage> {
     super.initState();
 
     _mergeView = widget.settingsManager.historyMergeView;
-    _stationNames = _StationNameCache(widget.stationManager);
+    _nameCache = _StationNameCache(widget.stationManager);
 
     _selectedDateOrMonth = Common.today();
 
@@ -80,7 +80,7 @@ class _HistoryPageState extends ResetableState<HistoryPage> {
     super.didUpdateWidget(oldWidget);
 
     if (!identical(oldWidget.stationManager, widget.stationManager)) {
-      _stationNames = _StationNameCache(widget.stationManager);
+      _nameCache = _StationNameCache(widget.stationManager);
     }
   }
 
@@ -139,7 +139,7 @@ class _HistoryPageState extends ResetableState<HistoryPage> {
 
     final generation = ++_loadGeneration;
     _blocksByDay.clear();
-    _stationNames.clear();
+    _nameCache.clear();
 
     try {
       final stored = Common.isValidDate(_selectedDateOrMonth)
@@ -232,7 +232,7 @@ class _HistoryPageState extends ResetableState<HistoryPage> {
 
     _monthCache = _MonthCache.build(
       HistoryRecord.mergeDedup([
-        for (final day in cache.days) ...day.records,
+        for (final day in cache.dayMetas) ...day.records,
         ...scoped,
       ]),
       _mergeView,
@@ -463,79 +463,97 @@ class _HistoryPageState extends ResetableState<HistoryPage> {
       ),
       body: Column(
         children: [
-          if (backupBusy)
-            Column(
-              children: [
-                if (_runningAction != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: Text(
-                      _runningAction == HistoryBackupAction.export
-                          ? l10n.historyExporting
-                          : l10n.historyImporting,
-                      style: TextStyle(
-                        color: Colors.grey.shade700,
-                        fontSize: 12.0,
-                      ),
-                    ),
-                  ),
-                LinearProgressIndicator(
-                  value: widget.historyBackupService.progress.value > 0
-                      ? widget.historyBackupService.progress.value
-                      : null,
-                  color: const Color(0xFF4080FF),
-                  backgroundColor: const Color(0xFFDCECFF),
+          if (backupBusy) ...[
+            if (_runningAction != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  _runningAction == HistoryBackupAction.export
+                      ? l10n.historyExporting
+                      : l10n.historyImporting,
+                  style: TextStyle(color: Colors.grey.shade700, fontSize: 12.0),
                 ),
-              ],
+              ),
+            LinearProgressIndicator(
+              value: widget.historyBackupService.progress.value > 0
+                  ? widget.historyBackupService.progress.value
+                  : null,
+              color: const Color(0xFF4080FF),
+              backgroundColor: const Color(0xFFDCECFF),
             ),
-          Expanded(child: _buildBody(l10n)),
+          ],
+          Expanded(
+            child: SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  children: [
+                    _buildBodyExpanded(l10n), // 车站列表: リスト部分のみスクロール
+                  ],
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildBody(L10n l10n) {
+  Widget _buildBodyExpanded(L10n l10n) {
     if (_loading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    final cache = _monthCache;
-    final days = cache?.days ?? const <_DayMeta>[];
-    if (cache == null || days.isEmpty) {
-      return Column(
-        children: [
-          if (Common.isValidDate(_selectedDateOrMonth))
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-              child: _DayHeader(date: _selectedDateOrMonth, records: const []),
-            ),
-          Expanded(child: _buildEmpty(l10n.historyEmpty)),
-        ],
+      return const Align(
+        alignment: Alignment.topCenter,
+        child: CircularProgressIndicator(),
       );
     }
 
-    final mergeView = cache.mergeView;
-    final index = cache.index;
+    final monthCache = _monthCache;
+    final dayMetas = monthCache?.dayMetas ?? const <_DayMeta>[];
+    if (monthCache == null || dayMetas.isEmpty) {
+      return Expanded(
+        child: Column(
+          children: [
+            if (Common.isValidDate(_selectedDateOrMonth)) ...[
+              _DayHeader(date: _selectedDateOrMonth, records: const []),
+              const SizedBox(height: 4),
+            ],
+            Align(
+              alignment: Alignment.topCenter,
+              child: Text(
+                l10n.historyEmpty,
+                style: const TextStyle(color: Colors.grey),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
 
-    return CustomScrollView(
-      slivers: [
-        SliverPadding(
-          padding: const EdgeInsets.all(12),
-          sliver: SliverList.builder(
-            itemCount: index.itemCount,
-            itemBuilder: (context, itemIndex) {
-              final dayIndex = index.dayIndexOf(itemIndex);
-              final day = days[dayIndex];
-              final offset = itemIndex - index.starts[dayIndex];
+    final mergeView = monthCache.mergeView;
+    final timelineIndex = monthCache.timelineIndex;
+    return Expanded(
+      child: CustomScrollView(
+        slivers: [
+          SliverList.separated(
+            itemCount: timelineIndex.total,
+            itemBuilder: (_, index) {
+              final dayIndex = timelineIndex.dayIndexOf(index);
+              final dayMeta = dayMetas[dayIndex];
+              final offset = index - timelineIndex.days[dayIndex];
 
               if (offset == 0) {
-                return _DayHeader(date: day.date, records: day.records);
+                return Column(
+                  children: [
+                    _DayHeader(date: _selectedDateOrMonth, records: const []),
+                    const SizedBox(height: 4),
+                  ],
+                );
               }
 
               final contentIndex = offset - 1;
 
               if (mergeView) {
-                final blocks = _blocksForDay(day.date, day.records);
+                final blocks = _blocksForDay(dayMeta.date, dayMeta.records);
                 if (contentIndex >= blocks.length) {
                   return const SizedBox.shrink();
                 }
@@ -545,38 +563,39 @@ class _HistoryPageState extends ResetableState<HistoryPage> {
                   children: [
                     _HistoryBlockCard(
                       key: ValueKey(
-                        '${day.date}-${block.gcd}-${block.startEpoch}',
+                        '${dayMeta.date}-${block.gcd}-${block.startEpoch}',
                       ),
                       index: blocks.length - contentIndex,
-                      stationNames: _stationNames,
                       records: block.records,
+                      nameCache: _nameCache,
                     ),
-                    const Divider(height: 16),
+                  ],
+                );
+              } else {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _HistoryBlockCard(
+                      index: dayMeta.records.length - contentIndex,
+                      records: [
+                        dayMeta.records[dayMeta.records.length -
+                            1 -
+                            contentIndex],
+                      ],
+                      nameCache: _nameCache,
+                    ),
                   ],
                 );
               }
-
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _HistoryRecordCard(
-                    record: day.records[day.records.length - 1 - contentIndex],
-                    index: day.records.length - contentIndex,
-                    stationNames: _stationNames,
-                  ),
-                  const Divider(height: 16),
-                ],
-              );
+            },
+            separatorBuilder: (_, _) {
+              return const SizedBox(height: 4);
             },
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
-
-  Widget _buildEmpty(String message) => Center(
-    child: Text(message, style: TextStyle(color: Colors.grey.shade600)),
-  );
 }
 
 // ── 月キャッシュ / 日次索引 ────────────────────────────────────────
@@ -594,11 +613,11 @@ class _DayMeta {
 }
 
 class _MonthCache {
-  final List<_DayMeta> days;
-  final _TimelineIndex index;
+  final List<_DayMeta> dayMetas;
+  final _TimelineIndex timelineIndex;
   final bool mergeView;
 
-  const _MonthCache._(this.days, this.index, this.mergeView);
+  const _MonthCache._(this.dayMetas, this.timelineIndex, this.mergeView);
 
   factory _MonthCache.build(List<HistoryRecord> records, bool mergeView) {
     final grouped = <int, List<HistoryRecord>>{};
@@ -625,36 +644,40 @@ class _MonthCache {
     );
   }
 
-  _MonthCache withMergeView(bool mergeView) =>
-      _MonthCache._(days, _TimelineIndex.build(days, mergeView), mergeView);
+  _MonthCache withMergeView(bool mergeView) => _MonthCache._(
+    dayMetas,
+    _TimelineIndex.build(dayMetas, mergeView),
+    mergeView,
+  );
 }
 
 class _TimelineIndex {
-  final List<int> starts;
-  final int itemCount;
+  final List<int> days;
+  final int total;
 
-  const _TimelineIndex._(this.starts, this.itemCount);
+  const _TimelineIndex._(this.days, this.total);
 
-  factory _TimelineIndex.build(List<_DayMeta> days, bool mergeView) {
-    final starts = List<int>.filled(days.length + 1, 0);
+  factory _TimelineIndex.build(List<_DayMeta> dayMetas, bool mergeView) {
+    final days = List<int>.filled(dayMetas.length + 1, 0);
     var total = 0;
 
-    for (var i = 0; i < days.length; i++) {
-      starts[i] = total;
-      total += 1 + (mergeView ? days[i].blockCount : days[i].records.length);
+    for (var i = 0; i < dayMetas.length; i++) {
+      days[i] = total;
+      total +=
+          1 + (mergeView ? dayMetas[i].blockCount : dayMetas[i].records.length);
     }
-    starts[days.length] = total;
+    days[dayMetas.length] = total;
 
-    return _TimelineIndex._(starts, total);
+    return _TimelineIndex._(days, total);
   }
 
   int dayIndexOf(int itemIndex) {
     var low = 0;
-    var high = starts.length - 2;
+    var high = days.length - 2;
 
     while (low < high) {
       final mid = (low + high + 1) >> 1;
-      if (starts[mid] <= itemIndex) {
+      if (days[mid] <= itemIndex) {
         low = mid;
       } else {
         high = mid - 1;
@@ -684,7 +707,7 @@ class _DayHeader extends StatelessWidget {
           );
 
     return Padding(
-      padding: const EdgeInsets.only(top: 4, bottom: 6),
+      padding: EdgeInsets.zero,
       child: Row(
         children: [
           Text(
@@ -795,13 +818,13 @@ class _StationNameCache {
 
 class _HistoryBlockCard extends StatelessWidget {
   final int index;
-  final _StationNameCache stationNames;
+  final _StationNameCache nameCache;
   final List<HistoryRecord> records;
 
   const _HistoryBlockCard({
     super.key,
     required this.index,
-    required this.stationNames,
+    required this.nameCache,
     required this.records,
   });
 
@@ -814,7 +837,7 @@ class _HistoryBlockCard extends StatelessWidget {
         record.gcd,
         () => _HistoryStationGroup(
           gcd: record.gcd,
-          name: stationNames.resolve(record.gcd),
+          name: nameCache.resolve(record.gcd),
         ),
       );
       group.records.add(record);
@@ -856,34 +879,6 @@ class _HistoryStationGroupView extends StatelessWidget {
         const SizedBox(height: 2),
         for (final record in group.records.reversed)
           _HistoryRecordRow(record: record),
-      ],
-    );
-  }
-}
-
-class _HistoryRecordCard extends StatelessWidget {
-  final int index;
-  final HistoryRecord record;
-  final _StationNameCache stationNames;
-
-  const _HistoryRecordCard({
-    required this.index,
-    required this.record,
-    required this.stationNames,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _HistoryStationTile(
-          index: index,
-          gcd: record.gcd,
-          name: stationNames.resolve(record.gcd),
-        ),
-        const SizedBox(height: 2),
-        _HistoryRecordRow(record: record),
       ],
     );
   }
