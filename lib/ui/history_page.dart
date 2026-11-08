@@ -431,8 +431,8 @@ class _HistoryPageState extends ResetableState<HistoryPage> {
             onPressed: mergeViewDisabled ? null : _toggleMergeView,
             icon:
                 _mergeView
-                    ? const Icon(Icons.view_agenda)
-                    : const Icon(Icons.view_list),
+                    ? const Icon(Icons.view_list)
+                    : const Icon(Icons.view_agenda),
             tooltip: l10n.historyMergeViewState(_mergeView),
           ),
           AppBarAction(
@@ -522,7 +522,7 @@ class _HistoryPageState extends ResetableState<HistoryPage> {
           }
           final block = blocks[index - 1];
           return _HistoryBlockCard(
-            key: ValueKey(block.startEpoch),
+            key: ValueKey('${block.gcd}-${block.startEpoch}'),
             stationManager: widget.stationManager,
             records: block.records,
           );
@@ -592,7 +592,9 @@ class _HistoryPageState extends ResetableState<HistoryPage> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     _HistoryBlockCard(
-                      key: ValueKey('${day.date}-${block.startEpoch}'),
+                      key: ValueKey(
+                        '${day.date}-${block.gcd}-${block.startEpoch}',
+                      ),
                       stationManager: widget.stationManager,
                       records: block.records,
                     ),
@@ -747,21 +749,29 @@ class _DayHeader extends StatelessWidget {
 // ── 5分ブロック ───────────────────────────────────────────────────
 
 class _HistoryBlock {
+  final int gcd;
   final int startEpoch;
   final List<HistoryRecord> records;
 
-  _HistoryBlock({required this.startEpoch, required this.records});
+  _HistoryBlock({
+    required this.gcd,
+    required this.startEpoch,
+    required this.records,
+  });
+
+  int get lastEpoch => records.last.epoch;
 }
 
 int _countBlocks(List<HistoryRecord> ascending) {
   final window = Common.historyMergeWindow.inMilliseconds;
+  final starts = <int, int>{};
   var count = 0;
-  int? startEpoch;
 
   for (final record in ascending) {
-    if (startEpoch == null || record.epoch - startEpoch > window) {
+    final start = starts[record.gcd];
+    if (start == null || record.epoch - start > window) {
       count++;
-      startEpoch = record.epoch;
+      starts[record.gcd] = record.epoch;
     }
   }
 
@@ -770,24 +780,42 @@ int _countBlocks(List<HistoryRecord> ascending) {
 
 List<_HistoryBlock> _buildBlocks(List<HistoryRecord> records) {
   final sorted = [...records]..sort((a, b) => a.epoch.compareTo(b.epoch));
+  final currentByStation = <int, _HistoryBlock>{};
   final blocks = <_HistoryBlock>[];
 
   for (final record in sorted) {
-    if (blocks.isEmpty ||
-        record.epoch - blocks.last.startEpoch >
+    final current = currentByStation[record.gcd];
+    if (current == null ||
+        record.epoch - current.startEpoch >
             Common.historyMergeWindow.inMilliseconds) {
-      blocks.add(_HistoryBlock(startEpoch: record.epoch, records: [record]));
+      final block = _HistoryBlock(
+        gcd: record.gcd,
+        startEpoch: record.epoch,
+        records: [record],
+      );
+      currentByStation[record.gcd] = block;
+      blocks.add(block);
     } else {
-      blocks.last.records.add(record);
+      current.records.add(record);
     }
   }
 
-  return blocks..sort((a, b) => b.startEpoch.compareTo(a.startEpoch));
+  blocks.sort((a, b) {
+    final byLast = b.lastEpoch.compareTo(a.lastEpoch);
+    if (byLast != 0) return byLast;
+
+    final byStart = b.startEpoch.compareTo(a.startEpoch);
+    if (byStart != 0) return byStart;
+
+    return a.gcd.compareTo(b.gcd);
+  });
+
+  return blocks;
 }
 
 // ── 表示コンポーネント ────────────────────────────────────────────
 
-class _HistoryBlockCard extends StatefulWidget {
+class _HistoryBlockCard extends StatelessWidget {
   final StationManager stationManager;
   final List<HistoryRecord> records;
 
@@ -798,22 +826,15 @@ class _HistoryBlockCard extends StatefulWidget {
   });
 
   @override
-  State<_HistoryBlockCard> createState() => _HistoryBlockCardState();
-}
-
-class _HistoryBlockCardState extends State<_HistoryBlockCard> {
-  final Set<int> _expanded = {};
-
-  @override
   Widget build(BuildContext context) {
     final groups = <int, _HistoryStationGroup>{};
 
-    for (final record in widget.records) {
+    for (final record in records) {
       final group = groups.putIfAbsent(
         record.gcd,
         () => _HistoryStationGroup(
           gcd: record.gcd,
-          name: widget.stationManager.getStationNameByGcd(record.gcd),
+          name: stationManager.getStationNameByGcd(record.gcd),
         ),
       );
       group.records.add(record);
@@ -821,19 +842,7 @@ class _HistoryBlockCardState extends State<_HistoryBlockCard> {
 
     final children = <Widget>[];
     for (final group in groups.values) {
-      children.add(
-        _HistoryStationGroupView(
-          group: group,
-          expanded: _expanded.contains(group.gcd),
-          onToggle: () {
-            setState(() {
-              if (!_expanded.add(group.gcd)) {
-                _expanded.remove(group.gcd);
-              }
-            });
-          },
-        ),
-      );
+      children.add(_HistoryStationGroupView(group: group));
       children.add(const SizedBox(height: 4));
     }
 
@@ -854,48 +863,18 @@ class _HistoryStationGroup {
 
 class _HistoryStationGroupView extends StatelessWidget {
   final _HistoryStationGroup group;
-  final bool expanded;
-  final VoidCallback onToggle;
 
-  const _HistoryStationGroupView({
-    required this.group,
-    required this.expanded,
-    required this.onToggle,
-  });
+  const _HistoryStationGroupView({required this.group});
 
   @override
   Widget build(BuildContext context) {
-    final hasMore = group.records.length > Common.historyBlockRowLimit;
-    final visibleCount =
-        expanded ? group.records.length : Common.historyBlockRowLimit;
-    final count =
-        visibleCount < group.records.length
-            ? visibleCount
-            : group.records.length;
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _HistoryStationTile(gcd: group.gcd, name: group.name),
         const SizedBox(height: 2),
-        for (var i = 0; i < count; i++)
-          _HistoryRecordRow(
-            record: group.records[i],
-            trailing:
-                hasMore && i == Common.historyBlockRowLimit - 1
-                    ? GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTap: onToggle,
-                      child: Icon(
-                        expanded
-                            ? Icons.keyboard_arrow_up
-                            : Icons.keyboard_arrow_down,
-                        size: 18,
-                        color: Colors.grey.shade600,
-                      ),
-                    )
-                    : null,
-          ),
+        for (final record in group.records.reversed)
+          _HistoryRecordRow(record: record),
       ],
     );
   }
@@ -996,9 +975,8 @@ class _HistoryStationTile extends StatelessWidget {
 
 class _HistoryRecordRow extends StatelessWidget {
   final HistoryRecord record;
-  final Widget? trailing;
 
-  const _HistoryRecordRow({required this.record, this.trailing});
+  const _HistoryRecordRow({required this.record});
 
   @override
   Widget build(BuildContext context) {
@@ -1028,7 +1006,6 @@ class _HistoryRecordRow extends StatelessWidget {
               style: valueStyle,
             ),
           ),
-          if (trailing != null) ...[const SizedBox(width: 2), trailing!],
         ],
       ),
     );
