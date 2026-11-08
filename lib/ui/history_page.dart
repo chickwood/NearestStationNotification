@@ -748,7 +748,8 @@ class _DayHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = L10n.of(context);
-    final dateLabel = date == Common.today() ? 'Today' : _dateLabel(date);
+    final dateLabel =
+        date == Common.today() ? l10n.historyToday : _dateLabel(date);
 
     return Padding(
       padding: const EdgeInsets.only(top: 4, bottom: 6),

@@ -300,6 +300,12 @@ class L10n {
     return 'History';
   }
 
+  String get historyToday {
+    if (_isJa) return '今日';
+    if (_isZhHans) return '今天';
+    return 'Today';
+  }
+
   String get historyDayEmpty {
     if (_isJa) return 'この日の履歴はありません';
     if (_isZhHans) return '当天暂无历史记录';
