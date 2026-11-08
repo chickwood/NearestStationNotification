@@ -34,6 +34,7 @@ Test
 - StationManager 是唯一站点数据来源（Single Source of Truth）
 - EventManager 是唯一事件数据来源
 - HistoryConsumer 持有未落盘缓冲（pending）并负责记录判定与批量写穿（10 条 / 首条起算 5 分钟，按日批量追加）；HistoryManager 负责持久化；HistoryPage 日模式按日合并磁盘与 pending，月模式只读整月；Coordinator 只公开 HistoryConsumer，由页面直接订阅
+- HistoryManager 另维护派生的车站历史汇总 `summary.ndjson`（每个 `gcd` 的首次 / 最近成为最近车站时刻与用户坐标）；普通 flush 不更新汇总，只在月度归档成功与备份导入时写入；读取为累计基线 + 当前月日文件的 min/max 合并，汇总缺失或损坏时退化为当前月临时汇总且不写盘
 - Coordinator 只负责协调，不负责业务实现
 - 持久化与导入的异步执行从页面生命周期中解耦（InfoImportService / SettingsSaveService / HistoryBackupService / HistoryArchiveService）
 - 日期只有一种表示：本地 `yyyyMMdd` 的 `int`（月份为 `date ~/ 100`），值即键，不做多表示并存；`epoch`（int 毫秒）单独命名（见 `Date Representation`）
@@ -56,7 +57,7 @@ Test
 | `lib/manager/station_manager.dart` | 车站 BIN 数据校验、加载、原子写入、按索引访问 |
 | `lib/manager/event_manager.dart` | 事件 NDJSON 数据校验、加载、原子写入、事件期间判定 |
 | `lib/manager/settings_manager.dart` | `SettingsManager` 模型与 SharedPreferences 持久化 |
-| `lib/manager/history_manager.dart` | 车站切换历史记录、日/月文件、月度归档、按日读取、备份与导入 |
+| `lib/manager/history_manager.dart` | 车站切换历史记录、日/月文件、月度归档、车站历史汇总、按日读取、备份与导入 |
 | `lib/service/info_import_service.dart` | `InfoImportService`、ZIP 导入解析与校验 |
 | `lib/service/settings_save_service.dart` | `SettingsSaveService` |
 | `lib/service/history_backup_service.dart` | `HistoryBackupService`、历史备份导出/导入（不含文件对话框） |
@@ -642,7 +643,9 @@ ZIP 限制与规则：
 
 职责：
 
-- 历史文件存储与查询：`appendRecords()`、`readDay(int date)`、`readDayFile(int date)`、`readMonth(int month)`、`listDays(int month)`、`listMonths()`；日期 / 月份入参与返回值均为 `int`（见 `Date Representation`）
+- 历史文件存储与查询：`appendRecords()`、`readDay(int date)`、`readDayFile(int date)`、`readMonth(int month)`、`listDays(int month)`、`listMonths()`、`readStationSummaries()`、`readStationSummary(int gcd)`；日期 / 月份入参与返回值均为 `int`（见 `Date Representation`）
+- `readStationSummaries()` / `readStationSummary(int gcd)`：读取 `summary.ndjson` 累计基线与当前月日文件，按 `gcd` 合并首次 / 最近记录；汇总文件缺失、无效或超限时只使用当前月，查询不写盘、不重建、不读取月度 ZIP；单站查询与全量查询共用同一实现
+- `summary.ndjson` 是派生累计基线：普通 `appendRecords()` 不更新；仅在月度 ZIP 成功 rename 后、删除该月日文件前更新，或备份导入后重建；文件可删除，删除后读取退化为当前月临时汇总，下次归档或导入重建
 - `readDayFile(int date)` 只读取 `history/$date.ndjson`，不扫描同月其他日文件、不读取月度 ZIP；用于日模式只加载所选日期
 - `readDay(int date)` 会读取整月（ZIP + 目录日文件）再按日过滤，历史页不再使用
 - `listMonths()` 每次调用直接扫描目录内所有 `YYYYMM.zip` / `YYYYMMdd.ndjson`，不受归档调度限制
@@ -653,9 +656,11 @@ ZIP 限制与规则：
 - 日文件 `history/YYYYMMDD.ndjson` 创建与追加（新文件先写 header）
 - 月度合并：每次启动由 `HistoryArchiveService` 扫描未归档往月；没有未归档月份时不启动；归档成功后该月不再命中，失败或取消保留日文件，下次启动重试
 - 月度归档 `history/YYYYMM.zip`（内含 `YYYYMM.ndjson` + `SHA256SUMS`），成功后删除该月日文件
+- 月度归档成功后更新 `history/summary.ndjson`：基线与该月记录按 `(epoch, latE6, lonE6)` 取 min / max；若基线缺失或无效，先扫描全部月度 ZIP 与 `month < 当前月` 的日文件重建基线，再合并本月记录
+- 归档顺序固定为「月度 ZIP rename 成功 → 汇总文件原子写入成功 → 删除该月日文件」；汇总写入失败时保留日文件，该月继续视为未归档，下次启动重试；汇总写入成功但日文件删除失败时，下次归档再次合并（min / max 幂等）
 - 读取月份/日期；迟到日文件与月度 ZIP 合并、去重
-- 全量备份导出：外层 ZIP 根目录放月度 ZIP、日 NDJSON、`MANIFEST`、`SHA256SUMS`；`createBackup()` 返回写入 `MANIFEST` 的 `exportedAt`（epoch ms），供调用方命名文件
-- 备份导入：校验外层/内层 `SHA256SUMS` 与 `MANIFEST`；过往月份仅备份条数更多时覆盖；当前月日 NDJSON 合并去重
+- 全量备份导出：外层 ZIP 根目录放月度 ZIP、日 NDJSON、`summary.ndjson`（存在且大小合法时）、`MANIFEST`、`SHA256SUMS`；`createBackup()` 返回写入 `MANIFEST` 的 `exportedAt`（epoch ms），供调用方命名文件
+- 备份导入：校验外层/内层 `SHA256SUMS` 与 `MANIFEST`；过往月份仅备份条数更多时覆盖；当前月日 NDJSON 合并去重；汇总文件按备份内容播种，并在导入后按最终本地文件重建
 - 历史目录创建；目录不可用时历史读取返回空并继续运行
 - iOS 对历史目录设置 `NSURLIsExcludedFromBackupKey`（经 MethodChannel，失败仅记录日志）
 
@@ -667,9 +672,24 @@ ZIP 限制与规则：
 - 读取时校验 header 的 `v` / `fields`；坏行跳过，不导致崩溃
 - 月度 ZIP 与备份外层 ZIP 均无子目录；`SHA256SUMS` 为 `sha256sum` 文本格式
 
+车站历史汇总 `history/summary.ndjson`：
+
+```text
+{"v":1,"fields":["gcd","first_epoch","first_lat_e6","first_lon_e6","last_epoch","last_lat_e6","last_lon_e6"]}
+[1130101,1792686228385,35681236,139767125,1792690000000,35681300,139767200]
+```
+
+- 每个 `gcd` 一行，按 `gcd` 升序；仅 header 为合法空汇总。
+- `first_*` / `last_*` 为成为最近车站时刻的 epoch ms 与用户坐标 ×1e6；同一 `gcd` 多行按 `(epoch, latE6, lonE6)` 取 min / max，不采用后行覆盖。
+- `first` 不得晚于 `last`；不满足或字段非 int 的行视为坏行跳过并记录日志；读取超限（64 MB 级别）视为无效。
+- `summarySchemaVersion` 独立于 `historySchemaVersion`；汇总文件是派生数据，可删除后由归档或导入重建。
+
 约束：
 
-- 所有写入（`appendRecords` / 月度合并 / 备份 / 导入）共用同一把异步串行锁
+- 所有写入（`appendRecords` / 月度合并 / 汇总写入 / 备份 / 导入）共用同一把异步串行锁
+- 汇总文件读取与写入同样在锁内执行；公开查询 API 包锁，归档/导入内部调用无锁私有变体，避免重入死锁
+- 汇总文件写入使用临时文件 → rename；失败不破坏旧汇总文件
+- `readStationSummaries()` 不缓存，每次解析汇总文件与当前月日文件；后续若页面频繁查询，再按 `pendingRevision` / `flushCount` / 跨月切换设计失效策略
 - 月度归档使用临时 NDJSON → 临时 ZIP → rename → 删除日文件；取消或失败保留日文件与临时文件清理
 - 取消为协作式：扫描日文件、读取 ZIP、解析、写临时文件、rename、删除日文件前检查；已在锁内的月份不会被打断
 - 不依赖 Coordinator / HistoryConsumer、SettingsManager、UI 或文件对话框
@@ -746,7 +766,7 @@ ZIP 限制与规则：
 - 切换模式 / 月份时递增 `_loadGeneration`，丢弃旧结果，清空旧数据、日索引与区块缓存
 - 月模式懒构建：维护 `_DayMeta`（date / records / blockCount）与 `_TimelineIndex`（`starts` 前缀数组 + 二分 + `itemCount`），用 `CustomScrollView` + `SliverList.builder`；日期头占 1 项，其余为记录或区块；不预生成逐条 entry，不构建整月 / 整天 `Column`
 - `blockCount` 在月缓存加载时按日扫描一次；`_blocksByDay` 只在区块视图首次显示某日时构建；合并展示切换时清空区块缓存
-- 逐条展示（默认）或 5 分钟区块展示（`historyMergeView`）；区块按首条记录起算的固定 5 分钟窗口；块内按车站首次出现顺序分组、组内时间升序；最新区块在前；每组最多 5 行，第 5 行右侧箭头展开/收起
+- 逐条展示（默认）或 5 分钟窗口展示（`historyMergeView`）；每个车站独立按该站首条记录起算固定 5 分钟窗口；窗口按窗口内最后一条记录时间降序排列（同时间按起点降序、gcd 升序）；窗口内记录按时间降序，全部展开显示，无展开/收起交互
 - AppBar 分组开关与 Settings 的 5 分钟分组共用 `historyMergeView`：开启为 `view_agenda` 白色图标，关闭为 `view_list` 浅蓝色图标；点击立即写回设置，失败时回滚，并重建当前模式的索引/区块缓存
 - 导出 / 导入入口：导出前 `flush()`，`FilePicker.saveFile` 后 `finishExport()`；导入前 `flush()`、选文件、导入后重载当前模式；`_hasHistory` 由 `listMonths()` + pending 维护，无历史时禁用导出
 - 读取失败与 Manager 一致：只 `debugPrint`，保持旧数据或显示空状态，不保留页面级 error，也不显示重试页
@@ -795,7 +815,7 @@ history page：
 - 日模式只加载所选日期；月模式加载整月有记录日期并按日期降序展示，不插入空日期、不加载前后月份
 - 日期可用性：今天始终可选，日头显示 `Today`；当前月即使无记录也保留激活；当前月今天之前的日期仅在有记录（含 pending）时可选；过往无数据月份禁用；未来日期禁用
 - 日模式按同日 pending 增量合并，不整月重读；月模式不混入当前月 pending
-- 逐条默认按时间倒序；合并展示开启时按固定 5 分钟区块展示；月模式使用日期级索引与懒构建
+- 逐条默认按时间倒序；合并展示开启时按车站的固定 5 分钟窗口展示；月模式使用日期级索引与懒构建
 - AppBar：返回、分组开关、日历跳转、备份导出、备份导入（无刷新）
 - 备份导出前 `historyConsumer.flush()`；无历史时禁用导出；导入前确认覆盖规则；导入后重载当前模式
 - 导出/导入期间显示进度并禁用入口；文件选择/保存阶段绑定 HistoryPage，进入 Service 的导出/导入处理在页面关闭后继续（Service 由 HomePage 持有）
@@ -890,7 +910,18 @@ SearchEngine 不解析站名。
 
 - 文件名使用本地日期：日 `YYYYMMDD`（`$date`）、月 `YYYYMM`（`$month`），由上述 `int` 直接插值，见 `Date Representation`。
 - 日文件/月度 NDJSON 同一格式；月度 ZIP 内含 `YYYYMM.ndjson` + `SHA256SUMS`。
-- 备份外层 ZIP 根目录直接包含 `YYYYMM.zip`、`YYYYMMdd.ndjson`、`MANIFEST`、`SHA256SUMS`，无子目录。
+- 备份外层 ZIP 根目录直接包含 `YYYYMM.zip`、`YYYYMMdd.ndjson`、`summary.ndjson`、`MANIFEST`、`SHA256SUMS`，无子目录。
+
+### StationSummary
+
+定义于 `common.dart`，与 `HistoryRecord` 同处，是 `summary.ndjson` 的内存模型：
+
+- `first` / `last`：两个 `HistoryRecord`，`gcd` 相同，分别表示首次与最近一次成为最近车站的记录
+- 时间先后比较固定为 `(epoch, latE6, lonE6)` 升序：`first` 取最小三元组，`last` 取最大三元组；同一 epoch 不同坐标也有确定结果
+- `merge(HistoryRecord)` / `mergeSummary(StationSummary)`：按上述规则折叠，重复 `gcd` 合并而非覆盖
+- `mergeAll()` / `mergeInto()`：与 Manager 内部共用同一规则，供调用方合并 `HistoryConsumer.pendingRecords`
+- `toRow()` / `tryParse()`：7 元素数组 `[gcd,first_epoch,first_lat_e6,first_lon_e6,last_epoch,last_lat_e6,last_lon_e6]`；`first` 晚于 `last` 的行无效
+- 汇总只存用户坐标与 epoch，不存车站坐标或站名；站名展示仍由 `StationManager.getStationNameByGcd(gcd)` 查询
 
 ---
 
@@ -1164,11 +1195,13 @@ HistoryArchiveService.last = success / cancelled / failure
 <documents>/history/
   20261023.ndjson
   202609.zip
+  summary.ndjson
 ```
 
 - 当天记录先进入 HistoryConsumer 的 pending；达到 10 条或自首条入队起满 5 分钟后，按日期分组批量写入 `history/YYYYMMDD.ndjson`，成功即移出 pending。
 - 日期 / 月份在代码中均为 `int`（`date` / `month`），字符串只在拼接路径与扫描目录时出现。
 - 已归档月份使用 `history/YYYYMM.zip`，内含 `YYYYMM.ndjson` + `SHA256SUMS`。
+- `summary.ndjson` 是按 `gcd` 汇总的派生累计基线，只在月度归档成功与备份导入时写入；普通日文件追加不更新它。读取时用基线与当前月日文件按 min/max 合并，因此当前月的新记录无需等待归档即可见。删除该文件即可回滚汇总功能，历史数据不受影响。
 - 月度 ZIP 成功后删除该月日文件；迟到日文件由 `readMonth` 合并、`listDays` 枚举；下次合并并入月度 ZIP 并删除。
 - 日模式只调用 `readDayFile($date)` 读取当天 `YYYYMMDD.ndjson`，不扫描同月其他日文件、不读取月度 ZIP；月模式调用一次 `readMonth($month)` 读取 ZIP + 目录日文件。
 - 历史记录不设条数上限，不删除月度归档，不提供清空。
@@ -1183,6 +1216,8 @@ HistoryArchiveService.last = success / cancelled / failure
 - 标准高档 800 条/天：约 32–40 KB/天；31 天约 24,800 条、0.99–1.24 MB/月；10 年约 292 万条、117–146 MB。
 - 以上均按 v1 未压缩 NDJSON 估算，不含文件系统块开销；ZIP 备份通常更小。
 - 历史记录不因该估算设置条数上限或自动清理；备份导入的硬性大小限制见 `Backup and Restore`。
+- 车站历史汇总 `summary.ndjson` 按车站数增长，不随天数 / 记录条数线性增长。按规划上限 9,500 站、7 位 `gcd`、13 位 `epoch`、含负号坐标的保守行宽 78 B 估算，约 **723.7 KB**；日本范围 76 B/行约 **705.2 KB**；header 约 110 B。9,500 站是规划上限，不是运行时硬限制。
+- 汇总文件随不同 `gcd` 数线性增长（约 76–78 B/车站 + header）；日常 first / last 更新只重写已有行。它是现有历史之外的派生增量，不能与上述月度历史估算相加成单月增长。
 
 ### Write and Archive
 
@@ -1193,6 +1228,8 @@ HistoryArchiveService.last = success / cancelled / failure
 - 调度：每次启动由 `HistoryArchiveService.start()` 执行一次；先用 `listUnarchivedMonths()` 扫描，存在未归档往月时调用 `consolidateMonths()`，否则不进入归档态、不显示进度、不 Toast。
 - 进度与取消：按月份 `done / total` 推进；取消为协作式，在扫描日文件、读取 ZIP、解析、写临时文件、rename、删除日文件前检查；已完成月份保持归档结果，未完成月份留下日文件，下次启动重试。
 - 合并：读取该月所有日文件与现有月度 ZIP 的 NDJSON，去重、按 epoch 升序；写临时 NDJSON → 临时 ZIP → rename → 删除日文件；取消或失败保留日文件。
+- 汇总：ZIP rename 成功后，先读取有效 baseline（缺失/无效则扫描全部月度 ZIP 与 `month < 当前月` 的日文件重建），再合并本月记录并按 `gcd` 升序原子写入 `summary.ndjson`；汇总写入成功后才删除日文件。归档取消发生在 ZIP rename 之后时，跳过汇总与删除，日文件保留，下次重试；汇总写入后再取消，下次重试的 min/max 合并幂等。
+- 重建与读取都按文件逐个解析并折叠，不一次性保留所有月份记录；单个文件损坏只记录日志并跳过，不阻断归档。
 - 所有写入与读取使用同一把异步串行锁，避免 append / 归档 / 备份 / 导入相互覆盖。
 
 ### Backup and Restore
@@ -1204,18 +1241,24 @@ HistoryArchiveService.last = success / cancelled / failure
 ...
 202609.zip
 20261023.ndjson
+summary.ndjson
 MANIFEST
 SHA256SUMS
 ```
 
 - 导出前 HistoryPage 调用 `historyConsumer.flush()`，确保 pending 全部落盘。
 - 导出文件名 `history-backup-<epoch>.zip`，其中 `<epoch>` 即同包 `MANIFEST.exportedAt`，两者严格相等（由 `createBackup()` 返回同一个值）。
-- `MANIFEST`：`v`、`exportedAt`、`archiveMonths`、`dailyFiles`、`fileCount`（含 MANIFEST 与 SHA256SUMS）；先写 MANIFEST 再生成 `SHA256SUMS`（包含 MANIFEST 行）。
+- `MANIFEST`：`v`、`exportedAt`、`archiveMonths`、`dailyFiles`、可选的 `summary`（bool，缺省 false）、`fileCount`（含 MANIFEST 与 SHA256SUMS；`fileCount = archiveMonths.length + dailyFiles.length + 2 + (summary ? 1 : 0)`）；先写 MANIFEST 再生成 `SHA256SUMS`（包含 MANIFEST 行）。
+- `summary.ndjson` 仅在存在、非 0 字节且不超限时加入；`summary` 为 false 时不得出现该条目。
 - `SHA256SUMS`：与 station/event 包一致的 `sha256sum` 文本、两个空格、小写 hex；覆盖外层 ZIP 内全部文件。
 - 导入先验外层 `SHA256SUMS` 与 `MANIFEST`，拒绝子目录 / 路径穿越 / 重复条目 / 超限条目；使用流式 `InputFileStream` + `decodeStream`。
-- 备份导入上限（`HistoryManager` 常量）：条目数 ≤ 5000；单条目 ≤ 64 MiB；总解压 ≤ 1 GiB；月度 NDJSON ≤ 64 MiB；`SHA256SUMS` ≤ 1 MiB。
+- 备份导入上限（`HistoryManager` 常量）：条目数 ≤ 5000；单条目 ≤ 64 MiB；总解压 ≤ 1 GiB；月度 NDJSON ≤ 64 MiB；汇总文件 ≤ 64 MiB；`SHA256SUMS` ≤ 1 MiB。
 - 月度 ZIP 先处理：校验内部 `SHA256SUMS` 与 NDJSON；备份条数多于本地该月总条数时覆盖 ZIP 并删除本地该月日文件；否则保留本地。
 - 日 NDJSON 后处理：与本地同日文件按记录键合并去重、按 epoch 排序后原子写回。
+- 汇总文件后处理：备份含 `summary.ndjson` 且格式有效时作为导入初值；导入前本地无任何历史（无月度 ZIP / 日文件）时直接采用该初值并合并实际导入记录；导入前本地已有历史时，按最终本地全部月度 ZIP 与 `month < 当前月` 的日文件权威重建；最后原子写入 `summary.ndjson`。
+- 汇总文件格式无效不阻断导入（记录日志后重算）；汇总文件写入失败视为导入失败并删除汇总文件；导入中途异常且已写入数据时，先尝试按最终本地文件重建并写入，重建 / 写入也失败才删除汇总文件，避免留下不一致基线。
+- 备份兼容：新版本可读无 `summary` 字段的旧备份（导入后生成基线）；旧版本可能因多出 `summary.ndjson` 条目拒绝新备份，属于可接受的前向不兼容。
+- 隐私：`summary.ndjson` 含用户定位坐标；系统备份已排除 `history/`，但用户主动导出的备份会包含这些坐标。
 - 备份中未包含的本地月份保留；失败时已完成的月度覆盖保留，可重试。
 - 备份用于设备迁移，不做多设备内容合并。
 
