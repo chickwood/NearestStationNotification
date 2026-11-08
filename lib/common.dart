@@ -6,12 +6,11 @@ class Common {
   // ── 动态包名常驻内存（由 main 在冷启动时注入） ───────────────────────
   static late final String appName;
 
-  // 駅情報・イベント情報
+  // 駅情報
   static const binFileName = 'station_data_xyz.bin';
-  static const eventFileName = 'event_data.ndjson';
-  static const sumsFileName = 'SHA256SUMS';
 
-  // イベントデータ形式
+  // イベント情報
+  static const eventFileName = 'event_data.ndjson';
   static const eventSchemaVersion = 2;
   static const eventFields = <String>['start_epoch', 'end_epoch'];
 
@@ -20,8 +19,22 @@ class Common {
   static const historySchemaVersion = 1;
   static const historyFields = <String>['gcd', 'epoch', 'lat_e6', 'lon_e6'];
   static const historyMergeWindow = Duration(minutes: 5);
-  static const historyBlockRowLimit = 5;
-  static const historyManifestFileName = 'MANIFEST';
+
+  // 车站历史汇总
+  static const summaryFileName = 'summary.ndjson';
+  static const summarySchemaVersion = 1;
+  static const summaryFields = <String>[
+    'gcd',
+    'first_epoch',
+    'first_lat_e6',
+    'first_lon_e6',
+    'last_epoch',
+    'last_lat_e6',
+    'last_lon_e6',
+  ];
+
+  static const sumsFileName = 'SHA256SUMS';
+  static const manifestFileName = 'MANIFEST';
 
   // ── 导入 zip 限制 ──────────────────────────────────────────────
   static const maxZipSize = 20 * 1024 * 1024;
@@ -453,6 +466,110 @@ class HistoryRecord {
       return a.key.compareTo(b.key);
     });
     return records;
+  }
+}
+
+class StationSummary {
+  final HistoryRecord first;
+  final HistoryRecord last;
+
+  const StationSummary({required this.first, required this.last});
+
+  int get gcd => first.gcd;
+
+  factory StationSummary.fromRecord(HistoryRecord record) =>
+      StationSummary(first: record, last: record);
+
+  /// 時間順序固定為 `(epoch, latE6, lonE6)` 升序
+  static int compare(HistoryRecord a, HistoryRecord b) {
+    final byEpoch = a.epoch.compareTo(b.epoch);
+    if (byEpoch != 0) return byEpoch;
+
+    final byLat = a.latE6.compareTo(b.latE6);
+    if (byLat != 0) return byLat;
+
+    return a.lonE6.compareTo(b.lonE6);
+  }
+
+  StationSummary merge(HistoryRecord record) {
+    assert(record.gcd == gcd);
+    return StationSummary(
+      first: compare(record, first) < 0 ? record : first,
+      last: compare(record, last) > 0 ? record : last,
+    );
+  }
+
+  StationSummary mergeSummary(StationSummary other) {
+    assert(other.gcd == gcd);
+    return StationSummary(
+      first: compare(other.first, first) < 0 ? other.first : first,
+      last: compare(other.last, last) > 0 ? other.last : last,
+    );
+  }
+
+  List<Object?> toRow() => [
+    gcd,
+    first.epoch,
+    first.latE6,
+    first.lonE6,
+    last.epoch,
+    last.latE6,
+    last.lonE6,
+  ];
+
+  static StationSummary? tryParse(Object? value) {
+    if (value is! List || value.length != 7) return null;
+
+    final gcd = value[0];
+    final firstEpoch = value[1];
+    final firstLatE6 = value[2];
+    final firstLonE6 = value[3];
+    final lastEpoch = value[4];
+    final lastLatE6 = value[5];
+    final lastLonE6 = value[6];
+
+    if (gcd is! int ||
+        firstEpoch is! int ||
+        firstLatE6 is! int ||
+        firstLonE6 is! int ||
+        lastEpoch is! int ||
+        lastLatE6 is! int ||
+        lastLonE6 is! int) {
+      return null;
+    }
+
+    final first = HistoryRecord(
+      gcd: gcd,
+      epoch: firstEpoch,
+      latE6: firstLatE6,
+      lonE6: firstLonE6,
+    );
+    final last = HistoryRecord(
+      gcd: gcd,
+      epoch: lastEpoch,
+      latE6: lastLatE6,
+      lonE6: lastLonE6,
+    );
+    if (compare(first, last) > 0) return null;
+
+    return StationSummary(first: first, last: last);
+  }
+
+  static Map<int, StationSummary> mergeAll(Iterable<HistoryRecord> records) =>
+      mergeInto(<int, StationSummary>{}, records);
+
+  static Map<int, StationSummary> mergeInto(
+    Map<int, StationSummary> base,
+    Iterable<HistoryRecord> records,
+  ) {
+    for (final record in records) {
+      final existing = base[record.gcd];
+      base[record.gcd] =
+          existing == null
+              ? StationSummary.fromRecord(record)
+              : existing.merge(record);
+    }
+    return base;
   }
 }
 

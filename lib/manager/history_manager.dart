@@ -33,13 +33,14 @@ class HistoryManager {
   static const _maxBackupEntrySize = 64 * 1024 * 1024;
   static const _maxBackupTotalSize = 1024 * 1024 * 1024;
   static const _maxMonthNdjsonSize = 64 * 1024 * 1024;
+  static const _maxSummaryNdjsonSize = 64 * 1024 * 1024;
   static const _maxSumsSize = 1024 * 1024;
 
   static final _monthZipPattern = RegExp(r'^(\d{6})\.zip$');
   static final _dayFilePattern = RegExp(r'^(\d{8})\.ndjson$');
   static final _monthPattern = RegExp(r'^\d{6}$');
   static final _backupEntryPattern = RegExp(
-    r'^(?:\d{6}\.zip|\d{8}\.ndjson|MANIFEST|SHA256SUMS)$',
+    r'^(?:\d{6}\.zip|\d{8}\.ndjson|summary\.ndjson|MANIFEST|SHA256SUMS)$',
   );
   static final _hex64 = RegExp(r'^[0-9a-fA-F]{64}$');
 
@@ -235,6 +236,16 @@ class HistoryManager {
     return _withLock(() async => _dedupeSort(await _readDayFileUnlocked(date)));
   }
 
+  Future<Map<int, StationSummary>> readStationSummaries() async {
+    if (_directory == null) return const <int, StationSummary>{};
+    return _withLock(_readStationSummariesUnlocked);
+  }
+
+  Future<StationSummary?> readStationSummary(int gcd) async {
+    if (_directory == null) return null;
+    return _withLock(() async => (await _readStationSummariesUnlocked())[gcd]);
+  }
+
   Future<int> createBackup(
     File output,
     void Function(double) onProgress,
@@ -245,10 +256,23 @@ class HistoryManager {
       final directory = _directory;
       final archives = <File>[];
       final dailies = <File>[];
+      File? summary;
 
       await for (final entity in directory.list()) {
         if (entity is! File) continue;
         final name = _basename(entity.path);
+
+        if (name == Common.summaryFileName) {
+          try {
+            final size = await entity.length();
+            if (size > 0 && size <= _maxSummaryNdjsonSize) {
+              summary = entity;
+            }
+          } catch (e, st) {
+            debugPrint('error: $e\n$st');
+          }
+          continue;
+        }
 
         final monthMatch = _monthZipPattern.firstMatch(name);
         if (monthMatch != null) {
@@ -289,17 +313,20 @@ class HistoryManager {
         'exportedAt': exportedAt,
         'archiveMonths': archiveMonths,
         'dailyFiles': dailyFiles,
-        'fileCount': archives.length + dailies.length + 2,
+        'summary': summary != null,
+        'fileCount':
+            archives.length + dailies.length + 2 + (summary != null ? 1 : 0),
       };
       final manifestBytes = Uint8List.fromList(
         utf8.encode(jsonEncode(manifest)),
       );
 
       final sumsLines = <String>[
-        '${sha256.convert(manifestBytes)}  ${Common.historyManifestFileName}',
+        '${sha256.convert(manifestBytes)}  ${Common.manifestFileName}',
       ];
 
-      final total = archives.length + dailies.length + 1;
+      final total =
+          archives.length + dailies.length + (summary != null ? 1 : 0) + 1;
       var done = 0;
       final encoder = ZipFileEncoder();
       var closed = false;
@@ -309,7 +336,7 @@ class HistoryManager {
         encoder.create(output.path);
         encoder.addArchiveFile(
           ArchiveFile(
-            Common.historyManifestFileName,
+            Common.manifestFileName,
             manifestBytes.length,
             manifestBytes,
           ),
@@ -327,6 +354,16 @@ class HistoryManager {
           final name = _basename(file.path);
           sumsLines.add('${await _hashFile(file)}  $name');
           await encoder.addFile(file, name);
+          done++;
+          onProgress(done / total);
+        }
+
+        final summaryFile = summary;
+        if (summaryFile != null) {
+          sumsLines.add(
+            '${await _hashFile(summaryFile)}  ${Common.summaryFileName}',
+          );
+          await encoder.addFile(summaryFile, Common.summaryFileName);
           done++;
           onProgress(done / total);
         }
@@ -544,6 +581,10 @@ class HistoryManager {
       } catch (_) {}
     }
 
+    if (cancelled()) return true;
+
+    await _updateSummaryAfterArchive(records);
+
     for (final file in mergedFiles) {
       if (cancelled()) break;
       try {
@@ -675,6 +716,209 @@ class HistoryManager {
     }
   }
 
+  Future<Map<int, StationSummary>> _readStationSummariesUnlocked() async {
+    final summaries = (await _readSummaryUnlocked()) ?? <int, StationSummary>{};
+    final directory = _directory;
+    if (directory == null) return summaries;
+
+    final currentMonth = Common.currentMonth();
+
+    try {
+      await for (final entity in directory.list()) {
+        if (entity is! File) continue;
+        final match = _dayFilePattern.firstMatch(_basename(entity.path));
+        if (match == null) continue;
+        final date = int.parse(match.group(1)!);
+        if (!Common.isValidDate(date) ||
+            Common.monthDateOf(date) != currentMonth) {
+          continue;
+        }
+
+        try {
+          final parsed = _parseNdjson(await entity.readAsBytes());
+          if (parsed == null) {
+            debugPrint('invalid history day file: ${entity.path}');
+            continue;
+          }
+          StationSummary.mergeInto(summaries, parsed);
+        } catch (e, st) {
+          debugPrint('error: $e\n$st');
+        }
+      }
+    } catch (e, st) {
+      debugPrint('error: $e\n$st');
+    }
+
+    final keys = summaries.keys.toList()..sort();
+    return Map<int, StationSummary>.unmodifiable({
+      for (final key in keys) key: summaries[key]!,
+    });
+  }
+
+  Future<Map<int, StationSummary>?> _readSummaryUnlocked() async {
+    try {
+      final file = _summaryFile;
+      if (!await file.exists()) return null;
+
+      final length = await file.length();
+      if (length <= 0 || length > _maxSummaryNdjsonSize) return null;
+
+      return _parseSummaryNdjson(await file.readAsBytes());
+    } catch (e, st) {
+      debugPrint('summary: $e\n$st');
+      return null;
+    }
+  }
+
+  static Map<int, StationSummary>? _parseSummaryNdjson(Uint8List bytes) {
+    try {
+      var text = utf8.decode(bytes);
+      if (text.startsWith('\uFEFF')) text = text.substring(1);
+
+      final lines =
+          const LineSplitter()
+              .convert(text)
+              .where((line) => line.trim().isNotEmpty)
+              .toList();
+      if (lines.isEmpty) return null;
+
+      final header = jsonDecode(lines.first);
+      if (header is! Map) return null;
+      if (header['v'] != Common.summarySchemaVersion) return null;
+
+      final fields = header['fields'];
+      if (fields is! List || fields.length != Common.summaryFields.length) {
+        return null;
+      }
+      for (var i = 0; i < Common.summaryFields.length; i++) {
+        if (fields[i] != Common.summaryFields[i]) return null;
+      }
+
+      final summaries = <int, StationSummary>{};
+      for (final line in lines.skip(1)) {
+        try {
+          final summary = StationSummary.tryParse(jsonDecode(line));
+          if (summary == null) {
+            debugPrint('summary: invalid row');
+            continue;
+          }
+          final existing = summaries[summary.gcd];
+          summaries[summary.gcd] =
+              existing == null ? summary : existing.mergeSummary(summary);
+        } catch (e) {
+          debugPrint('summary: $e');
+        }
+      }
+
+      return summaries;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Uint8List _encodeSummaryNdjson(Map<int, StationSummary> summaries) {
+    final buffer = StringBuffer('${_summaryHeader()}\n');
+    final keys = summaries.keys.toList()..sort();
+    for (final key in keys) {
+      buffer.writeln(jsonEncode(summaries[key]!.toRow()));
+    }
+    return Uint8List.fromList(utf8.encode(buffer.toString()));
+  }
+
+  Future<void> _writeSummaryUnlocked(Map<int, StationSummary> summaries) async {
+    await _writeAtomic(_summaryFile, _encodeSummaryNdjson(summaries));
+  }
+
+  Future<void> _updateSummaryAfterArchive(List<HistoryRecord> records) async {
+    final baseline =
+        (await _readSummaryUnlocked()) ?? await _rebuildSummaryUnlocked();
+    StationSummary.mergeInto(baseline, records);
+    await _writeSummaryUnlocked(baseline);
+  }
+
+  Future<Map<int, StationSummary>> _rebuildSummaryUnlocked() async {
+    final summaries = <int, StationSummary>{};
+    final directory = _directory;
+    if (directory == null) return summaries;
+
+    final currentMonth = Common.currentMonth();
+
+    try {
+      await for (final entity in directory.list()) {
+        if (entity is! File) continue;
+        final name = _basename(entity.path);
+
+        final monthMatch = _monthZipPattern.firstMatch(name);
+        if (monthMatch != null) {
+          final month = int.parse(monthMatch.group(1)!);
+          if (!Common.isValidMonth(month)) continue;
+          try {
+            final records = _readMonthZipRecords(
+              await entity.readAsBytes(),
+              month,
+            );
+            StationSummary.mergeInto(summaries, records);
+          } catch (e, st) {
+            debugPrint('summary: $e\n$st');
+          }
+          continue;
+        }
+
+        final dayMatch = _dayFilePattern.firstMatch(name);
+        if (dayMatch == null) continue;
+        final date = int.parse(dayMatch.group(1)!);
+        if (!Common.isValidDate(date) ||
+            Common.monthDateOf(date) >= currentMonth) {
+          continue;
+        }
+
+        try {
+          final parsed = _parseNdjson(await entity.readAsBytes());
+          if (parsed == null) {
+            debugPrint('invalid history day file: ${entity.path}');
+            continue;
+          }
+          StationSummary.mergeInto(summaries, parsed);
+        } catch (e, st) {
+          debugPrint('summary: $e\n$st');
+        }
+      }
+    } catch (e, st) {
+      debugPrint('summary: $e\n$st');
+    }
+
+    return summaries;
+  }
+
+  Future<bool> _hasHistoryFilesUnlocked() async {
+    final directory = _directory;
+    if (directory == null) return false;
+
+    try {
+      await for (final entity in directory.list()) {
+        if (entity is! File) continue;
+        final name = _basename(entity.path);
+
+        final monthMatch = _monthZipPattern.firstMatch(name);
+        if (monthMatch != null) {
+          if (Common.isValidMonth(int.parse(monthMatch.group(1)!))) {
+            return true;
+          }
+          continue;
+        }
+
+        final dayMatch = _dayFilePattern.firstMatch(name);
+        if (dayMatch != null) {
+          if (Common.isValidDate(int.parse(dayMatch.group(1)!))) return true;
+        }
+      }
+    } catch (e, st) {
+      debugPrint('error: $e\n$st');
+    }
+
+    return false;
+  }
+
   Future<void> _importBackupLocked(
     File input,
     void Function(double) onProgress,
@@ -719,7 +963,7 @@ class HistoryManager {
         throw const FormatException('invalid entry count');
       }
 
-      final manifestEntry = files[Common.historyManifestFileName];
+      final manifestEntry = files[Common.manifestFileName];
       final sumsEntry = files[Common.sumsFileName];
       if (manifestEntry == null || sumsEntry == null) {
         throw const FormatException('missing manifest');
@@ -752,7 +996,7 @@ class HistoryManager {
         if (actual != sums[entry.key]) {
           throw const FormatException('checksum mismatch');
         }
-        if (entry.key == Common.historyManifestFileName) {
+        if (entry.key == Common.manifestFileName) {
           manifestBytes = bytes;
         }
         verified++;
@@ -769,10 +1013,12 @@ class HistoryManager {
             ..sort();
       final dailyFiles =
           (manifest['dailyFiles'] as List<String>).toList()..sort();
+      final hasSummary = manifest['summary'] == true;
 
       final expected = <String>{
-        Common.historyManifestFileName,
+        Common.manifestFileName,
         Common.sumsFileName,
+        if (hasSummary) Common.summaryFileName,
         for (final month in archiveMonths) '$month.zip',
         ...dailyFiles,
       };
@@ -788,35 +1034,87 @@ class HistoryManager {
         }
       }
 
-      var processed = 0;
-      for (final month in archiveMonths) {
-        final bytes = _readEntry(files['$month.zip']!);
-        final backupRecords = _parseBackupMonthZip(bytes, month);
-        final localRecords = await _readMonthUnlocked(month);
-
-        if (backupRecords.length > localRecords.length) {
-          await _writeAtomic(File('${_directory!.path}/$month.zip'), bytes);
-          await _deleteMonthDayFiles(month);
+      var seed = <int, StationSummary>{};
+      if (hasSummary) {
+        final entry = files[Common.summaryFileName]!;
+        if (entry.size > _maxSummaryNdjsonSize) {
+          throw const FormatException('invalid summary size');
         }
-
-        processed++;
-        onProgress(0.4 + 0.6 * processed / total);
+        final parsed = _parseSummaryNdjson(_readEntry(entry));
+        if (parsed == null) {
+          debugPrint('summary: invalid backup summary');
+        } else {
+          seed = parsed;
+        }
       }
 
-      for (final name in dailyFiles) {
-        final bytes = _readEntry(files[name]!);
-        final parsed = _parseNdjson(bytes);
-        if (parsed == null) {
-          throw const FormatException('invalid day ndjson');
+      final hadHistory = await _hasHistoryFilesUnlocked();
+      var wrote = false;
+      var processed = 0;
+
+      try {
+        for (final month in archiveMonths) {
+          final bytes = _readEntry(files['$month.zip']!);
+          final backupRecords = _parseBackupMonthZip(bytes, month);
+          final localRecords = await _readMonthUnlocked(month);
+
+          final List<HistoryRecord> imported;
+          if (backupRecords.length > localRecords.length) {
+            await _writeAtomic(File('${_directory!.path}/$month.zip'), bytes);
+            wrote = true;
+            await _deleteMonthDayFiles(month);
+            imported = backupRecords;
+          } else {
+            imported = localRecords;
+          }
+
+          if (!hadHistory) StationSummary.mergeInto(seed, imported);
+
+          processed++;
+          onProgress(0.4 + 0.6 * processed / total);
         }
 
-        final date = int.parse(_dayFilePattern.firstMatch(name)!.group(1)!);
-        final localRecords = await _readDayFileUnlocked(date);
-        final merged = _dedupeSort([...localRecords, ...parsed]);
-        await _writeAtomic(_dayFile(date), _encodeNdjson(merged));
+        for (final name in dailyFiles) {
+          final bytes = _readEntry(files[name]!);
+          final parsed = _parseNdjson(bytes);
+          if (parsed == null) {
+            throw const FormatException('invalid day ndjson');
+          }
 
-        processed++;
-        onProgress(0.4 + 0.6 * processed / total);
+          final date = int.parse(_dayFilePattern.firstMatch(name)!.group(1)!);
+          final localRecords = await _readDayFileUnlocked(date);
+          final merged = _dedupeSort([...localRecords, ...parsed]);
+          await _writeAtomic(_dayFile(date), _encodeNdjson(merged));
+          wrote = true;
+
+          if (!hadHistory) StationSummary.mergeInto(seed, merged);
+
+          processed++;
+          onProgress(0.4 + 0.6 * processed / total);
+        }
+      } catch (e) {
+        if (wrote) {
+          try {
+            final rebuilt = await _rebuildSummaryUnlocked();
+            await _writeSummaryUnlocked(rebuilt);
+          } catch (rebuildError, rebuildSt) {
+            debugPrint('summary: $rebuildError\n$rebuildSt');
+            try {
+              await _summaryFile.delete();
+            } catch (_) {}
+          }
+        }
+        rethrow;
+      }
+
+      final summary = hadHistory ? await _rebuildSummaryUnlocked() : seed;
+      try {
+        await _writeSummaryUnlocked(summary);
+      } catch (e) {
+        try {
+          await _summaryFile.delete();
+        } catch (_) {}
+        rethrow;
       }
 
       onProgress(1);
@@ -921,9 +1219,14 @@ class HistoryManager {
     final monthsRaw = decoded['archiveMonths'];
     final dailiesRaw = decoded['dailyFiles'];
     final fileCount = decoded['fileCount'];
+    final summaryRaw = decoded['summary'];
     if (monthsRaw is! List || dailiesRaw is! List || fileCount is! int) {
       throw const FormatException('invalid manifest fields');
     }
+    if (summaryRaw != null && summaryRaw is! bool) {
+      throw const FormatException('invalid manifest summary');
+    }
+    final summary = summaryRaw == true;
 
     final archiveMonths = <String>[];
     for (final value in monthsRaw) {
@@ -951,7 +1254,8 @@ class HistoryManager {
       dailyFiles.add(value);
     }
 
-    final expectedCount = archiveMonths.length + dailyFiles.length + 2;
+    final expectedCount =
+        archiveMonths.length + dailyFiles.length + 2 + (summary ? 1 : 0);
     if (fileCount != expectedCount) {
       throw const FormatException('invalid manifest file count');
     }
@@ -961,6 +1265,7 @@ class HistoryManager {
       'exportedAt': exportedAt,
       'archiveMonths': archiveMonths,
       'dailyFiles': dailyFiles,
+      'summary': summary,
       'fileCount': fileCount,
     };
   }
@@ -1020,9 +1325,17 @@ class HistoryManager {
 
   File _dayFile(int date) => File('${_directory!.path}/$date.ndjson');
 
+  File get _summaryFile =>
+      File('${_directory!.path}/${Common.summaryFileName}');
+
   String _header() => jsonEncode({
     'v': Common.historySchemaVersion,
     'fields': Common.historyFields,
+  });
+
+  String _summaryHeader() => jsonEncode({
+    'v': Common.summarySchemaVersion,
+    'fields': Common.summaryFields,
   });
 
   Uint8List _encodeNdjson(List<HistoryRecord> records) {
