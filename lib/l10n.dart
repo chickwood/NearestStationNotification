@@ -75,8 +75,8 @@ class L10n {
   }
 
   String get tapToStart {
-    if (_isJa) return '右上の▶をクリックして開始';
-    if (_isZhHans) return '点击右上角的▶开始定位';
+    if (_isJa) return '右上の ▶ をクリックして開始';
+    if (_isZhHans) return '点击右上角的 ▶ 开始定位';
     return 'Tap ▶ in the title bar to start';
   }
 
@@ -87,9 +87,9 @@ class L10n {
   }
 
   String get waitingForLongtime {
-    if (_isJa) return '長時間固まると一回▶をクリックして一旦停止';
-    if (_isZhHans) return '长时间未能启动时再次点击▶可以暂时停止';
-    return 'Tap ▶ to stop once while not start for a long time';
+    if (_isJa) return '長時間固まる場合は一回 ▶ をクリックして一旦停止';
+    if (_isZhHans) return '长时间未能启动时再次点击 ▶ 可以暂时停止';
+    return 'Tap ▶ to stop for now while not start for a long time';
   }
 
   String get latitude {
@@ -331,9 +331,9 @@ class L10n {
   }
 
   String get historyArchivingHint {
-    if (_isJa) return '履歴をアーカイブ中...長時間終わらない場合は右上の停止をクリック';
-    if (_isZhHans) return '历史记录归档中...长时间未完成点击右上角停止';
-    return 'Archiving history... If it takes too long, tap stop in the top right.';
+    if (_isJa) return '長時間固まる場合は一回 ▶ をクリックして一旦停止';
+    if (_isZhHans) return '长时间未能完成时再次点击 ▶ 可以暂时停止';
+    return 'Tap ▶ to stop for now while not complete for a long time';
   }
 
   String get historyArchiveSucceeded {

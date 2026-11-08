@@ -516,52 +516,49 @@ class _HomePageState extends ResetableState<HomePage>
   // ── Station results (expanded) ────────────────────────────────────────────────
 
   Widget _buildStationResultsExpanded(L10n l10n) {
-    final archiving =
-        _historyArchiveService.busy.value &&
-        _coordinator!.runningStatus == RunningStatus.stopped;
-
     return Expanded(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children:
-            archiving
-                ? [_buildArchiveGuide(l10n)]
-                : _stationManager!.count > 0
-                ? _buildStationContent(l10n)
-                : [
-                  Align(
-                    alignment: Alignment.topCenter,
-                    child: Text(
-                      l10n.countStations(0),
-                      style: const TextStyle(color: Colors.grey),
-                    ),
-                  ),
-                ],
-      ),
-    );
-  }
-
-  Widget _buildArchiveGuide(L10n l10n) {
-    return Align(
-      alignment: Alignment.topCenter,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            l10n.historyArchiving,
-            style: const TextStyle(color: Colors.grey),
-          ),
-          Text(
-            l10n.historyArchivingHint,
-            textAlign: TextAlign.center,
-            style: const TextStyle(color: Colors.grey),
-          ),
-        ],
+        children: _buildStationContent(l10n),
       ),
     );
   }
 
   List<Widget> _buildStationContent(L10n l10n) {
+    if (_historyArchiveService.busy.value) {
+      return [
+        Align(
+          alignment: Alignment.topCenter,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                l10n.historyArchiving,
+                style: const TextStyle(color: Colors.grey),
+              ),
+              Text(
+                l10n.historyArchivingHint,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.grey),
+              ),
+            ],
+          ),
+        ),
+      ];
+    }
+
+    if (_stationManager!.count <= 0) {
+      return [
+        Align(
+          alignment: Alignment.topCenter,
+          child: Text(
+            l10n.countStations(0),
+            style: const TextStyle(color: Colors.grey),
+          ),
+        ),
+      ];
+    }
+
     if (_coordinator!.runningStatus == RunningStatus.stopped) {
       return [
         Align(
