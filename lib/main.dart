@@ -51,7 +51,7 @@ class NearestStationNotificationApp extends StatelessWidget {
             actionsPadding: EdgeInsets.only(right: 8),
             titleSpacing: 0,
             titleTextStyle: TextStyle(
-              fontSize: 18,
+              fontSize: 18.0,
               fontWeight: FontWeight.w500,
             ),
           ),

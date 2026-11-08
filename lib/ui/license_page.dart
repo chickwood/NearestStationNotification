@@ -99,7 +99,7 @@ class _LicenseListPageState extends State<LicenseListPage> {
                           l10n.appTitle,
                           style: const TextStyle(
                             fontWeight: FontWeight.bold,
-                            fontSize: 16,
+                            fontSize: 16.0,
                           ),
                         ),
                         const Text(
@@ -109,7 +109,7 @@ class _LicenseListPageState extends State<LicenseListPage> {
                         const SizedBox(height: 4),
                         Text(
                           l10n.licensePublish,
-                          style: const TextStyle(fontSize: 12),
+                          style: const TextStyle(fontSize: 12.0),
                         ),
                         if (_stationManager.count > 0) ...[
                           const SizedBox(height: 4),
@@ -119,7 +119,7 @@ class _LicenseListPageState extends State<LicenseListPage> {
                             '\n${l10n.infoVersion(_stationManager.date, _stationManager.pdate)}'
                             '\n${l10n.infoSize(_stationManager.size)}'
                             '\n${l10n.licenseStationDetailsEkidata}',
-                            style: const TextStyle(fontSize: 12),
+                            style: const TextStyle(fontSize: 12.0),
                           ),
                         ],
                         const SizedBox(height: 4),
@@ -131,7 +131,7 @@ class _LicenseListPageState extends State<LicenseListPage> {
                               : l10n.licenseCount(appLicensesLength),
                           style: TextStyle(
                             color: Colors.grey.shade600,
-                            fontSize: 12,
+                            fontSize: 12.0,
                           ),
                         ),
                       ],
@@ -164,7 +164,7 @@ class _LicenseListPageState extends State<LicenseListPage> {
                               l10n.licenseCount(entry.licenses.length),
                               style: TextStyle(
                                 color: Colors.grey.shade600,
-                                fontSize: 12,
+                                fontSize: 12.0,
                               ),
                             ),
                           ],
@@ -213,7 +213,7 @@ class LicenseDetailPage extends StatelessWidget {
                                 Text(
                                   paragraph,
                                   style: const TextStyle(
-                                    fontSize: 12,
+                                    fontSize: 12.0,
                                     fontFamily: 'monospace',
                                   ),
                                 ),

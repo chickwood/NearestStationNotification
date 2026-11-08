@@ -333,7 +333,7 @@ class _HistoryDatePickerDialogState extends State<_HistoryDatePickerDialog> {
   TextStyle _cellTextStyle({required bool selected, required bool enabled}) {
     return TextStyle(
       color: enabled ? Colors.grey.shade800 : Colors.grey,
-      fontSize: 12,
+      fontSize: 12.0,
       fontWeight: selected ? FontWeight.bold : FontWeight.normal,
     );
   }

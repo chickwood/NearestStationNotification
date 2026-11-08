@@ -196,7 +196,7 @@ class _SegmentedRow<T> extends StatelessWidget {
                               textAlign: TextAlign.center,
                               style: TextStyle(
                                 color: Colors.grey.shade800,
-                                fontSize: 12,
+                                fontSize: 12.0,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
@@ -274,7 +274,7 @@ class _CheckboxRow extends StatelessWidget {
                   label,
                   style: TextStyle(
                     color: enabled ? Colors.grey.shade800 : Colors.grey,
-                    fontSize: 12,
+                    fontSize: 12.0,
                   ),
                 ),
               ),

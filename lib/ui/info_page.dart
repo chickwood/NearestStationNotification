@@ -151,7 +151,7 @@ class _InfoPageState extends ResetableState<InfoPage> {
                             '\n\n${l10n.infoLicense}',
                             style: TextStyle(
                               color: Colors.grey.shade800,
-                              fontSize: 12,
+                              fontSize: 12.0,
                             ),
                             softWrap: true,
                           ),
@@ -195,7 +195,7 @@ class _InfoPageState extends ResetableState<InfoPage> {
                             l10n.infoUpdateNotice,
                             style: TextStyle(
                               color: Colors.grey.shade800,
-                              fontSize: 12,
+                              fontSize: 12.0,
                             ),
                             softWrap: true,
                           ),
