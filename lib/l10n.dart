@@ -128,9 +128,9 @@ class L10n {
   }
 
   String get timestamp {
-    if (_isJa) return '取得時刻';
-    if (_isZhHans) return '更新时刻';
-    return 'Updated at';
+    if (_isJa) return '時刻';
+    if (_isZhHans) return '时间';
+    return 'Time';
   }
 
   String get nearbyStations {
@@ -203,7 +203,7 @@ class L10n {
   }
 
   String flnNotificationGcd(int? gcd) {
-    return 'ID: $gcd';
+    return 'ID $gcd';
   }
 
   // String flnNotificationFull(int? gcd, String distanceInUnit) {
@@ -348,18 +348,6 @@ class L10n {
     return 'Failed to archive history';
   }
 
-  String get historyTime {
-    if (_isJa) return '時刻';
-    if (_isZhHans) return '时间';
-    return 'Time';
-  }
-
-  String get historyCoordinates {
-    if (_isJa) return '座標';
-    if (_isZhHans) return '坐标';
-    return 'Coordinates';
-  }
-
   String get historyExport {
     if (_isJa) return 'バックアップをエクスポート';
     if (_isZhHans) return '导出备份';
@@ -412,9 +400,7 @@ class L10n {
     return 'Past months are overwritten only when the backup has more records; the current month is merged. Continue?';
   }
 
-  String historyStationId(int id) {
-    return 'ID: $id';
-  }
+  String historyGcd(int gcd) => flnNotificationGcd(gcd);
 
   String get settingsSave {
     if (_isJa || _isZhHans) return '保存';

@@ -296,10 +296,11 @@ class Common {
     return 2 * asin(score > 4.0 ? 1.0 : sqrt(score) * 0.5) * _earthRadius;
   }
 
-  static Direction direction(double degrees, {double? speed}) {
+  static Direction direction(double? degrees, {double? speed}) {
     // 阈值定义
     // 低于此速度认为方向不可信
-    if (speed != null && sampling(speed) == SamplingMode.staying) {
+    if (degrees == null ||
+        (speed != null && sampling(speed) == SamplingMode.staying)) {
       return Direction.staying;
     }
 
@@ -323,38 +324,37 @@ class Common {
 }
 
 class StationResult {
-  final int index;
+  final int node;
   final int? gcd; // SearchEngine 原产出无此資訊，由 Coordinator 補全
   final String? name; // SearchEngine 原产出无此資訊，由 Coordinator 補全
-  final double distance;
-  final double bearing;
+  final double? distance;
+  final double? bearing;
 
   StationResult({
-    required this.index,
+    required this.node,
     this.gcd,
     this.name,
-    required this.distance,
-    required this.bearing,
+    this.distance,
+    this.bearing,
   });
 
-  @override
-  String toString() {
-    return '{index: $index, gcd: $gcd, name: $name, distance: $distance}';
+  String get distanceInUnit {
+    final d = distance == null || distance! < 0.0 ? 0.0 : distance!;
+
+    return d < 1000.0
+        ? '${d.toStringAsFixed(1)} m'
+        : '${(d / 1000.0).toStringAsFixed(2)} km';
   }
 
-  String get distanceInUnit =>
-      distance < 1000.0
-          ? '${distance.toStringAsFixed(1)} m'
-          : '${(distance / 1000.0).toStringAsFixed(2)} km';
   Direction get bearingIndex => Common.direction(bearing);
 
   // // 序列化（暂存，未来可能用于 Isolate 间通信，当前无调用）
-  // List<dynamic> toTransferable() => [index, gcd, name, distance, bearing];
+  // List<dynamic> toTransferable() => [node, gcd, name, distance, bearing];
 
   // // 反序列化
   // // 添加显式强制转换
   // factory StationResult.fromTransferable(List<dynamic> data) => StationResult(
-  //       index: data[0] as int,
+  //       node: data[0] as int,
   //       gcd: data[1] as int?,
   //       name: data[2] as String?,
   //       distance: (data[3] as num).toDouble(),
@@ -658,16 +658,16 @@ enum StationCount {
   // 传入 engine 的实际 count
   int get count => friend + (eventPeriod() ? event : 0) + radar + natsume;
 
-  StationCountPart part(int index) {
-    if (index < friend) {
+  StationCountPart part(int part) {
+    if (part < friend) {
       return StationCountPart.friend;
     } else {
       if (eventPeriod()) {
-        if (index < friend + event) return StationCountPart.event;
-        if (index < friend + event + radar) return StationCountPart.radar;
+        if (part < friend + event) return StationCountPart.event;
+        if (part < friend + event + radar) return StationCountPart.radar;
         return StationCountPart.natsume;
       } else {
-        if (index < friend + radar) return StationCountPart.radar;
+        if (part < friend + radar) return StationCountPart.radar;
         return StationCountPart.natsume;
       }
     }

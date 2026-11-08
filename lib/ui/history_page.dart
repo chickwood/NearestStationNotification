@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:nearest_station_notification/service/settings_save_service.dart';
 
 import '../common.dart';
 import '../consumer/history_consumer.dart';
@@ -19,8 +20,8 @@ class HistoryPage extends StatefulWidget {
   final HistoryManager historyManager;
   final HistoryBackupService historyBackupService;
   final StationManager stationManager;
-  final HistorySettingsManager settingsManager;
-  final Future<bool> Function(bool value) onHistoryMergeViewChanged;
+  final SettingsManager settingsManager;
+  final SettingsSaveService settingsSaveService;
   final int date;
 
   const HistoryPage(
@@ -29,7 +30,7 @@ class HistoryPage extends StatefulWidget {
     this.historyBackupService,
     this.stationManager,
     this.settingsManager,
-    this.onHistoryMergeViewChanged,
+    this.settingsSaveService,
     this.date, {
     super.key,
   });
@@ -47,6 +48,7 @@ class _HistoryPageState extends ResetableState<HistoryPage> {
   _MonthCache? _monthCache;
 
   final Map<int, List<_HistoryBlock>> _blocksByDay = {};
+  late _StationNameCache _stationNames;
   List<int> _storedMonths = const [];
   List<int> _availableMonths = const [];
   List<int> _availableDates = const [];
@@ -66,6 +68,7 @@ class _HistoryPageState extends ResetableState<HistoryPage> {
     super.initState();
 
     _mergeView = widget.settingsManager.historyMergeView;
+    _stationNames = _StationNameCache(widget.stationManager);
 
     _selectedDate = widget.date;
     _selectedMonth = Common.monthDateOf(widget.date);
@@ -81,6 +84,15 @@ class _HistoryPageState extends ResetableState<HistoryPage> {
 
     unawaited(_loadAvailableMonths());
     unawaited(_reload());
+  }
+
+  @override
+  void didUpdateWidget(covariant HistoryPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    if (!identical(oldWidget.stationManager, widget.stationManager)) {
+      _stationNames = _StationNameCache(widget.stationManager);
+    }
   }
 
   @override
@@ -133,6 +145,7 @@ class _HistoryPageState extends ResetableState<HistoryPage> {
   Future<void> _reload() async {
     final generation = ++_loadGeneration;
     _blocksByDay.clear();
+    _stationNames.clear();
 
     try {
       if (_mode == _HistoryViewMode.day) {
@@ -262,7 +275,7 @@ class _HistoryPageState extends ResetableState<HistoryPage> {
       if (cache != null) _monthCache = cache.withMergeView(next);
     });
 
-    final succeeded = await widget.onHistoryMergeViewChanged(next);
+    final succeeded = await _changeHistoryMergeView(next);
     if (!mounted) return;
 
     setState(() {
@@ -274,6 +287,16 @@ class _HistoryPageState extends ResetableState<HistoryPage> {
       }
       _savingMergeView = false;
     });
+  }
+
+  // ── Change history merge view ──────────────────────────────────
+
+  Future<bool> _changeHistoryMergeView(bool value) async {
+    if (value && !widget.settingsManager.historyEnabled) return false;
+    if (widget.settingsManager.historyMergeView == value) return true;
+
+    final updated = widget.settingsManager.copyWith(historyMergeView: value);
+    return widget.settingsSaveService.save(updated);
   }
 
   // ── カレンダー ──────────────────────────────────────────────────
@@ -466,7 +489,7 @@ class _HistoryPageState extends ResetableState<HistoryPage> {
                           : l10n.historyImporting,
                       style: TextStyle(
                         color: Colors.grey.shade700,
-                        fontSize: 12,
+                        fontSize: 12.0,
                       ),
                     ),
                   ),
@@ -523,7 +546,8 @@ class _HistoryPageState extends ResetableState<HistoryPage> {
           final block = blocks[index - 1];
           return _HistoryBlockCard(
             key: ValueKey('${block.gcd}-${block.startEpoch}'),
-            stationManager: widget.stationManager,
+            index: blocks.length - (index - 1),
+            stationNames: _stationNames,
             records: block.records,
           );
         },
@@ -544,7 +568,8 @@ class _HistoryPageState extends ResetableState<HistoryPage> {
         }
         return _HistoryRecordCard(
           record: records[records.length - index],
-          stationManager: widget.stationManager,
+          index: records.length - index + 1,
+          stationNames: _stationNames,
         );
       },
       separatorBuilder:
@@ -595,7 +620,8 @@ class _HistoryPageState extends ResetableState<HistoryPage> {
                       key: ValueKey(
                         '${day.date}-${block.gcd}-${block.startEpoch}',
                       ),
-                      stationManager: widget.stationManager,
+                      index: blocks.length - contentIndex,
+                      stationNames: _stationNames,
                       records: block.records,
                     ),
                     const Divider(height: 16),
@@ -608,7 +634,8 @@ class _HistoryPageState extends ResetableState<HistoryPage> {
                 children: [
                   _HistoryRecordCard(
                     record: day.records[day.records.length - 1 - contentIndex],
-                    stationManager: widget.stationManager,
+                    index: day.records.length - contentIndex,
+                    stationNames: _stationNames,
                   ),
                   const Divider(height: 16),
                 ],
@@ -731,14 +758,13 @@ class _DayHeader extends StatelessWidget {
             dateLabel,
             style: TextStyle(
               color: Colors.grey.shade800,
-              fontSize: 12,
               fontWeight: FontWeight.bold,
             ),
           ),
           const SizedBox(width: 8),
           Text(
             l10n.historyDayCount(records.length),
-            style: TextStyle(color: Colors.grey.shade600, fontSize: 11),
+            style: TextStyle(color: Colors.grey.shade600, fontSize: 12.0),
           ),
         ],
       ),
@@ -815,13 +841,34 @@ List<_HistoryBlock> _buildBlocks(List<HistoryRecord> records) {
 
 // ── 表示コンポーネント ────────────────────────────────────────────
 
+/// 页面级 gcd → name 缓存，随页面生命周期释放
+class _StationNameCache {
+  final StationManager _stationManager;
+  final Map<int, String?> _namesByGcd = {};
+
+  _StationNameCache(this._stationManager);
+
+  String? resolve(int gcd) {
+    if (_namesByGcd.containsKey(gcd)) return _namesByGcd[gcd];
+
+    final node = _stationManager.getNodeByGcd(gcd);
+    final name = node == null ? null : _stationManager.getGcdName(node).$2;
+    _namesByGcd[gcd] = name;
+    return name;
+  }
+
+  void clear() => _namesByGcd.clear();
+}
+
 class _HistoryBlockCard extends StatelessWidget {
-  final StationManager stationManager;
+  final int index;
+  final _StationNameCache stationNames;
   final List<HistoryRecord> records;
 
   const _HistoryBlockCard({
     super.key,
-    required this.stationManager,
+    required this.index,
+    required this.stationNames,
     required this.records,
   });
 
@@ -834,7 +881,7 @@ class _HistoryBlockCard extends StatelessWidget {
         record.gcd,
         () => _HistoryStationGroup(
           gcd: record.gcd,
-          name: stationManager.getStationNameByGcd(record.gcd),
+          name: stationNames.resolve(record.gcd),
         ),
       );
       group.records.add(record);
@@ -842,7 +889,7 @@ class _HistoryBlockCard extends StatelessWidget {
 
     final children = <Widget>[];
     for (final group in groups.values) {
-      children.add(_HistoryStationGroupView(group: group));
+      children.add(_HistoryStationGroupView(group: group, index: index));
       children.add(const SizedBox(height: 4));
     }
 
@@ -862,16 +909,17 @@ class _HistoryStationGroup {
 }
 
 class _HistoryStationGroupView extends StatelessWidget {
+  final int index;
   final _HistoryStationGroup group;
 
-  const _HistoryStationGroupView({required this.group});
+  const _HistoryStationGroupView({required this.index, required this.group});
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _HistoryStationTile(gcd: group.gcd, name: group.name),
+        _HistoryStationTile(index: index, gcd: group.gcd, name: group.name),
         const SizedBox(height: 2),
         for (final record in group.records.reversed)
           _HistoryRecordRow(record: record),
@@ -881,12 +929,14 @@ class _HistoryStationGroupView extends StatelessWidget {
 }
 
 class _HistoryRecordCard extends StatelessWidget {
+  final int index;
   final HistoryRecord record;
-  final StationManager stationManager;
+  final _StationNameCache stationNames;
 
   const _HistoryRecordCard({
+    required this.index,
     required this.record,
-    required this.stationManager,
+    required this.stationNames,
   });
 
   @override
@@ -895,8 +945,9 @@ class _HistoryRecordCard extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _HistoryStationTile(
+          index: index,
           gcd: record.gcd,
-          name: stationManager.getStationNameByGcd(record.gcd),
+          name: stationNames.resolve(record.gcd),
         ),
         const SizedBox(height: 2),
         _HistoryRecordRow(record: record),
@@ -906,10 +957,15 @@ class _HistoryRecordCard extends StatelessWidget {
 }
 
 class _HistoryStationTile extends StatelessWidget {
+  final int index;
   final int gcd;
   final String? name;
 
-  const _HistoryStationTile({required this.gcd, required this.name});
+  const _HistoryStationTile({
+    required this.index,
+    required this.gcd,
+    required this.name,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -928,13 +984,22 @@ class _HistoryStationTile extends StatelessWidget {
         child: Row(
           children: [
             Container(
-              width: 20,
+              width: 40,
               height: 20,
               decoration: BoxDecoration(
                 color: Colors.grey.shade200,
-                shape: BoxShape.circle,
+                borderRadius: BorderRadius.circular(10),
               ),
-              child: Icon(Icons.train, size: 14, color: Colors.grey.shade700),
+              child: Center(
+                child: Text(
+                  '$index',
+                  style: TextStyle(
+                    color: Colors.grey.shade700,
+                    fontSize: 12.0,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
             ),
             const SizedBox(width: 8),
             Expanded(
@@ -943,7 +1008,7 @@ class _HistoryStationTile extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   color: Colors.grey.shade800,
-                  fontSize: 12,
+                  fontSize: 12.0,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -957,10 +1022,10 @@ class _HistoryStationTile extends StatelessWidget {
               ),
               child: Center(
                 child: Text(
-                  l10n.historyStationId(gcd),
+                  l10n.historyGcd(gcd),
                   style: TextStyle(
                     color: Colors.grey.shade800,
-                    fontSize: 12,
+                    fontSize: 12.0,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -981,30 +1046,24 @@ class _HistoryRecordRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = L10n.of(context);
-    final labelStyle = TextStyle(color: Colors.grey.shade600, fontSize: 11);
-    final valueStyle = TextStyle(
-      color: Colors.grey.shade800,
-      fontSize: 11,
-      fontWeight: FontWeight.bold,
-    );
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 1),
       child: Row(
         children: [
-          Text(l10n.historyTime, style: labelStyle),
-          const SizedBox(width: 4),
-          Text(_timeLabel(record.epoch), style: valueStyle),
-          const SizedBox(width: 10),
-          Text(l10n.historyCoordinates, style: labelStyle),
-          const SizedBox(width: 4),
-          Expanded(
-            child: Text(
-              _coordinateLabel(record),
-              textAlign: TextAlign.right,
-              overflow: TextOverflow.ellipsis,
-              style: valueStyle,
-            ),
+          _HistoryNearestCell(
+            label: l10n.timestamp,
+            value: _timeLabel(record.epoch),
+          ),
+          const SizedBox(width: 8),
+          _HistoryNearestCell(
+            label: l10n.latitude,
+            value: record.latitude.toStringAsFixed(6),
+          ),
+          const SizedBox(width: 8),
+          _HistoryNearestCell(
+            label: l10n.longitude,
+            value: record.longitude.toStringAsFixed(6),
           ),
         ],
       ),
@@ -1012,20 +1071,47 @@ class _HistoryRecordRow extends StatelessWidget {
   }
 }
 
-String _dateLabel(int date) =>
-    '${Common.yearOf(date).toString().padLeft(4, '0')}'
-    '-${_two(Common.monthOf(date))}-${_two(Common.dayOf(date))}';
+class _HistoryNearestCell extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _HistoryNearestCell({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              label,
+              style: TextStyle(color: Colors.grey.shade600, fontSize: 12.0),
+            ),
+            Text(
+              value,
+              style: TextStyle(
+                color: Colors.grey.shade800,
+                fontSize: 12.0,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 String _two(int value) => value.toString().padLeft(2, '0');
+// String _three(int value) => value.toString().padLeft(3, '0');
+String _four(int value) => value.toString().padLeft(4, '0');
+
+String _dateLabel(int date) =>
+    '${_four(Common.yearOf(date))}-${_two(Common.monthOf(date))}-${_two(Common.dayOf(date))}';
 
 String _timeLabel(int epoch) {
   final time = DateTime.fromMillisecondsSinceEpoch(epoch);
-  String two(int value) => value.toString().padLeft(2, '0');
-  String three(int value) => value.toString().padLeft(3, '0');
-  return '${two(time.hour)}:${two(time.minute)}:${two(time.second)}.'
-      '${three(time.millisecond)}';
+  return '${_two(time.hour)}:${_two(time.minute)}:${_two(time.second)}';
 }
-
-String _coordinateLabel(HistoryRecord record) =>
-    '${record.latitude.toStringAsFixed(6)}, '
-    '${record.longitude.toStringAsFixed(6)}';

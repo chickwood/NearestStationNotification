@@ -31,12 +31,11 @@ class HistoryConsumer {
 
   bool _hasLastHistory = false;
   int? _lastHistoryGcd;
-
-  int _date = Common.today();
-
   int? _lastProcessedEpoch;
   PositionResult? _lastPositionResult;
   List<StationResult>? _lastStationResults;
+
+  int _date = Common.today();
 
   HistoryConsumer(this._active, this._historyManager, this._settingsManager);
 
@@ -75,8 +74,8 @@ class HistoryConsumer {
     // 起点に flush されるようタイマーを張り直す
     if (_flushing == null && _pending.isNotEmpty) _armTimer();
 
-    _rollDateIfNeeded(epoch);
-    _recordOnStationChange(positionResult, stationResults);
+    _rollDateIfNeeded();
+    _recordOnStationChange();
   }
 
   // ── 設定・フラッシュ ────────────────────────────────────────────
@@ -169,8 +168,10 @@ class HistoryConsumer {
 
   /// 日付が変わったら切替ベースラインを破棄し、新しい日の初回定位で
   /// 同じ駅でも改めて記録できるようにする
-  void _rollDateIfNeeded(int epoch) {
-    final date = Common.dateOfEpoch(epoch);
+  void _rollDateIfNeeded() {
+    if (_lastProcessedEpoch == null) return;
+
+    final date = Common.dateOfEpoch(_lastProcessedEpoch!);
     if (date == _date) return;
 
     _date = date;
@@ -178,13 +179,14 @@ class HistoryConsumer {
     _lastHistoryGcd = null;
   }
 
-  void _recordOnStationChange(
-    PositionResult positionResult,
-    List<StationResult> stationResults,
-  ) {
-    if (stationResults.isEmpty) return;
+  void _recordOnStationChange() {
+    if (_lastPositionResult == null ||
+        _lastPositionResult == null ||
+        _lastStationResults!.isEmpty) {
+      return;
+    }
 
-    final first = stationResults.first;
+    final first = _lastStationResults!.first;
     final stationChanged =
         _hasLastHistory ? first.gcd != _lastHistoryGcd : first.gcd != null;
 
@@ -200,9 +202,9 @@ class HistoryConsumer {
     _append(
       HistoryRecord(
         gcd: first.gcd!,
-        epoch: positionResult.timestamp.millisecondsSinceEpoch,
-        latE6: (positionResult.latitude * 1e6).round(),
-        lonE6: (positionResult.longitude * 1e6).round(),
+        epoch: _lastPositionResult!.timestamp.millisecondsSinceEpoch,
+        latE6: (_lastPositionResult!.latitude * 1e6).round(),
+        lonE6: (_lastPositionResult!.longitude * 1e6).round(),
       ),
     );
   }

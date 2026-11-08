@@ -58,7 +58,7 @@ class SearchEngine {
     // 结果容器
     // 手动维护升序 List
     // [last] 为当前 search 个中最远的
-    final bestNodes = <({int index, double score})>[];
+    final bestNodes = <({int node, double score})>[];
 
     // 递归搜索内部方法
     void recursiveSearch(int node, int depth) {
@@ -73,10 +73,10 @@ class SearchEngine {
       // final score = Common.degua(...);
       final score = dXcoord * dXcoord + dYcoord * dYcoord + dZcoord * dZcoord;
       if (bestNodes.length < search) {
-        bestNodes.add((index: node, score: score));
+        bestNodes.add((node: node, score: score));
         bestNodes.sort((a, b) => a.score.compareTo(b.score));
       } else if (score < bestNodes.last.score) {
-        bestNodes[bestNodes.length - 1] = (index: node, score: score);
+        bestNodes[bestNodes.length - 1] = (node: node, score: score);
         bestNodes.sort((a, b) => a.score.compareTo(b.score));
       }
 
@@ -114,20 +114,16 @@ class SearchEngine {
 
     // 节点封装内部方法
     ({
-      int index,
+      int node,
       double score,
       double stCosLatRad,
       double stSinLatRad,
       double dCosLonRad,
       double dSinLonRad,
     })
-    transferNode(({int index, double score}) result) {
-      final stLatRad = Common.radians(
-        _manager.getStationLatitude(result.index),
-      );
-      final stLonRad = Common.radians(
-        _manager.getStationLongitude(result.index),
-      );
+    transferNode(({int node, double score}) result) {
+      final stLatRad = Common.radians(_manager.getStationLat(result.node));
+      final stLonRad = Common.radians(_manager.getStationLon(result.node));
       final dLatRad = inside ? stLatRad - userLatRad : double.nan;
       final dLonRad = stLonRad - userLonRad;
 
@@ -144,7 +140,7 @@ class SearchEngine {
               : result.score;
 
       return (
-        index: result.index,
+        node: result.node,
         score: score,
         stCosLatRad: stCosLatRad,
         stSinLatRad: stSinLatRad,
@@ -168,7 +164,7 @@ class SearchEngine {
                   : Common.haversine(result.score);
 
           return StationResult(
-            index: result.index,
+            node: result.node,
             distance: distance,
             bearing: Common.bearing(
               userCosLatRad,

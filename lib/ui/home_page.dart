@@ -477,23 +477,12 @@ class _HomePageState extends ResetableState<HomePage>
   void _showSettingsPage() {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder:
-            (context) => SettingsPage(_settingsManager!, _settingsSaveService),
+        builder: (_) => SettingsPage(_settingsManager!, _settingsSaveService),
       ),
     );
   }
 
   // ── History Page ───────────────────────────────────────────────────
-
-  Future<bool> _changeHistoryMergeView(bool value) async {
-    final current = _settingsManager;
-    if (current == null) return false;
-    if (value && !current.historyEnabled) return false;
-    if (current.historyMergeView == value) return true;
-
-    final updated = current.copyWith(historyMergeView: value);
-    return _settingsSaveService.save(updated);
-  }
 
   void _showHistoryPage() {
     Navigator.of(context).push(
@@ -504,8 +493,8 @@ class _HomePageState extends ResetableState<HomePage>
               _historyManager!,
               _historyBackupService,
               _stationManager!,
-              _settingsManager!.historySettingsManager,
-              _changeHistoryMergeView,
+              _settingsManager!,
+              _settingsSaveService,
               Common.today(),
             ),
       ),
@@ -518,7 +507,7 @@ class _HomePageState extends ResetableState<HomePage>
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder:
-            (context) =>
+            (_) =>
                 InfoPage(_stationManager!, _eventManager!, _infoImportService),
       ),
     );
@@ -618,7 +607,10 @@ class _HomePageState extends ResetableState<HomePage>
     }
 
     return [
-      Text(l10n.nearbyStations),
+      Text(
+        l10n.nearbyStations,
+        style: const TextStyle(fontWeight: FontWeight.bold),
+      ),
       const SizedBox(height: 8),
       Expanded(
         child: Padding(
@@ -656,55 +648,31 @@ class _HomePageState extends ResetableState<HomePage>
             _positionVisibility == 1
                 ? l10n.currentLocation
                 : l10n.currentLocationStatus,
+            style: const TextStyle(fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8),
-          Row(
-            children: [
-              _PositionRow(
-                label: l10n.latitude,
-                value: _coordinator!.positionResult!.latitude.toStringAsFixed(
-                  6,
-                ),
-              ),
-              const SizedBox(width: 4),
-              _PositionRow(
-                label: l10n.longitude,
-                value: _coordinator!.positionResult!.longitude.toStringAsFixed(
-                  6,
-                ),
-              ),
-            ],
+          _PositionRow(
+            labelL: l10n.latitude,
+            valueL: _coordinator!.positionResult!.latitude.toStringAsFixed(6),
+            labelR: l10n.longitude,
+            valueR: _coordinator!.positionResult!.longitude.toStringAsFixed(6),
           ),
           if (_positionVisibility == 2) ...[
             const SizedBox(height: 4),
-            Row(
-              children: [
-                _PositionRow(
-                  label: l10n.speed,
-                  value: _coordinator!.positionResult!.speedString,
-                ),
-                const SizedBox(width: 4),
-                _PositionRow(
-                  label: l10n.accuracy,
-                  value: _coordinator!.positionResult!.accuracyString,
-                ),
-              ],
+            _PositionRow(
+              labelL: l10n.speed,
+              valueL: _coordinator!.positionResult!.speedString,
+              labelR: l10n.accuracy,
+              valueR: _coordinator!.positionResult!.accuracyString,
             ),
             const SizedBox(height: 4),
-            Row(
-              children: [
-                _PositionRow(
-                  label: l10n.heading,
-                  value: l10n.direction(
-                    _coordinator!.positionResult!.headingIndex,
-                  ),
-                ),
-                const SizedBox(width: 4),
-                _PositionRow(
-                  label: l10n.timestamp,
-                  value: _coordinator!.positionResult!.timestampString,
-                ),
-              ],
+            _PositionRow(
+              labelL: l10n.heading,
+              valueL: l10n.direction(
+                _coordinator!.positionResult!.headingIndex,
+              ),
+              labelR: l10n.timestamp,
+              valueR: _coordinator!.positionResult!.timestampString,
             ),
           ],
         ],
@@ -715,12 +683,38 @@ class _HomePageState extends ResetableState<HomePage>
 }
 
 // ── Position row ─────────────────────────────────────────────────
-
 class _PositionRow extends StatelessWidget {
+  final String labelL;
+  final String valueL;
+  final String labelR;
+  final String valueR;
+
+  const _PositionRow({
+    required this.labelL,
+    required this.valueL,
+    required this.labelR,
+    required this.valueR,
+  });
+
+  @override
+  Widget build(Object context) {
+    return Row(
+      children: [
+        _PositionCell(label: labelL, value: valueL),
+        const SizedBox(width: 4),
+        _PositionCell(label: labelR, value: valueR),
+      ],
+    );
+  }
+}
+
+// ── Position cell ─────────────────────────────────────────────────
+
+class _PositionCell extends StatelessWidget {
   final String label;
   final String value;
 
-  const _PositionRow({required this.label, required this.value});
+  const _PositionCell({required this.label, required this.value});
 
   @override
   Widget build(BuildContext context) {
@@ -730,12 +724,15 @@ class _PositionRow extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(label, style: TextStyle(color: Colors.grey.shade600)),
+            Text(
+              label,
+              style: TextStyle(color: Colors.grey.shade600, fontSize: 12.0),
+            ),
             Text(
               value,
               style: TextStyle(
                 color: Colors.grey.shade800,
-                // fontFamily: 'monospace',
+                fontSize: 12.0,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -807,7 +804,7 @@ class _StationTile extends StatelessWidget {
                 '${index + 1}',
                 style: TextStyle(
                   color: isNearest ? Colors.white : Colors.grey.shade800,
-                  fontSize: 12,
+                  fontSize: 12.0,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -819,7 +816,7 @@ class _StationTile extends StatelessWidget {
               name,
               style: TextStyle(
                 color: Colors.grey.shade800,
-                fontSize: 12,
+                fontSize: 12.0,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -838,7 +835,7 @@ class _StationTile extends StatelessWidget {
                 direction,
                 style: TextStyle(
                   color: isNearest ? Colors.white : Colors.grey.shade800,
-                  fontSize: 12,
+                  fontSize: 12.0,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -858,7 +855,7 @@ class _StationTile extends StatelessWidget {
                 distance,
                 style: TextStyle(
                   color: isNearest ? Colors.white : Colors.grey.shade800,
-                  fontSize: 12,
+                  fontSize: 12.0,
                   fontWeight: FontWeight.bold,
                 ),
               ),

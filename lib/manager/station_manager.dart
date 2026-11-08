@@ -21,7 +21,8 @@ class StationManager {
   late final Uint32List _rights; // KD-Tree Right 区
   late final Uint32List _offsets; // 车站名偏移索引区
   late final Uint8List _names; // 车站名原始数据区 (变长)
-  Map<int, String>? _namesByGcd;
+  final Map<int, int> _nodesByGcd = {}; // gcd → node（增量填充）
+  int _scanCursor = 0; // 已连续扫描的 node 上界（不含）
 
   // _manager 构造时赋值
   // _info 使用默认值
@@ -178,14 +179,12 @@ class StationManager {
 
   /// 根据索引按需获取车站名 (Lazy Loading)
   /// 解析失败时返回 (null, null) 以与正常数据区分
-  (int?, String?) getStationName(int index) {
+  (int?, String?) getGcdName(int node) {
     try {
       if (isLoaded) {
-        final int start = _offsets[index];
+        final int start = _offsets[node];
         final int end =
-            (index == _offsets.length - 1)
-                ? _names.length
-                : _offsets[index + 1];
+            (node == _offsets.length - 1) ? _names.length : _offsets[node + 1];
         final nameBytes = _names.buffer.asUint8List(
           _names.offsetInBytes + start,
           end - start,
@@ -193,7 +192,9 @@ class StationManager {
 
         final match = Common.namePattern.firstMatch(utf8.decode(nameBytes));
         if (match != null) {
-          return (int.parse(match.group(1)!), match.group(2)!);
+          final gcd = int.parse(match.group(1)!);
+          _nodesByGcd[gcd] = node;
+          return (gcd, match.group(2)!);
         }
       }
     } catch (e, st) {
@@ -203,30 +204,29 @@ class StationManager {
     return (null, null);
   }
 
-  /// 根据 gcd 获取车站名（首次调用时构建 gcd → name 缓存）
-  String? getStationNameByGcd(int gcd) {
+  /// 根据 gcd 获取 node（首次查询时从扫描游标处增量扫描）
+  int? getNodeByGcd(int gcd) {
     if (!isLoaded) return null;
 
-    final cached = _namesByGcd;
-    if (cached != null) return cached[gcd];
+    final cached = _nodesByGcd[gcd];
+    if (cached != null) return cached;
 
-    final names = <int, String>{};
-    for (var index = 0; index < count; index++) {
-      final (stationGcd, name) = getStationName(index);
-      if (stationGcd == null || name == null) continue;
-      names[stationGcd] = name;
+    // 已扫描全部 node 时，缺失即为确定结果
+    while (_scanCursor < count) {
+      final node = _scanCursor++;
+      final (stationGcd, _) = getGcdName(node);
+      if (stationGcd == gcd) return node;
     }
 
-    _namesByGcd = names;
-    return names[gcd];
+    return null;
   }
 
   // 根据索引按需获取车站坐标详情
-  double getStationLatitude(int index) => _latitudes[index];
-  double getStationLongitude(int index) => _longitudes[index];
-  double getStationXcoord(int index) => _xcoords[index];
-  double getStationYcoord(int index) => _ycoords[index];
-  double getStationZcoord(int index) => _zcoords[index];
-  int getStationLeft(int index) => _lefts[index];
-  int getStationRight(int index) => _rights[index];
+  double getStationLat(int node) => _latitudes[node];
+  double getStationLon(int node) => _longitudes[node];
+  double getStationXcoord(int node) => _xcoords[node];
+  double getStationYcoord(int node) => _ycoords[node];
+  double getStationZcoord(int node) => _zcoords[node];
+  int getStationLeft(int node) => _lefts[node];
+  int getStationRight(int node) => _rights[node];
 }

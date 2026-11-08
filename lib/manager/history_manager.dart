@@ -233,7 +233,9 @@ class HistoryManager {
 
   Future<List<HistoryRecord>> readDayFile(int date) async {
     if (_directory == null || !Common.isValidDate(date)) return const [];
-    return _withLock(() async => _dedupeSort(await _readDayFileUnlocked(date)));
+    return _withLock(
+      () async => HistoryRecord.mergeDedup(await _readDayFileUnlocked(date)),
+    );
   }
 
   Future<Map<int, StationSummary>> readStationSummaries() async {
@@ -535,7 +537,7 @@ class HistoryManager {
 
     if (cancelled()) return false;
 
-    final records = _dedupeSort(merged);
+    final records = HistoryRecord.mergeDedup(merged);
     if (cancelled()) return false;
     final ndjsonBytes = _encodeNdjson(records);
     final hash = sha256.convert(ndjsonBytes).toString();
@@ -671,7 +673,7 @@ class HistoryManager {
       debugPrint('error: $e\n$st');
     }
 
-    return _dedupeSort(records);
+    return HistoryRecord.mergeDedup(records);
   }
 
   List<HistoryRecord> _readMonthZipRecords(Uint8List bytes, int month) {
@@ -1083,7 +1085,7 @@ class HistoryManager {
 
           final date = int.parse(_dayFilePattern.firstMatch(name)!.group(1)!);
           final localRecords = await _readDayFileUnlocked(date);
-          final merged = _dedupeSort([...localRecords, ...parsed]);
+          final merged = HistoryRecord.mergeDedup([...localRecords, ...parsed]);
           await _writeAtomic(_dayFile(date), _encodeNdjson(merged));
           wrote = true;
 
@@ -1383,9 +1385,6 @@ class HistoryManager {
       return null;
     }
   }
-
-  static List<HistoryRecord> _dedupeSort(Iterable<HistoryRecord> input) =>
-      HistoryRecord.mergeDedup(input);
 
   static String _basename(String path) {
     final index = path.lastIndexOf(Platform.pathSeparator);

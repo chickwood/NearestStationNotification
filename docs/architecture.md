@@ -385,7 +385,7 @@ SearchEngine 只负责计算。
 - BIN 写入（原子替换：临时文件 → 改名）
 - XYZ、经纬度
 - station metadata（name、gcd）
-- `getStationNameByGcd(gcd)`：首次调用构建 gcd → name 缓存，供 HistoryPage 展示站名
+- `getNodeByGcd(gcd)`：按需增量构建 gcd → node 缓存（扫描游标；命中即停，扫完全部后缺失才可判定），不缓存站名；`getGcdName(node)` 解析时顺带填充该缓存
 - 示例数据判定（`count > 0 && count < sampleThreshold`，阈值 50）
 - 加载状态判定（`isLoaded`）
 
@@ -767,10 +767,11 @@ ZIP 限制与规则：
 - 月模式懒构建：维护 `_DayMeta`（date / records / blockCount）与 `_TimelineIndex`（`starts` 前缀数组 + 二分 + `itemCount`），用 `CustomScrollView` + `SliverList.builder`；日期头占 1 项，其余为记录或区块；不预生成逐条 entry，不构建整月 / 整天 `Column`
 - `blockCount` 在月缓存加载时按日扫描一次；`_blocksByDay` 只在区块视图首次显示某日时构建；合并展示切换时清空区块缓存
 - 逐条展示（默认）或 5 分钟窗口展示（`historyMergeView`）；每个车站独立按该站首条记录起算固定 5 分钟窗口；窗口按窗口内最后一条记录时间降序排列（同时间按起点降序、gcd 升序）；窗口内记录按时间降序，全部展开显示，无展开/收起交互
+- 条目编号：每个日期独立，按页面从下到上倒序编号，最下方为 1，越往上越大；逐条展示按记录编号（同日同 epoch 沿用 `HistoryRecord.mergeDedup` 的 `(epoch, gcd, key)` 升序），5 分钟分组展示按块自身顺序编号（同一块使用同一个编号）；月模式每个日期独立，日模式合入 pending 后重新编号；编号始终按当天全部记录或全部块计算，不受滚动与可见范围影响
 - AppBar 分组开关与 Settings 的 5 分钟分组共用 `historyMergeView`：开启为 `view_agenda` 白色图标，关闭为 `view_list` 浅蓝色图标；点击立即写回设置，失败时回滚，并重建当前模式的索引/区块缓存
 - 导出 / 导入入口：导出前 `flush()`，`FilePicker.saveFile` 后 `finishExport()`；导入前 `flush()`、选文件、导入后重载当前模式；`_hasHistory` 由 `listMonths()` + pending 维护，无历史时禁用导出
 - 读取失败与 Manager 一致：只 `debugPrint`，保持旧数据或显示空状态，不保留页面级 error，也不显示重试页
-- 站名：展示时通过 `StationManager.getStationNameByGcd(record.gcd)` 获取；查不到显示 `--`
+- 站名：展示时通过页面级 gcd → name 缓存解析（`getNodeByGcd` + `getGcdName`）；查不到显示 `--`
 - 页面关闭即丢弃状态与缓存；再次打开回到今天
 
 不负责：
@@ -899,7 +900,7 @@ SearchEngine 不解析站名。
 - `date`：由 `epoch` 经 `Common` 日期入口得到的本地 `yyyyMMdd` int，供分组、比较、排序与文件名共用；不落盘
 - 派生显示值：本地时间 `HH:mm:ss.SSS`、坐标 6 位小数
 - 记录键：`(gcd, epoch, latE6, lonE6)`，用于合并去重
-- 站名不落盘；展示时由 HistoryPage 通过 `StationManager.getStationNameByGcd(gcd)` 查询，查不到显示 `--`
+- 站名不落盘；展示时由 HistoryPage 通过页面级 gcd → name 缓存解析（`getNodeByGcd` + `getGcdName`），查不到显示 `--`
 
 历史 NDJSON：
 
@@ -921,7 +922,7 @@ SearchEngine 不解析站名。
 - `merge(HistoryRecord)` / `mergeSummary(StationSummary)`：按上述规则折叠，重复 `gcd` 合并而非覆盖
 - `mergeAll()` / `mergeInto()`：与 Manager 内部共用同一规则，供调用方合并 `HistoryConsumer.pendingRecords`
 - `toRow()` / `tryParse()`：7 元素数组 `[gcd,first_epoch,first_lat_e6,first_lon_e6,last_epoch,last_lat_e6,last_lon_e6]`；`first` 晚于 `last` 的行无效
-- 汇总只存用户坐标与 epoch，不存车站坐标或站名；站名展示仍由 `StationManager.getStationNameByGcd(gcd)` 查询
+- 汇总只存用户坐标与 epoch，不存车站坐标或站名；站名展示仍由 HistoryPage 的页面级 gcd → name 缓存解析
 
 ---
 

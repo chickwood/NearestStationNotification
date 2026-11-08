@@ -272,9 +272,9 @@ class Coordinator {
     // index → gcd と name を補完して完全な StationResult を組立
     _stationResults = stationResults
         .map((result) {
-          final (gcd, name) = _stationManager.getStationName(result.index);
+          final (gcd, name) = _stationManager.getGcdName(result.node);
           return StationResult(
-            index: result.index,
+            node: result.node,
             gcd: gcd,
             name: name,
             distance: result.distance,
