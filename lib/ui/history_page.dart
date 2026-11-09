@@ -232,7 +232,7 @@ class _HistoryPageState extends ResetableState<HistoryPage> {
 
     _monthCache = _MonthCache.build(
       HistoryRecord.mergeDedup([
-        for (final day in cache.dayMetas) ...day.records,
+        for (final dayMeta in cache.dayMetas) ...dayMeta.records,
         ...scoped,
       ]),
       _mergeView,
