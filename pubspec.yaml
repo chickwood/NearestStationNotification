@@ -15,7 +15,7 @@ dependencies:
     sdk: flutter
   archive: ^4.6.0
   crypto: ^3.0.8
-  file_picker: ^13.3.2
+  file_picker: ^13.3.3
   flutter_local_notifications: ^23.0.0
   flutter_styled_toast: ^2.3.0
   location: ^10.1.0
