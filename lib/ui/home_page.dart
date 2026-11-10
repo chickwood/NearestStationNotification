@@ -178,7 +178,7 @@ class _HomePageState extends ResetableState<HomePage>
                   !_historyArchiveService.busy.value &&
                   _coordinator!.runningStatus != RunningStatus.starting,
               position: PopupMenuPosition.under,
-              icon: const Icon(Icons.menu),
+              icon: const Icon(Icons.more_vert),
               iconColor:
                   _historyArchiveService.busy.value ||
                       _coordinator!.runningStatus == RunningStatus.starting
