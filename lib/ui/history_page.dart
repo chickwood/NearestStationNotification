@@ -514,7 +514,7 @@ class _HistoryPageState extends ResetableState<HistoryPage> {
         child: Column(
           children: [
             if (Common.isValidDate(_selectedDateOrMonth)) ...[
-              _DayHeader(date: _selectedDateOrMonth, records: const []),
+              _DayHeader(date: _selectedDateOrMonth),
               const SizedBox(height: 4),
             ],
             Align(
@@ -544,7 +544,10 @@ class _HistoryPageState extends ResetableState<HistoryPage> {
               if (offset == 0) {
                 return Column(
                   children: [
-                    _DayHeader(date: _selectedDateOrMonth, records: const []),
+                    _DayHeader(
+                      date: _selectedDateOrMonth,
+                      count: dayMeta.records.length,
+                    ),
                     const SizedBox(height: 4),
                   ],
                 );
@@ -691,9 +694,9 @@ class _TimelineIndex {
 
 class _DayHeader extends StatelessWidget {
   final int date;
-  final List<HistoryRecord> records;
+  final int count;
 
-  const _DayHeader({required this.date, required this.records});
+  const _DayHeader({required this.date, this.count = 0});
 
   @override
   Widget build(BuildContext context) {
@@ -719,7 +722,7 @@ class _DayHeader extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           Text(
-            l10n.historyDayCount(records.length),
+            l10n.historyDayCount(count),
             style: TextStyle(color: Colors.grey.shade600, fontSize: 12.0),
           ),
         ],

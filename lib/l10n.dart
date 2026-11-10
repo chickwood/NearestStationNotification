@@ -313,9 +313,9 @@ class L10n {
   }
 
   String historyDayCount(int count) {
-    if (_isJa) return '$count 件';
-    if (_isZhHans) return '共 $count 条记录';
-    return '$count records';
+    if (_isJa) return '$count 件履歴';
+    if (_isZhHans) return '$count 条记录';
+    return '${count > 0 ? '$count' : 'No'} record${count == 1 ? '' : 's'}';
   }
 
   String get historyLoadFailed {
