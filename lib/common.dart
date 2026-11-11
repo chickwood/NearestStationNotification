@@ -480,16 +480,16 @@ class HistoryRecord {
   }
 }
 
-class StationSummary {
+class HistorySummary {
   final HistoryRecord first;
   final HistoryRecord last;
 
-  const StationSummary({required this.first, required this.last});
+  const HistorySummary({required this.first, required this.last});
 
   int get gcd => first.gcd;
 
-  factory StationSummary.fromRecord(HistoryRecord record) =>
-      StationSummary(first: record, last: record);
+  factory HistorySummary.fromRecord(HistoryRecord record) =>
+      HistorySummary(first: record, last: record);
 
   /// 時間順序固定為 `(epoch, latE6, lonE6)` 升序
   static int compare(HistoryRecord a, HistoryRecord b) {
@@ -502,17 +502,17 @@ class StationSummary {
     return a.lonE6.compareTo(b.lonE6);
   }
 
-  StationSummary merge(HistoryRecord record) {
+  HistorySummary merge(HistoryRecord record) {
     assert(record.gcd == gcd);
-    return StationSummary(
+    return HistorySummary(
       first: compare(record, first) < 0 ? record : first,
       last: compare(record, last) > 0 ? record : last,
     );
   }
 
-  StationSummary mergeSummary(StationSummary other) {
+  HistorySummary mergeSummary(HistorySummary other) {
     assert(other.gcd == gcd);
-    return StationSummary(
+    return HistorySummary(
       first: compare(other.first, first) < 0 ? other.first : first,
       last: compare(other.last, last) > 0 ? other.last : last,
     );
@@ -528,7 +528,7 @@ class StationSummary {
     last.lonE6,
   ];
 
-  static StationSummary? tryParse(Object? value) {
+  static HistorySummary? tryParse(Object? value) {
     if (value is! List || value.length != 7) return null;
 
     final gcd = value[0];
@@ -563,20 +563,20 @@ class StationSummary {
     );
     if (compare(first, last) > 0) return null;
 
-    return StationSummary(first: first, last: last);
+    return HistorySummary(first: first, last: last);
   }
 
-  static Map<int, StationSummary> mergeAll(Iterable<HistoryRecord> records) =>
-      mergeInto(<int, StationSummary>{}, records);
+  static Map<int, HistorySummary> mergeAll(Iterable<HistoryRecord> records) =>
+      mergeInto(<int, HistorySummary>{}, records);
 
-  static Map<int, StationSummary> mergeInto(
-    Map<int, StationSummary> base,
+  static Map<int, HistorySummary> mergeInto(
+    Map<int, HistorySummary> base,
     Iterable<HistoryRecord> records,
   ) {
     for (final record in records) {
       final existing = base[record.gcd];
       base[record.gcd] = existing == null
-          ? StationSummary.fromRecord(record)
+          ? HistorySummary.fromRecord(record)
           : existing.merge(record);
     }
     return base;

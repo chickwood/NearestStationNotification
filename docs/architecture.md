@@ -643,8 +643,8 @@ ZIP 限制与规则：
 
 职责：
 
-- 历史文件存储与查询：`appendRecords()`、`readDay(int date)`、`readDayFile(int date)`、`readMonth(int month)`、`listDays(int month)`、`listMonths()`、`readStationSummaries()`、`readStationSummary(int gcd)`；日期 / 月份入参与返回值均为 `int`（见 `Date Representation`）
-- `readStationSummaries()` / `readStationSummary(int gcd)`：读取 `summary.ndjson` 累计基线与当前月日文件，按 `gcd` 合并首次 / 最近记录；汇总文件缺失、无效或超限时只使用当前月，查询不写盘、不重建、不读取月度 ZIP；单站查询与全量查询共用同一实现
+- 历史文件存储与查询：`appendRecords()`、`readDay(int date)`、`readDayFile(int date)`、`readMonth(int month)`、`listDays(int month)`、`listMonths()`、`readHistorySummaries()`、`readHistorySummary(int gcd)`；日期 / 月份入参与返回值均为 `int`（见 `Date Representation`）
+- `readHistorySummaries()` / `readHistorySummary(int gcd)`：读取 `summary.ndjson` 累计基线与当前月日文件，按 `gcd` 合并首次 / 最近记录；汇总文件缺失、无效或超限时只使用当前月，查询不写盘、不重建、不读取月度 ZIP；单站查询与全量查询共用同一实现
 - `summary.ndjson` 是派生累计基线：普通 `appendRecords()` 不更新；仅在月度 ZIP 成功 rename 后、删除该月日文件前更新，或备份导入后重建；文件可删除，删除后读取退化为当前月临时汇总，下次归档或导入重建
 - `readDayFile(int date)` 只读取 `history/$date.ndjson`，不扫描同月其他日文件、不读取月度 ZIP；用于日模式只加载所选日期
 - `readDay(int date)` 会读取整月（ZIP + 目录日文件）再按日过滤，历史页不再使用
@@ -689,7 +689,7 @@ ZIP 限制与规则：
 - 所有写入（`appendRecords` / 月度合并 / 汇总写入 / 备份 / 导入）共用同一把异步串行锁
 - 汇总文件读取与写入同样在锁内执行；公开查询 API 包锁，归档/导入内部调用无锁私有变体，避免重入死锁
 - 汇总文件写入使用临时文件 → rename；失败不破坏旧汇总文件
-- `readStationSummaries()` 不缓存，每次解析汇总文件与当前月日文件；后续若页面频繁查询，再按 `pendingRevision` / `flushCount` / 跨月切换设计失效策略
+- `readHistorySummaries()` 不缓存，每次解析汇总文件与当前月日文件；后续若页面频繁查询，再按 `pendingRevision` / `flushCount` / 跨月切换设计失效策略
 - 月度归档使用临时 NDJSON → 临时 ZIP → rename → 删除日文件；取消或失败保留日文件与临时文件清理
 - 取消为协作式：扫描日文件、读取 ZIP、解析、写临时文件、rename、删除日文件前检查；已在锁内的月份不会被打断
 - 不依赖 Coordinator / HistoryConsumer、SettingsManager、UI 或文件对话框
@@ -913,13 +913,13 @@ SearchEngine 不解析站名。
 - 日文件/月度 NDJSON 同一格式；月度 ZIP 内含 `YYYYMM.ndjson` + `SHA256SUMS`。
 - 备份外层 ZIP 根目录直接包含 `YYYYMM.zip`、`YYYYMMdd.ndjson`、`summary.ndjson`、`MANIFEST`、`SHA256SUMS`，无子目录。
 
-### StationSummary
+### HistorySummary
 
 定义于 `common.dart`，与 `HistoryRecord` 同处，是 `summary.ndjson` 的内存模型：
 
 - `first` / `last`：两个 `HistoryRecord`，`gcd` 相同，分别表示首次与最近一次成为最近车站的记录
 - 时间先后比较固定为 `(epoch, latE6, lonE6)` 升序：`first` 取最小三元组，`last` 取最大三元组；同一 epoch 不同坐标也有确定结果
-- `merge(HistoryRecord)` / `mergeSummary(StationSummary)`：按上述规则折叠，重复 `gcd` 合并而非覆盖
+- `merge(HistoryRecord)` / `mergeSummary(HistorySummary)`：按上述规则折叠，重复 `gcd` 合并而非覆盖
 - `mergeAll()` / `mergeInto()`：与 Manager 内部共用同一规则，供调用方合并 `HistoryConsumer.pendingRecords`
 - `toRow()` / `tryParse()`：7 元素数组 `[gcd,first_epoch,first_lat_e6,first_lon_e6,last_epoch,last_lat_e6,last_lon_e6]`；`first` 晚于 `last` 的行无效
 - 汇总只存用户坐标与 epoch，不存车站坐标或站名；站名展示仍由 HistoryPage 的页面级 gcd → name 缓存解析

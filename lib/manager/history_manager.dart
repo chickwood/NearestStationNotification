@@ -238,14 +238,14 @@ class HistoryManager {
     );
   }
 
-  Future<Map<int, StationSummary>> readStationSummaries() async {
-    if (_directory == null) return const <int, StationSummary>{};
-    return _withLock(_readStationSummariesUnlocked);
+  Future<Map<int, HistorySummary>> readHistorySummaries() async {
+    if (_directory == null) return const <int, HistorySummary>{};
+    return _withLock(_readHistorySummariesUnlocked);
   }
 
-  Future<StationSummary?> readStationSummary(int gcd) async {
+  Future<HistorySummary?> readHistorySummary(int gcd) async {
     if (_directory == null) return null;
-    return _withLock(() async => (await _readStationSummariesUnlocked())[gcd]);
+    return _withLock(() async => (await _readHistorySummariesUnlocked())[gcd]);
   }
 
   Future<int> createBackup(
@@ -718,8 +718,8 @@ class HistoryManager {
     }
   }
 
-  Future<Map<int, StationSummary>> _readStationSummariesUnlocked() async {
-    final summaries = (await _readSummaryUnlocked()) ?? <int, StationSummary>{};
+  Future<Map<int, HistorySummary>> _readHistorySummariesUnlocked() async {
+    final summaries = (await _readSummaryUnlocked()) ?? <int, HistorySummary>{};
     final directory = _directory;
     if (directory == null) return summaries;
 
@@ -742,7 +742,7 @@ class HistoryManager {
             debugPrint('invalid history day file: ${entity.path}');
             continue;
           }
-          StationSummary.mergeInto(summaries, parsed);
+          HistorySummary.mergeInto(summaries, parsed);
         } catch (e, st) {
           debugPrint('error: $e\n$st');
         }
@@ -752,12 +752,12 @@ class HistoryManager {
     }
 
     final keys = summaries.keys.toList()..sort();
-    return Map<int, StationSummary>.unmodifiable({
+    return Map<int, HistorySummary>.unmodifiable({
       for (final key in keys) key: summaries[key]!,
     });
   }
 
-  Future<Map<int, StationSummary>?> _readSummaryUnlocked() async {
+  Future<Map<int, HistorySummary>?> _readSummaryUnlocked() async {
     try {
       final file = _summaryFile;
       if (!await file.exists()) return null;
@@ -772,7 +772,7 @@ class HistoryManager {
     }
   }
 
-  static Map<int, StationSummary>? _parseSummaryNdjson(Uint8List bytes) {
+  static Map<int, HistorySummary>? _parseSummaryNdjson(Uint8List bytes) {
     try {
       var text = utf8.decode(bytes);
       if (text.startsWith('\uFEFF')) text = text.substring(1);
@@ -795,10 +795,10 @@ class HistoryManager {
         if (fields[i] != Common.summaryFields[i]) return null;
       }
 
-      final summaries = <int, StationSummary>{};
+      final summaries = <int, HistorySummary>{};
       for (final line in lines.skip(1)) {
         try {
-          final summary = StationSummary.tryParse(jsonDecode(line));
+          final summary = HistorySummary.tryParse(jsonDecode(line));
           if (summary == null) {
             debugPrint('summary: invalid row');
             continue;
@@ -818,7 +818,7 @@ class HistoryManager {
     }
   }
 
-  Uint8List _encodeSummaryNdjson(Map<int, StationSummary> summaries) {
+  Uint8List _encodeSummaryNdjson(Map<int, HistorySummary> summaries) {
     final buffer = StringBuffer('${_summaryHeader()}\n');
     final keys = summaries.keys.toList()..sort();
     for (final key in keys) {
@@ -827,19 +827,19 @@ class HistoryManager {
     return Uint8List.fromList(utf8.encode(buffer.toString()));
   }
 
-  Future<void> _writeSummaryUnlocked(Map<int, StationSummary> summaries) async {
+  Future<void> _writeSummaryUnlocked(Map<int, HistorySummary> summaries) async {
     await _writeAtomic(_summaryFile, _encodeSummaryNdjson(summaries));
   }
 
   Future<void> _updateSummaryAfterArchive(List<HistoryRecord> records) async {
     final baseline =
         (await _readSummaryUnlocked()) ?? await _rebuildSummaryUnlocked();
-    StationSummary.mergeInto(baseline, records);
+    HistorySummary.mergeInto(baseline, records);
     await _writeSummaryUnlocked(baseline);
   }
 
-  Future<Map<int, StationSummary>> _rebuildSummaryUnlocked() async {
-    final summaries = <int, StationSummary>{};
+  Future<Map<int, HistorySummary>> _rebuildSummaryUnlocked() async {
+    final summaries = <int, HistorySummary>{};
     final directory = _directory;
     if (directory == null) return summaries;
 
@@ -859,7 +859,7 @@ class HistoryManager {
               await entity.readAsBytes(),
               month,
             );
-            StationSummary.mergeInto(summaries, records);
+            HistorySummary.mergeInto(summaries, records);
           } catch (e, st) {
             debugPrint('summary: $e\n$st');
           }
@@ -880,7 +880,7 @@ class HistoryManager {
             debugPrint('invalid history day file: ${entity.path}');
             continue;
           }
-          StationSummary.mergeInto(summaries, parsed);
+          HistorySummary.mergeInto(summaries, parsed);
         } catch (e, st) {
           debugPrint('summary: $e\n$st');
         }
@@ -1036,7 +1036,7 @@ class HistoryManager {
         }
       }
 
-      var seed = <int, StationSummary>{};
+      var seed = <int, HistorySummary>{};
       if (hasSummary) {
         final entry = files[Common.summaryFileName]!;
         if (entry.size > _maxSummaryNdjsonSize) {
@@ -1070,7 +1070,7 @@ class HistoryManager {
             imported = localRecords;
           }
 
-          if (!hadHistory) StationSummary.mergeInto(seed, imported);
+          if (!hadHistory) HistorySummary.mergeInto(seed, imported);
 
           processed++;
           onProgress(0.4 + 0.6 * processed / total);
@@ -1089,7 +1089,7 @@ class HistoryManager {
           await _writeAtomic(_dayFile(date), _encodeNdjson(merged));
           wrote = true;
 
-          if (!hadHistory) StationSummary.mergeInto(seed, merged);
+          if (!hadHistory) HistorySummary.mergeInto(seed, merged);
 
           processed++;
           onProgress(0.4 + 0.6 * processed / total);
