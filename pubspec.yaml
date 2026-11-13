@@ -6,12 +6,10 @@ publish_to: 'none'
 version: 1.5.3+2026110903
 
 environment:
-  sdk: '>=3.13.0 <4.0.0'
+  sdk: '>=3.14.0 <4.0.0'
 
 dependencies:
   flutter:
-    sdk: flutter
-  flutter_localizations:
     sdk: flutter
   archive: ^4.6.0
   crypto: ^3.0.8
@@ -19,6 +17,7 @@ dependencies:
   flutter_local_notifications: ^23.0.0
   flutter_styled_toast: ^2.3.0
   location: ^10.1.0
+  material_ui: ^1.11.0
   package_info_plus: ^10.2.2
   path_provider: ^2.1.6
   shared_preferences: ^2.5.6

@@ -1,5 +1,5 @@
 import 'package:file_picker/file_picker.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../common.dart';
@@ -117,14 +117,12 @@ class _InfoPageState extends ResetableState<InfoPage> {
               const SizedBox(height: 8),
               GestureDetector(
                 // behavior: HitTestBehavior.opaque,
-                onTap:
-                    () => Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder:
-                            (_) =>
-                                LicenseListPage(_stationManager, _eventManager),
-                      ),
-                    ),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) =>
+                        LicenseListPage(_stationManager, _eventManager),
+                  ),
+                ),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 2),
                   child: Container(
@@ -167,11 +165,10 @@ class _InfoPageState extends ResetableState<InfoPage> {
               const SizedBox(height: 8),
               GestureDetector(
                 // behavior: HitTestBehavior.opaque,
-                onTap:
-                    () => launchUrl(
-                      Common.uriInformation,
-                      mode: LaunchMode.externalApplication,
-                    ),
+                onTap: () => launchUrl(
+                  Common.uriInformation,
+                  mode: LaunchMode.externalApplication,
+                ),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 2),
                   child: Container(
