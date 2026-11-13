@@ -3,7 +3,7 @@ description: "Finds the nearest station using your location and sends a notifica
 publish_to: 'none'
 # version 格式: X.Y.Z+YYYYMMDDNN
 # (后半段 Version Code，Google Play 的规定上限 2100000000，按此编码约到 2100 年）
-version: 1.5.3+2026110903
+version: 1.5.4+2026111401
 
 environment:
   sdk: '>=3.14.0 <4.0.0'
@@ -11,12 +11,12 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  archive: ^4.6.0
+  archive: ^4.7.1
   crypto: ^3.0.8
   file_picker: ^13.3.3
-  flutter_local_notifications: ^23.0.0
+  flutter_local_notifications: ^23.0.2
   flutter_styled_toast: ^2.3.0
-  location: ^10.1.0
+  location: ^10.2.0
   material_ui: ^1.11.0
   package_info_plus: ^10.2.2
   path_provider: ^2.1.6
