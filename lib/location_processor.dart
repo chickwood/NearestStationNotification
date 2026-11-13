@@ -8,11 +8,10 @@ import 'manager/settings_manager.dart';
 import 'manager/station_manager.dart';
 import 'search_engine.dart';
 
-typedef LocationHandler =
-    void Function(
-      PositionResult positionResult,
-      List<StationResult> stationResults,
-    );
+typedef LocationHandler = void Function(
+  PositionResult positionResult,
+  List<StationResult> stationResults,
+);
 
 /// 位置処理クラス
 /// GPS Stream の購読・位置ズレフィルタ・SearchEngine 呼び出しを担う
@@ -30,6 +29,12 @@ class LocationProcessor {
   final List<PositionResult> _positionQueue = [];
 
   StreamSubscription<LocationData>? _positionSubscription;
+  LocationData? _pendingPosition;
+
+  bool _running = false;
+  bool _restarting = false;
+  bool _restartRequested = false;
+  bool _draining = false;
 
   // 結果コールバック（Coordinator が登録）
   LocationHandler? _onLocationUpdated;
@@ -50,10 +55,13 @@ class LocationProcessor {
   // ── 起動・停止 ────────────────────────────────────────────────────
 
   Future<void> start() async {
+    _running = true;
     await _startStream();
   }
 
   Future<void> stop() async {
+    _running = false;
+    _pendingPosition = null;
     await _stopStream();
   }
 
@@ -114,51 +122,99 @@ class LocationProcessor {
   }
 
   // ── GPS Stream ───────────────────────────────────────────────────
-
+  /// 流启动/重启：等待旧订阅取消完成，并合并并发重启请求
   Future<void> _startStream() async {
-    final distanceFilter =
-        _positionQueue.isNotEmpty
+    if (!_running) return;
+    if (_restarting) {
+      _restartRequested = true;
+      return;
+    }
+
+    _restarting = true;
+    try {
+      do {
+        _restartRequested = false;
+
+        final distanceFilter = _positionQueue.isNotEmpty
             ? _positionQueue.last.samplingMode.filter
             : SamplingMode.staying.filter;
-    final milliseconds = _settingsManager.locationInterval.milliseconds;
+        final milliseconds = _settingsManager.locationInterval.milliseconds;
 
-    _positionSubscription?.cancel();
-    _positionSubscription = null;
+        // 必须先等待旧订阅取消完成，再建立新订阅
+        final previous = _positionSubscription;
+        _positionSubscription = null;
+        await previous?.cancel();
 
-    await Location.instance.changeSettings(
-      accuracy: LocationAccuracy.high,
-      interval: milliseconds,
-      distanceFilter: distanceFilter,
-      pausesLocationUpdatesAutomatically: false,
-      backgroundInterval: milliseconds,
-    );
+        if (!_running) return;
 
-    await Location.instance.changeNotificationOptions(
-      channelName: _l10n.fgnChannelName,
-      title: _l10n.fgnNotificationTitle,
-      description: _l10n.fgnNotificationBody,
-      iconName: Common.flnNotificationIcon,
-    );
+        await Location.instance.changeSettings(
+          accuracy: LocationAccuracy.high,
+          interval: milliseconds,
+          distanceFilter: distanceFilter,
+          pausesLocationUpdatesAutomatically: false,
+          backgroundInterval: milliseconds,
+        );
 
-    await Location.instance.enableBackgroundMode(
-      enable: true,
-      requireBackgroundPermission: false,
-    );
+        await Location.instance.changeNotificationOptions(
+          channelName: _l10n.fgnChannelName,
+          title: _l10n.fgnNotificationTitle,
+          description: _l10n.fgnNotificationBody,
+          iconName: Common.flnNotificationIcon,
+        );
 
-    _positionSubscription = Location.instance.onLocationChanged.listen((
-      position,
-    ) async {
-      if (await _handlePositionUpdated(position) case final positionResult?) {
-        _updateSearchResult(positionResult);
+        await Location.instance.enableBackgroundMode(
+          enable: true,
+          requireBackgroundPermission: false,
+        );
+
+        if (!_running) return;
+
+        _positionSubscription = Location.instance.onLocationChanged.listen(
+          _onPosition,
+        );
+      } while (_restartRequested && _running);
+    } finally {
+      _restarting = false;
+    }
+  }
+
+  /// 位置事件单飞：只保留最新未处理位置，避免 async 回调并发操作队列
+  void _onPosition(LocationData position) {
+    _pendingPosition = position;
+    if (_draining) return;
+
+    _draining = true;
+    unawaited(_drainPositions());
+  }
+
+  Future<void> _drainPositions() async {
+    try {
+      while (_running) {
+        final position = _pendingPosition;
+        if (position == null) break;
+        _pendingPosition = null;
+
+        if (await _handlePositionUpdated(position) case final positionResult?) {
+          _updateSearchResult(positionResult);
+        }
       }
-    });
+    } catch (_) {
+    } finally {
+      _draining = false;
+      if (_running && _pendingPosition != null) _onPosition(_pendingPosition!);
+    }
   }
 
   Future<void> _stopStream() async {
-    _positionSubscription?.cancel();
+    final previous = _positionSubscription;
     _positionSubscription = null;
+    try {
+      await previous?.cancel();
+    } catch (_) {}
 
-    await Location.instance.enableBackgroundMode(enable: false);
+    try {
+      await Location.instance.enableBackgroundMode(enable: false);
+    } catch (_) {}
 
     _positionQueue.clear();
   }
@@ -166,6 +222,8 @@ class LocationProcessor {
   // ── 位置更新処理（GPS Stream）────────────────────────────
 
   Future<PositionResult?> _handlePositionUpdated(LocationData position) async {
+    if (!_running) return null;
+
     // 基础数据
     final userLatitude = position.latitude;
     final userLongitude = position.longitude;
@@ -174,10 +232,9 @@ class LocationProcessor {
     final userSpeed = rawSpeed < 0.0 ? 0.0 : rawSpeed;
     final userAccuracy = position.accuracy ?? 0.0;
     final rawTimestamp = position.time ?? -1.0;
-    final userTimestamp =
-        rawTimestamp < 0.0
-            ? DateTime.now()
-            : DateTime.fromMillisecondsSinceEpoch(rawTimestamp.round());
+    final userTimestamp = rawTimestamp < 0.0
+        ? DateTime.now()
+        : DateTime.fromMillisecondsSinceEpoch(rawTimestamp.round());
     var userMode = Common.sampling(userSpeed);
 
     // 最新采样点先进入队列
@@ -257,12 +314,16 @@ class LocationProcessor {
         // 视为进入减速状态
         if (prevMode == SamplingMode.transit) await _startStream(); // 重启流
       }
+
+      // 重启流期间可能已被 stop，避免继续使用被清空的队列
+      if (!_running) return null;
     }
 
     while (_positionQueue.length > _queueSize) {
       _positionQueue.removeAt(0);
     }
 
+    if (_positionQueue.isEmpty) return null;
     return _positionQueue.last;
   }
 

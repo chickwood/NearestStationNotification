@@ -44,7 +44,9 @@ class NotificationConsumer {
   }
 
   Future<void> cancelAll() async {
-    await _fln.cancelAll();
+    try {
+      await _fln.cancelAll();
+    } catch (_) {}
 
     _isNotificationUpdating = false;
     _lastNearestResult = null;
@@ -145,6 +147,7 @@ class NotificationConsumer {
           );
         }
       }
+    } catch (_) {
     } finally {
       _isNotificationUpdating = false;
     }

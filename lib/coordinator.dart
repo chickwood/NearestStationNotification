@@ -12,11 +12,10 @@ import 'manager/history_manager.dart';
 import 'manager/settings_manager.dart';
 import 'manager/station_manager.dart';
 
-typedef LocationResultHandler =
-    void Function(
-      PositionResult? positionResult,
-      List<StationResult>? stationResults,
-    );
+typedef LocationResultHandler = void Function(
+  PositionResult? positionResult,
+  List<StationResult>? stationResults,
+);
 typedef RunningStatusHandler = void Function(RunningStatus runningStatus);
 
 /// アプリ全体を協調する Coordinator
@@ -39,6 +38,8 @@ class Coordinator {
   PositionResult? _positionResult;
   List<StationResult>? _stationResults;
   RunningStatus _runningStatus = RunningStatus.stopped;
+  Future<void>? _stopFuture;
+  bool _stopping = false;
 
   // ── 公開 Getter（HomePage はここから直接読む・データを複製しない）───
   PositionResult? get positionResult => _positionResult;
@@ -153,6 +154,8 @@ class Coordinator {
 
   /// 開始ボタン押下時
   Future<void> start() async {
+    if (_stopping || _runningStatus != RunningStatus.stopped) return;
+
     _runningStatus = RunningStatus.starting;
     _notifyRunningStatusChanged(_runningStatus);
 
@@ -164,29 +167,51 @@ class Coordinator {
     }
 
     // 権限要求中に停止された場合は開始処理を中断する
-    if (_runningStatus != RunningStatus.starting) return;
+    if (_stopping || _runningStatus != RunningStatus.starting) return;
 
     await _locationProcessor.start();
 
-    // running への遷移は最初の定位結果を受信した時点で
-    // _handleLocationUpdated にて行う
+    // start 中に stop された場合は、開始した流を確実に停止する
+    if (_stopping || _runningStatus != RunningStatus.starting) {
+      try {
+        await _locationProcessor.stop();
+      } catch (_) {}
+    }
   }
 
-  /// 停止ボタン押下時
-  Future<void> stop() async {
-    await _locationProcessor.stop();
+  /// 停止ボタン押下時（重複呼び出しは同じ清理処理に合流する）
+  Future<void> stop() {
+    final existing = _stopFuture;
+    if (existing != null) return existing;
 
-    await _historyConsumer.flush();
+    final future = () async {
+      _stopping = true;
 
-    await _notificationConsumer.cancelAll();
+      try {
+        try {
+          _runningStatus = RunningStatus.stopped;
+          _notifyRunningStatusChanged(_runningStatus);
+        } catch (_) {}
 
-    _positionResult = null;
-    _stationResults = null;
+        await _locationProcessor.stop();
+        await _historyConsumer.flush();
+        await _notificationConsumer.cancelAll();
 
-    _runningStatus = RunningStatus.stopped;
-    _notifyRunningStatusChanged(_runningStatus);
+        try {
+          _positionResult = null;
+          _stationResults = null;
+          _notifyLocationResultReceived(null, null, forceNotify: true);
+        } catch (_) {}
+      } catch (_) {
+        // 各步骤已在各自层级兜底；这里只防止未预期异常跳过 finally
+      } finally {
+        _stopping = false;
+        _stopFuture = null;
+      }
+    }();
 
-    _notifyLocationResultReceived(null, null, forceNotify: true);
+    _stopFuture = future;
+    return future;
   }
 
   // ── 設定・Locale・Lifecycle・Data ─────────────────────────────────
