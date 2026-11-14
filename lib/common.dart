@@ -8,6 +8,7 @@ class Common {
 
   // 駅情報
   static const binFileName = 'station_data_xyz.bin';
+  static const stationSchemaVersion = 'v2';
 
   // イベント情報
   static const eventFileName = 'event_data.ndjson';
@@ -45,7 +46,7 @@ class Common {
   // 示例数据判定阈值（小于该车站数视为示例数据）
   static const sampleThreshold = 50;
 
-  // 駅 ID 解析
+  // 旧格式站名中的駅 ID 解析（v2 已分离为独立 gcd 区）
   static final namePattern = RegExp(r'^(\d{1,7}),(.*)$');
 
   // // 駅データ.jp へのリンク

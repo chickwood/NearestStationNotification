@@ -385,16 +385,22 @@ SearchEngine 只负责计算。
 - BIN 写入（原子替换：临时文件 → 改名）
 - XYZ、经纬度
 - station metadata（name、gcd）
-- `getNodeByGcd(gcd)`：按需增量构建 gcd → node 缓存（扫描游标；命中即停，扫完全部后缺失才可判定），不缓存站名；`getGcdName(node)` 解析时顺带填充该缓存
+- `getNodeByGcd(gcd)`：v2 先查 gcd → node 缓存，未命中则扁平扫描 gcd 区（只缓存命中项）；旧版按扫描游标增量解析站名（命中即停，扫完全部后缺失才可判定）。`getGcdName(node)` 读取 / 解析时顺带填充该缓存（v2 的搜索结果由此回填）
 - 示例数据判定（`count > 0 && count < sampleThreshold`，阈值 50）
 - 加载状态判定（`isLoaded`）
 
-BIN 布局：
+BIN 布局（小端）：
 
 - `Float64List`：纬度、经度、X、Y、Z（各 `count` 项）
-- `Uint32List`：KD-Tree 左 / 右子节点（各 `mcount` 项）、车站名偏移（`count` 项）
-- `Uint8List`：车站名原始数据（变长）
-- 尾部 20 字节：root、mcount、count、date、pdate（`date` / `pdate` 为 `yyyyMMdd` 的 `int`，`0` 表示未设置，按 `Date Representation` 处理）
+- `Uint32List`：KD-Tree 左 / 右子节点（各 `mcount` 项）
+- `Uint32List`（仅 v2）：gcd（`count` 项，恒为 7 位十进制）
+- `Uint32List`：车站名偏移（`count` 项，相对车站名区起点）
+- `Uint8List`：车站名原始数据（变长；v2 仅站名，不含 `gcd,` 前缀）
+- 尾部：root、mcount、count、date、pdate
+  - v1：20 字节，无版本标志
+  - v2：22 字节，末尾追加 ASCII `v2`
+  - `date` / `pdate` 为 `yyyyMMdd` 的 `int`，`0` 表示未设置，按 `Date Representation` 处理
+- 版本识别：读取末尾 2 字节并 `utf8.decode(..., allowMalformed: true)`，等于 `v2` 视为新格式；旧格式仍可加载
 
 选择规则：
 
@@ -1066,7 +1072,7 @@ Coordinator
 - 事件数据文件：`event_data.ndjson`（documents）；缺失 / 无效时为空（无事件期间）
 - station 启动选源：只依据 documents 文件（含此前更新版本）的读取结果——读取成功则使用；读取异常 / 文件不存在回退 assets（示例 / 过时数据）；加载后校验失败（含 assets 数据损坏）回退空实例（静默回退策略）
 - event 启动加载：与 StationManager 初始化同阶段；documents 优先，读取失败 / 无效回退空实例（静默）
-- station 校验：尺寸 / 结构校验在加载后与写入前执行，复用同一 `validate`
+- station 校验：尺寸 / 结构校验在加载后与写入前执行，复用同一 `validate`；按末尾 `v2` 标志区分 v1（20 字节尾）/ v2（22 字节尾 + gcd 区），两种格式均可加载与导入
 - event 校验：NDJSON header `v` / `fields`、数据行是 2 元素整数数组（epoch ms）、start ≤ end；仅 header 为合法空集合；坏行无效
 - event 空集合：仅 header 的 event 文件导入后清空 event；ZIP 不包含 event 文件时不更新 event
 - 示例数据判定：`count > 0 && count < 50`
