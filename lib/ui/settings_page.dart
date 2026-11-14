@@ -4,6 +4,8 @@ import '../common.dart';
 import '../l10n.dart';
 import '../manager/settings_manager.dart';
 import '../service/settings_save_service.dart';
+import 'widgets/app_bar_action.dart';
+import 'widgets/resetable_state.dart';
 
 // ── Settings Page ─────────────────────────────────────────────────
 

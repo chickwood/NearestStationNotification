@@ -1,7 +1,5 @@
 import 'dart:math';
 
-import 'package:material_ui/material_ui.dart';
-
 class Common {
   // ── 动态包名常驻内存（由 main 在冷启动时注入） ───────────────────────
   static late final String appName;
@@ -58,6 +56,9 @@ class Common {
   static const flnChannelId = 'notification_fln_channel';
   static const flnNotificationId = 1058;
   static const flnNotificationIcon = 'ic_notification';
+
+  static const bgtChannelId =
+      'name.w57.nearest_station_notification/background_task';
 
   // // 距离过远检测
   // // 单位为经纬度差值平方 / 弦长平方
@@ -692,59 +693,5 @@ enum StationCount {
 }
 
 enum StationCountPart { friend, event, radar, natsume }
-
-abstract class ResetableState<T extends StatefulWidget> extends State<T> {
-  void _noop() {}
-
-  void resetState() {
-    if (!mounted) return;
-    setState(_noop);
-  }
-}
-
-class AppBarAction extends IconButton {
-  const AppBarAction({
-    super.key,
-    required super.onPressed,
-    required super.icon,
-    super.tooltip,
-    super.color = Colors.white,
-    super.disabledColor = const Color(0xFFA0C0FF),
-    super.constraints = const BoxConstraints(minWidth: 40, minHeight: 40),
-    super.padding = EdgeInsets.zero,
-    super.style = const ButtonStyle(
-      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-    ),
-  });
-}
-
-class AppBarMenu<T> extends PopupMenuButton<T> {
-  const AppBarMenu({
-    super.key,
-    required super.itemBuilder,
-    super.elevation,
-    super.enabled,
-    super.position,
-    super.tooltip,
-    super.icon,
-    super.iconColor = Colors.white,
-    super.constraints,
-    super.padding = EdgeInsets.zero,
-    super.style = const ButtonStyle(
-      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-      minimumSize: WidgetStatePropertyAll(Size(40, 40)),
-      maximumSize: WidgetStatePropertyAll(Size(40, 40)),
-      padding: WidgetStatePropertyAll(EdgeInsets.zero),
-      foregroundColor: WidgetStateProperty<Color?>.fromMap(
-        <WidgetStatesConstraint, Color?>{
-          WidgetState.disabled: Color(0xFFA0C0FF),
-          WidgetState.any: Colors.white,
-        },
-      ),
-    ),
-    super.shape,
-    super.onSelected,
-  });
-}
 
 enum HomeMenuAction { settings, history, info }
