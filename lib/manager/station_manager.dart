@@ -23,7 +23,7 @@ class StationManager {
   late final Uint32List _gcds; // gcd 区（v2；旧版为空）
   late final Uint8List _names; // 车站名原始数据区 (变长)
   late final bool _legacy; // 旧格式标志（缺少 gcd 区与版本尾）
-  final Map<int, int> _nodesByGcd = {}; // gcd → node（增量填充）
+  final Map<int, int> _nodesByGcd = {}; // gcd → node（仅旧版使用）
   int _scanCursor = 0; // 已连续扫描的 node 上界（不含）
 
   // _manager 构造时赋值
@@ -224,7 +224,6 @@ class StationManager {
           }
         } else {
           final gcd = _gcds[node];
-          _nodesByGcd[gcd] = node;
           return (gcd, utf8.decode(nameBytes));
         }
       }
@@ -236,26 +235,46 @@ class StationManager {
   }
 
   /// 根据 gcd 获取 node
-  /// v2：扁平扫描 gcd 区并缓存命中项；旧版：按扫描游标增量解析站名
+  /// v2：内部节点 / 叶子节点两组各自按 gcd 升序，分别二分查找（不建缓存）
+  /// 旧版：按扫描游标增量解析站名并缓存
   int? getNodeByGcd(int gcd) {
     if (!isLoaded) return null;
 
+    return _legacy
+        ? _findNodeByGcdLegacy(gcd)
+        : (_findNodeByGcd(gcd, 0, mcount) ??
+              _findNodeByGcd(gcd, mcount, count));
+  }
+
+  /// 旧版 gcd→node：查缓存，未命中则按扫描游标增量解析站名
+  int? _findNodeByGcdLegacy(int gcd) {
     final cached = _nodesByGcd[gcd];
     if (cached != null) return cached;
 
-    if (_legacy) {
-      // 已扫描全部 node 时，缺失即为确定结果
-      while (_scanCursor < count) {
-        final node = _scanCursor++;
-        final (stationGcd, _) = getGcdName(node);
-        if (stationGcd == gcd) return node;
-      }
-    } else {
-      for (var node = 0; node < count; node++) {
-        if (_gcds[node] == gcd) {
-          _nodesByGcd[gcd] = node;
-          return node;
-        }
+    // 已扫描全部 node 时，缺失即为确定结果
+    while (_scanCursor < count) {
+      final node = _scanCursor++;
+      final (stationGcd, _) = getGcdName(node);
+      if (stationGcd == gcd) return node;
+    }
+
+    return null;
+  }
+
+  /// 在 gcd 区的 [start, end) 范围内二分查找（该范围由生成器保证升序）
+  int? _findNodeByGcd(int gcd, int start, int end) {
+    var low = start;
+    var high = end - 1;
+
+    while (low <= high) {
+      final mid = low + ((high - low) >> 1);
+      final value = _gcds[mid];
+      if (value < gcd) {
+        low = mid + 1;
+      } else if (value > gcd) {
+        high = mid - 1;
+      } else {
+        return mid;
       }
     }
 

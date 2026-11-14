@@ -385,7 +385,7 @@ SearchEngine 只负责计算。
 - BIN 写入（原子替换：临时文件 → 改名）
 - XYZ、经纬度
 - station metadata（name、gcd）
-- `getNodeByGcd(gcd)`：v2 先查 gcd → node 缓存，未命中则扁平扫描 gcd 区（只缓存命中项）；旧版按扫描游标增量解析站名（命中即停，扫完全部后缺失才可判定）。`getGcdName(node)` 读取 / 解析时顺带填充该缓存（v2 的搜索结果由此回填）
+- `getNodeByGcd(gcd)`：v2 不建缓存，直接对内部节点 / 叶子节点两段分别二分查找（生成器保证两段各自按 gcd 升序）；旧版按扫描游标增量解析站名并缓存（命中即停，扫完全部后缺失才可判定）。`getGcdName(node)` 直接返回（v2 读取 gcd 区）或解析站名（旧版），不再为 v2 回填缓存
 - 示例数据判定（`count > 0 && count < sampleThreshold`，阈值 50）
 - 加载状态判定（`isLoaded`）
 
@@ -393,7 +393,7 @@ BIN 布局（小端）：
 
 - `Float64List`：纬度、经度、X、Y、Z（各 `count` 项）
 - `Uint32List`：KD-Tree 左 / 右子节点（各 `mcount` 项）
-- `Uint32List`（仅 v2）：gcd（`count` 项，恒为 7 位十进制）
+- `Uint32List`（仅 v2）：gcd（`count` 项，恒为 7 位十进制）；生成器保证以 `mcount` 为界分两组，内部节点 `[0, mcount)` 与叶子节点 `[mcount, count)` 各自按 gcd 升序
 - `Uint32List`：车站名偏移（`count` 项，相对车站名区起点）
 - `Uint8List`：车站名原始数据（变长；v2 仅站名，不含 `gcd,` 前缀）
 - 尾部：root、mcount、count、date、pdate
