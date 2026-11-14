@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../common.dart';
 import '../l10n.dart';
@@ -98,10 +98,9 @@ class _SettingsDialogState extends State<SettingsDialog> {
                     values: const [StationCount.game, StationCount.max],
                     selected: _draft.stationCount,
                     labelOf: (v) => v.label,
-                    onChanged:
-                        (v) => setState(
-                          () => _draft = _draft.copyWith(stationCount: v),
-                        ),
+                    onChanged: (v) => setState(
+                      () => _draft = _draft.copyWith(stationCount: v),
+                    ),
                   ),
                   // ── 位置情報取得頻度 ────────────────────────────────────
                   const SizedBox(height: 12),
@@ -110,12 +109,11 @@ class _SettingsDialogState extends State<SettingsDialog> {
                   _SegmentedRow<LocationInterval>(
                     values: LocationInterval.values,
                     selected: _draft.locationInterval,
-                    labelOf:
-                        (v) => l10n.settingsLocationIntervalLabel(v.seconds),
-                    onChanged:
-                        (v) => setState(
-                          () => _draft = _draft.copyWith(locationInterval: v),
-                        ),
+                    labelOf: (v) =>
+                        l10n.settingsLocationIntervalLabel(v.seconds),
+                    onChanged: (v) => setState(
+                      () => _draft = _draft.copyWith(locationInterval: v),
+                    ),
                   ),
                   // // ── 通知方式 ────────────────────────────────────────────
                   // const SizedBox(height: 12),
@@ -159,10 +157,9 @@ class _SettingsDialogState extends State<SettingsDialog> {
                   ),
                   GestureDetector(
                     behavior: HitTestBehavior.opaque,
-                    onTap:
-                        widget.settingsSaveService.busy.value
-                            ? null
-                            : () => widget.settingsSaveService.save(_draft),
+                    onTap: widget.settingsSaveService.busy.value
+                        ? null
+                        : () => widget.settingsSaveService.save(_draft),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 12,
@@ -171,10 +168,9 @@ class _SettingsDialogState extends State<SettingsDialog> {
                       child: Text(
                         l10n.settingsSave,
                         style: TextStyle(
-                          color:
-                              widget.settingsSaveService.busy.value
-                                  ? const Color(0xFFA0C0FF)
-                                  : const Color(0xFF4080FF),
+                          color: widget.settingsSaveService.busy.value
+                              ? const Color(0xFFA0C0FF)
+                              : const Color(0xFF4080FF),
                           fontSize: 14,
                           fontWeight: FontWeight.w500,
                         ),
@@ -209,43 +205,40 @@ class _SegmentedRow<T> extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
-      children:
-          values.map((v) {
-            final isSelected = v == selected;
-            return Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 2),
-                child: GestureDetector(
-                  onTap: () => onChanged(v),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 6),
-                    decoration: BoxDecoration(
-                      color:
-                          isSelected ? const Color(0xFFDCECFF) : Colors.white,
-                      border: Border.all(
-                        color:
-                            isSelected
-                                ? const Color(0xFF4080FF)
-                                : Colors.grey.shade200,
-                      ),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Center(
-                      child: Text(
-                        labelOf(v),
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: Colors.grey.shade800,
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+      children: values.map((v) {
+        final isSelected = v == selected;
+        return Expanded(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 2),
+            child: GestureDetector(
+              onTap: () => onChanged(v),
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                decoration: BoxDecoration(
+                  color: isSelected ? const Color(0xFFDCECFF) : Colors.white,
+                  border: Border.all(
+                    color: isSelected
+                        ? const Color(0xFF4080FF)
+                        : Colors.grey.shade200,
+                  ),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Center(
+                  child: Text(
+                    labelOf(v),
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.grey.shade800,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
                 ),
               ),
-            );
-          }).toList(),
+            ),
+          ),
+        );
+      }).toList(),
     );
   }
 }

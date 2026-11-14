@@ -1,5 +1,5 @@
 import 'package:file_picker/file_picker.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../common.dart';
@@ -145,16 +145,12 @@ class _InfoDialogState extends State<InfoDialog> {
                     ),
                     child: GestureDetector(
                       behavior: HitTestBehavior.opaque,
-                      onTap:
-                          () => showDialog<void>(
-                            context: context,
-                            barrierColor: Colors.transparent,
-                            builder:
-                                (_) => LicenseListDialog(
-                                  _stationManager,
-                                  _eventManager,
-                                ),
-                          ),
+                      onTap: () => showDialog<void>(
+                        context: context,
+                        barrierColor: Colors.transparent,
+                        builder: (_) =>
+                            LicenseListDialog(_stationManager, _eventManager),
+                      ),
                       child: Padding(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 12,
@@ -200,11 +196,10 @@ class _InfoDialogState extends State<InfoDialog> {
                     ),
                     child: GestureDetector(
                       behavior: HitTestBehavior.opaque,
-                      onTap:
-                          () => launchUrl(
-                            Common.uriInformation,
-                            mode: LaunchMode.externalApplication,
-                          ),
+                      onTap: () => launchUrl(
+                        Common.uriInformation,
+                        mode: LaunchMode.externalApplication,
+                      ),
                       child: Padding(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 12,
@@ -271,10 +266,9 @@ class _InfoDialogState extends State<InfoDialog> {
                       child: Text(
                         l10n.infoImport,
                         style: TextStyle(
-                          color:
-                              _importBusy
-                                  ? const Color(0xFFA0C0FF)
-                                  : const Color(0xFF4080FF),
+                          color: _importBusy
+                              ? const Color(0xFFA0C0FF)
+                              : const Color(0xFF4080FF),
                           fontSize: 14,
                           fontWeight: FontWeight.w500,
                         ),

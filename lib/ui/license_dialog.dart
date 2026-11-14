@@ -1,5 +1,5 @@
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../common.dart';
 import '../l10n.dart';
@@ -39,11 +39,10 @@ class _LicenseListDialogState extends State<LicenseListDialog> {
     await for (final entry in LicenseRegistry.licenses) {
       for (final package in entry.packages) {
         map.putIfAbsent(package, () => []);
-        final paragraphs =
-            entry.paragraphs
-                .map((p) => p.text.trim())
-                .where((t) => t.isNotEmpty)
-                .toList();
+        final paragraphs = entry.paragraphs
+            .map((p) => p.text.trim())
+            .where((t) => t.isNotEmpty)
+            .toList();
         if (paragraphs.isNotEmpty) map[package]!.add(paragraphs);
       }
     }
@@ -112,16 +111,14 @@ class _LicenseListDialogState extends State<LicenseListDialog> {
                     children: [
                       // ── アプリ固有のヘッダー ──────────────────────
                       GestureDetector(
-                        onTap:
-                            () => showDialog<void>(
-                              context: context,
-                              barrierColor: Colors.transparent,
-                              builder:
-                                  (_) => LicenseDetailDialog(
-                                    l10n.appTitle,
-                                    appLicenses.licenses,
-                                  ),
-                            ),
+                        onTap: () => showDialog<void>(
+                          context: context,
+                          barrierColor: Colors.transparent,
+                          builder: (_) => LicenseDetailDialog(
+                            l10n.appTitle,
+                            appLicenses.licenses,
+                          ),
+                        ),
                         child: SizedBox(
                           width: double.infinity,
                           child: Column(
@@ -160,8 +157,8 @@ class _LicenseListDialogState extends State<LicenseListDialog> {
                               Text(
                                 _stationManager.count > 0
                                     ? l10n.licenseCountWithAdditionalNotice(
-                                      appLicensesLength,
-                                    )
+                                        appLicensesLength,
+                                      )
                                     : l10n.licenseCount(appLicensesLength),
                                 style: TextStyle(
                                   color: Colors.grey.shade600,
@@ -176,16 +173,14 @@ class _LicenseListDialogState extends State<LicenseListDialog> {
                       // ── 通常のライセンス条目 ──────────────────────
                       ...licenses.map(
                         (entry) => GestureDetector(
-                          onTap:
-                              () => showDialog<void>(
-                                context: context,
-                                barrierColor: Colors.transparent,
-                                builder:
-                                    (_) => LicenseDetailDialog(
-                                      entry.package,
-                                      entry.licenses,
-                                    ),
-                              ),
+                          onTap: () => showDialog<void>(
+                            context: context,
+                            barrierColor: Colors.transparent,
+                            builder: (_) => LicenseDetailDialog(
+                              entry.package,
+                              entry.licenses,
+                            ),
+                          ),
                           child: SizedBox(
                             width: double.infinity,
                             child: Padding(

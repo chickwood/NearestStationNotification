@@ -1,12 +1,9 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_styled_toast/flutter_styled_toast.dart';
-
-import 'info_dialog.dart';
-import 'settings_dialog.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../common.dart';
 import '../coordinator.dart';
@@ -16,6 +13,8 @@ import '../manager/settings_manager.dart';
 import '../manager/station_manager.dart';
 import '../service/info_import_service.dart';
 import '../service/settings_save_service.dart';
+import 'info_dialog.dart';
+import 'settings_dialog.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -144,10 +143,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                   _coordinator!.runningStatus == RunningStatus.running
                       ? Icons.stop_circle
                       : Icons.play_circle_filled, // starting/stopped
-                  color:
-                      _coordinator!.runningStatus == RunningStatus.starting
-                          ? const Color(0xFFA0C0FF)
-                          : Colors.white,
+                  color: _coordinator!.runningStatus == RunningStatus.starting
+                      ? const Color(0xFFA0C0FF)
+                      : Colors.white,
                   size: 32,
                 ),
               ),
@@ -156,16 +154,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             Padding(
               padding: const EdgeInsets.only(right: 8),
               child: GestureDetector(
-                onTap:
-                    _coordinator!.runningStatus == RunningStatus.starting
-                        ? null
-                        : _showSettingsDialog,
+                onTap: _coordinator!.runningStatus == RunningStatus.starting
+                    ? null
+                    : _showSettingsDialog,
                 child: Icon(
                   Icons.settings,
-                  color:
-                      _coordinator!.runningStatus == RunningStatus.starting
-                          ? const Color(0xFFA0C0FF)
-                          : Colors.white,
+                  color: _coordinator!.runningStatus == RunningStatus.starting
+                      ? const Color(0xFFA0C0FF)
+                      : Colors.white,
                   size: 32,
                 ),
               ),
@@ -174,16 +170,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             Padding(
               padding: const EdgeInsets.only(right: 12),
               child: GestureDetector(
-                onTap:
-                    _coordinator!.runningStatus == RunningStatus.starting
-                        ? null
-                        : _showInfoDialog,
+                onTap: _coordinator!.runningStatus == RunningStatus.starting
+                    ? null
+                    : _showInfoDialog,
                 child: Icon(
                   Icons.info,
-                  color:
-                      _coordinator!.runningStatus == RunningStatus.starting
-                          ? const Color(0xFFA0C0FF)
-                          : Colors.white,
+                  color: _coordinator!.runningStatus == RunningStatus.starting
+                      ? const Color(0xFFA0C0FF)
+                      : Colors.white,
                   size: 32,
                 ),
               ),
@@ -302,10 +296,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   void _showToast(String message, {bool isError = false}) {
     showToast(
       message,
-      backgroundColor:
-          isError
-              ? const Color(0xFFFF4030) // Colors.red.shade700
-              : const Color(0xFFDCECFF), // Colors.indigo.shade300
+      backgroundColor: isError
+          ? const Color(0xFFFF4030) // Colors.red.shade700
+          : const Color(0xFFDCECFF), // Colors.indigo.shade300
       textStyle: TextStyle(
         color: isError ? Colors.white : Colors.grey.shade800,
       ),
@@ -380,11 +373,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     showDialog(
       context: context,
       barrierColor: Colors.white.withValues(alpha: 0.5),
-      builder:
-          (context) => SettingsDialog(
-            _settings!,
-            settingsSaveService: _settingsSaveService,
-          ),
+      builder: (context) =>
+          SettingsDialog(_settings!, settingsSaveService: _settingsSaveService),
     );
   }
 
@@ -394,12 +384,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     showDialog(
       context: context,
       barrierColor: Colors.white.withValues(alpha: 0.5),
-      builder:
-          (context) => InfoDialog(
-            _stationManager!,
-            _eventManager!,
-            infoImportService: _infoImportService,
-          ),
+      builder: (context) => InfoDialog(
+        _stationManager!,
+        _eventManager!,
+        infoImportService: _infoImportService,
+      ),
     );
   }
 
@@ -440,10 +429,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                         _positionVisibility > 0
                             ? Icons.near_me
                             : Icons.near_me_disabled,
-                        color:
-                            _positionVisibility < 2
-                                ? const Color(0xFFA0C0FF)
-                                : const Color(0xFF4080FF),
+                        color: _positionVisibility < 2
+                            ? const Color(0xFFA0C0FF)
+                            : const Color(0xFF4080FF),
                       ),
                     ),
                 ],
@@ -691,8 +679,9 @@ class _StationTile extends StatelessWidget {
             width: 20,
             height: 20,
             decoration: BoxDecoration(
-              color:
-                  isNearest ? const Color(0xFF4080FF) : _partFillColors[part]!,
+              color: isNearest
+                  ? const Color(0xFF4080FF)
+                  : _partFillColors[part]!,
               shape: BoxShape.circle,
             ),
             child: Center(
@@ -722,8 +711,9 @@ class _StationTile extends StatelessWidget {
             width: 40,
             // padding: const EdgeInsets.symmetric(horizontal: 6),
             decoration: BoxDecoration(
-              color:
-                  isNearest ? const Color(0xFF4080FF) : _partFillColors[part]!,
+              color: isNearest
+                  ? const Color(0xFF4080FF)
+                  : _partFillColors[part]!,
               borderRadius: BorderRadius.circular(16),
             ),
             child: Center(
@@ -742,8 +732,9 @@ class _StationTile extends StatelessWidget {
             height: 20,
             padding: const EdgeInsets.symmetric(horizontal: 8),
             decoration: BoxDecoration(
-              color:
-                  isNearest ? const Color(0xFF4080FF) : _partFillColors[part]!,
+              color: isNearest
+                  ? const Color(0xFF4080FF)
+                  : _partFillColors[part]!,
               borderRadius: BorderRadius.circular(16),
             ),
             child: Center(
