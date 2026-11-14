@@ -1,7 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_styled_toast/flutter_styled_toast.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -19,6 +17,11 @@ import '../service/settings_save_service.dart';
 import 'history_page.dart';
 import 'info_page.dart';
 import 'settings_page.dart';
+import 'widgets/app_bar_action.dart';
+import 'widgets/app_bar_menu.dart';
+import 'widgets/background_task_widget.dart';
+import 'widgets/fade_scroll_widget.dart';
+import 'widgets/resetable_state.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -42,6 +45,8 @@ class _HomePageState extends ResetableState<HomePage>
   late final HistoryArchiveService _historyArchiveService;
 
   int _positionVisibility = 0; // 坐标显示/关闭
+
+  final ScrollController _fadeScrollController = ScrollController();
 
   @override
   void initState() {
@@ -93,6 +98,8 @@ class _HomePageState extends ResetableState<HomePage>
     _coordinator?.removeRunningStatusHandler(_handleRunningStatusChanged);
     _coordinator?.stop();
 
+    _fadeScrollController.dispose();
+
     super.dispose();
   }
 
@@ -130,8 +137,9 @@ class _HomePageState extends ResetableState<HomePage>
     }
 
     final l10n = L10n.of(context);
-    return BackgroundTask(
-      keepBackgroundTask: _coordinator!.runningStatus != RunningStatus.stopped,
+    return BackgroundTaskWidget(
+      channelId: Common.bgtChannelId,
+      canPop: _coordinator!.runningStatus == RunningStatus.stopped,
       child: Scaffold(
         backgroundColor: Colors.grey.shade50,
         appBar: AppBar(
@@ -587,22 +595,26 @@ class _HomePageState extends ResetableState<HomePage>
           Expanded(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 2),
-              child: ListView.separated(
-                itemCount: _coordinator!.stationResults!.length,
-                itemBuilder: (_, index) {
-                  final stationResult = _coordinator!.stationResults![index];
+              child: FadeScrollWidget(
+                controller: _fadeScrollController,
+                child: ListView.separated(
+                  controller: _fadeScrollController,
+                  itemCount: _coordinator!.stationResults!.length,
+                  itemBuilder: (_, index) {
+                    final stationResult = _coordinator!.stationResults![index];
 
-                  return _StationTile(
-                    index: index,
-                    name: stationResult.name ?? '',
-                    distance: stationResult.distanceInUnit,
-                    direction: l10n.direction(stationResult.bearingIndex),
-                    part: _settingsManager!.stationCount.part(index),
-                  );
-                },
-                separatorBuilder: (_, _) {
-                  return const SizedBox(height: 4);
-                },
+                    return _StationTile(
+                      index: index,
+                      name: stationResult.name ?? '',
+                      distance: stationResult.distanceInUnit,
+                      direction: l10n.direction(stationResult.bearingIndex),
+                      part: _settingsManager!.stationCount.part(index),
+                    );
+                  },
+                  separatorBuilder: (_, _) {
+                    return const SizedBox(height: 4);
+                  },
+                ),
               ),
             ),
           ),
@@ -840,45 +852,6 @@ class _StationTile extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-// ── Background task ──────────────────────────────────────────────
-
-class BackgroundTask extends StatelessWidget {
-  static const _channel = MethodChannel(
-    'name.w57.nearest_station_notification/background_task',
-  );
-
-  final bool keepBackgroundTask;
-  final Widget child;
-
-  const BackgroundTask({
-    super.key,
-    required this.keepBackgroundTask,
-    required this.child,
-  });
-
-  static bool get _isNativeAndroid =>
-      !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
-
-  Future<void> _moveTaskToBack() async {
-    await _channel.invokeMethod<void>('moveTaskToBack');
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (!_isNativeAndroid) return child;
-
-    return PopScope(
-      canPop: !keepBackgroundTask,
-      onPopInvokedWithResult: (didPop, result) {
-        if (!didPop && keepBackgroundTask) {
-          unawaited(_moveTaskToBack());
-        }
-      },
-      child: child,
     );
   }
 }

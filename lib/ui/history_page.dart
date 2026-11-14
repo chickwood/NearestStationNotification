@@ -12,6 +12,9 @@ import '../manager/settings_manager.dart';
 import '../manager/station_manager.dart';
 import '../service/history_backup_service.dart';
 import 'history_date_picker.dart';
+import 'widgets/app_bar_action.dart';
+import 'widgets/fade_scroll_widget.dart';
+import 'widgets/resetable_state.dart';
 
 class HistoryPage extends StatefulWidget {
   final HistoryConsumer historyConsumer;
@@ -57,6 +60,8 @@ class _HistoryPageState extends ResetableState<HistoryPage> {
   bool _backupWasBusy = false;
   HistoryBackupAction? _runningAction;
 
+  final ScrollController _fadeScrollController = ScrollController();
+
   @override
   void initState() {
     super.initState();
@@ -91,6 +96,9 @@ class _HistoryPageState extends ResetableState<HistoryPage> {
     );
     widget.historyBackupService.busy.removeListener(_handleBackupChanged);
     widget.historyBackupService.progress.removeListener(_handleBackupChanged);
+
+    _fadeScrollController.dispose();
+
     super.dispose();
   }
 
@@ -532,70 +540,74 @@ class _HistoryPageState extends ResetableState<HistoryPage> {
     final mergeView = monthCache.mergeView;
     final timelineIndex = monthCache.timelineIndex;
     return Expanded(
-      child: CustomScrollView(
-        slivers: [
-          SliverList.separated(
-            itemCount: timelineIndex.total,
-            itemBuilder: (_, index) {
-              final dayIndex = timelineIndex.dayIndexOf(index);
-              final dayMeta = dayMetas[dayIndex];
-              final offset = index - timelineIndex.days[dayIndex];
+      child: FadeScrollWidget(
+        controller: _fadeScrollController,
+        child: CustomScrollView(
+          controller: _fadeScrollController,
+          slivers: [
+            SliverList.separated(
+              itemCount: timelineIndex.total,
+              itemBuilder: (_, index) {
+                final dayIndex = timelineIndex.dayIndexOf(index);
+                final dayMeta = dayMetas[dayIndex];
+                final offset = index - timelineIndex.days[dayIndex];
 
-              if (offset == 0) {
-                return Column(
-                  children: [
-                    _DayHeader(
-                      date: _selectedDateOrMonth,
-                      count: dayMeta.records.length,
-                    ),
-                    const SizedBox(height: 4),
-                  ],
-                );
-              }
-
-              final contentIndex = offset - 1;
-
-              if (mergeView) {
-                final blocks = _blocksForDay(dayMeta.date, dayMeta.records);
-                if (contentIndex >= blocks.length) {
-                  return const SizedBox.shrink();
-                }
-                final block = blocks[contentIndex];
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _HistoryBlockCard(
-                      key: ValueKey(
-                        '${dayMeta.date}-${block.gcd}-${block.startEpoch}',
+                if (offset == 0) {
+                  return Column(
+                    children: [
+                      _DayHeader(
+                        date: _selectedDateOrMonth,
+                        count: dayMeta.records.length,
                       ),
-                      index: blocks.length - contentIndex,
-                      records: block.records,
-                      nameCache: _nameCache,
-                    ),
-                  ],
-                );
-              } else {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _HistoryBlockCard(
-                      index: dayMeta.records.length - contentIndex,
-                      records: [
-                        dayMeta.records[dayMeta.records.length -
-                            1 -
-                            contentIndex],
-                      ],
-                      nameCache: _nameCache,
-                    ),
-                  ],
-                );
-              }
-            },
-            separatorBuilder: (_, _) {
-              return const SizedBox(height: 4);
-            },
-          ),
-        ],
+                      const SizedBox(height: 4),
+                    ],
+                  );
+                }
+
+                final contentIndex = offset - 1;
+
+                if (mergeView) {
+                  final blocks = _blocksForDay(dayMeta.date, dayMeta.records);
+                  if (contentIndex >= blocks.length) {
+                    return const SizedBox.shrink();
+                  }
+                  final block = blocks[contentIndex];
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _HistoryBlockCard(
+                        key: ValueKey(
+                          '${dayMeta.date}-${block.gcd}-${block.startEpoch}',
+                        ),
+                        index: blocks.length - contentIndex,
+                        records: block.records,
+                        nameCache: _nameCache,
+                      ),
+                    ],
+                  );
+                } else {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _HistoryBlockCard(
+                        index: dayMeta.records.length - contentIndex,
+                        records: [
+                          dayMeta.records[dayMeta.records.length -
+                              1 -
+                              contentIndex],
+                        ],
+                        nameCache: _nameCache,
+                      ),
+                    ],
+                  );
+                }
+              },
+              separatorBuilder: (_, _) {
+                return const SizedBox(height: 4);
+              },
+            ),
+          ],
+        ),
       ),
     );
   }
