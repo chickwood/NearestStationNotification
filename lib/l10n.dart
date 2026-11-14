@@ -146,9 +146,9 @@ class L10n {
   }
 
   String get sampleDataGuide {
-    if (_isJa) return 'サンプル駅情報を使用中です。右上の情報ボタンをクリックして駅情報を確認・更新。';
-    if (_isZhHans) return '当前正在使用示例车站信息。点击右上角的信息按钮查看和更新车站信息。';
-    return 'Sample data in use. Tap the Info button on the top right to view and update station information.';
+    if (_isJa) return 'サンプル駅情報を使用中です。右上のメニューから情報をクリックして、駅情報を確認・更新。';
+    if (_isZhHans) return '当前正在使用示例车站信息。点击右上角的菜单选择信息查看和更新车站信息。';
+    return 'Sample data in use. Open the menu in the title bar and select info to view and update station information.';
   }
 
   // ── Toast ──────────────────────────────────────────────────
@@ -478,16 +478,16 @@ class L10n {
     if (_isJa) {
       return '駅情報・イベント情報データは定期的に更新してください。'
           '\nここをクリックして、ダウンロードサイトを開く。'
-          '\n\nダウンロード後、インポートをクリックして、データファイルを選択して情報を更新。';
+          '\n\nダウンロード後、右上のインポートをクリックして、データファイルを選択して情報を更新。';
     }
     if (_isZhHans) {
       return '请定期更新车站信息与事件信息数据。'
-          '\n点击此处打开下载网站。'
-          '\n\n下载后，点击导入，选择数据文件更新信息。';
+          '\n\n点击此处打开下载网站。'
+          '\n下载完成后，点击右上角的导入，选择数据文件更新信息。';
     }
     return 'Update station information and event information data periodically.'
         '\nTap here to open download website.'
-        '\n\nAfter download, tap import, select data file to update information.';
+        '\n\nAfter download, tap import in the title bar, then select data file to update information.';
   }
 
   String get infoImport {
