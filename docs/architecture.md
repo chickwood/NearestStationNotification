@@ -48,7 +48,7 @@ Test
 | 文件 | 职责 |
 |---|---|
 | `lib/main.dart` | 应用引导：注入包名、注册 ADDITIONAL_NOTICE 许可证、创建 `StyledToast` / `MaterialApp` |
-| `lib/ui/home_page.dart` | 主 UI、生命周期、初始化编排、Service 持有与结果处理、页面入口、BackgroundTask |
+| `lib/ui/home_page.dart` | 主 UI、生命周期、初始化编排、Service 持有与结果处理、页面入口 |
 | `lib/coordinator.dart` | 业务流程协调、权限请求、定位结果补全与广播、运行状态机、公开 HistoryConsumer |
 | `lib/consumer/notification_consumer.dart` | 通知常驻消费者：接收定位结果广播并更新系统通知 |
 | `lib/consumer/history_consumer.dart` | 历史常驻消费者：切换判定、开关与补记、pending 缓冲、10 条 / 首条起算 5 分钟的批量落盘 |
@@ -67,6 +67,11 @@ Test
 | `lib/ui/license_page.dart` | 许可证列表与详情页面 |
 | `lib/ui/history_page.dart` | 历史页：按日 / 按月展示、逐条与区块、分组开关、日历跳转、备份入口 |
 | `lib/ui/history_date_picker.dart` | 历史日历跳转：当前月选日期、往期选月份 |
+| `lib/ui/widgets/app_bar_action.dart` | `AppBarAction`：AppBar 动作按钮的统一封装 |
+| `lib/ui/widgets/app_bar_menu.dart` | `AppBarMenu`：AppBar 菜单按钮的统一封装 |
+| `lib/ui/widgets/background_task_widget.dart` | `BackgroundTask`：Android 后台任务包裹层 |
+| `lib/ui/widgets/fade_scroll_widget.dart` | `FadeScrollWidget`：列表上下边缘渐隐，按滚动余量显示 `ShaderMask` 雾层 |
+| `lib/ui/widgets/resetable_state.dart` | `ResetableState`：页面局部刷新基类 |
 | `lib/l10n.dart` | 中 / 日 / 英文本、locale 严格解析 |
 | `lib/common.dart` | 常量、几何计算、数据类与枚举 |
 
@@ -99,7 +104,13 @@ lib/
     ├── info_page.dart
     ├── license_page.dart
     ├── history_page.dart
-    └── history_date_picker.dart
+    ├── history_date_picker.dart
+    └── widgets/
+        ├── app_bar_action.dart
+        ├── app_bar_menu.dart
+        ├── background_task_widget.dart
+        ├── fade_scroll_widget.dart
+        └── resetable_state.dart
 ```
 
 ---
@@ -577,7 +588,7 @@ schema：
 
 ---
 
-### BackgroundTask（定义于 `ui/home_page.dart`）
+### BackgroundTask（定义于 `ui/widgets/background_task_widget.dart`）
 
 职责：
 
@@ -785,6 +796,20 @@ ZIP 限制与规则：
 - 记录触发、切换判定、pending 缓冲、文件写入、归档、备份格式
 - 5 分钟记录过滤
 - 文件对话框之外的 Service 逻辑
+
+---
+
+### Shared UI Widgets（定义于 `ui/widgets/`）
+
+- `AppBarAction` / `AppBarMenu`：AppBar 动作按钮与菜单按钮的统一封装（白色图标、浅蓝禁用色、40×40 命中区）；仅负责外观与交互尺寸，不读取业务状态。
+- `BackgroundTask`：Android 后台任务包裹层，`keepBackgroundTask` 由 HomePage 按运行状态传入。
+- `ResetableState`：页面 `State` 基类，提供 `resetState()`；供订阅 `ValueNotifier` 的页面做局部刷新，不持有业务数据。
+- `FadeScrollWidget`：列表上下边缘渐隐提示，用于 HomePage 站点列表（`ListView.separated`）与 HistoryPage 历史列表（`CustomScrollView`）。
+  - 参数：`controller`、`child`、`fadeExtent`（默认 28）、`edgeOpacity`（默认 0.25）。
+  - 通过 `ScrollController` 与 `ScrollMetricsNotification` 判断上下是否还有隐藏内容（阈值 4px）；仅在状态变化时 `setState`，内容尺寸变化后经 post-frame 重算。
+  - 渲染使用 `ShaderMask(BlendMode.dstIn)`：alpha 1 保留内容，`edgeOpacity` 为最边缘保留的最小比例（0.25 即遮挡 75%）；两端均无隐藏内容时不建图层。
+  - 渐变色只取 `scaffoldBackgroundColor` 的 alpha，RGB 不参与遮罩；6 段 alpha（端点 → 抬升 65% → 完全保留）使浓度在边缘停留，过渡比线性自然。
+  - 不负责滚动定位、点击滚动、列表数据与布局。
 
 ---
 

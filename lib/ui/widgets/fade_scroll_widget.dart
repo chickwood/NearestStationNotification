@@ -5,12 +5,14 @@ class FadeScrollWidget extends StatefulWidget {
     super.key,
     required this.controller,
     required this.child,
-    this.fadeExtent = 24,
+    this.fadeExtent = 28,
+    this.edgeOpacity = 0.25,
   });
 
   final ScrollController controller;
   final Widget child;
   final double fadeExtent;
+  final double edgeOpacity;
 
   @override
   State<FadeScrollWidget> createState() => _FadeScrollWidgetState();
@@ -88,21 +90,28 @@ class _FadeScrollWidgetState extends State<FadeScrollWidget> {
           : ShaderMask(
               blendMode: BlendMode.dstIn,
               shaderCallback: (bounds) {
-                final stop = (widget.fadeExtent / bounds.height).clamp(
+                final fade = (widget.fadeExtent / bounds.height).clamp(
                   0.0,
                   0.5,
                 );
+                final half = fade / 2;
+                final top = _canUp ? widget.edgeOpacity : 1.0;
+                final bottom = _canDown ? widget.edgeOpacity : 1.0;
+
+                double lift(double edge) => edge + (1 - edge) * 0.65;
 
                 return LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
-                    background.withValues(alpha: _canUp ? 0 : 1),
+                    background.withValues(alpha: top),
+                    background.withValues(alpha: lift(top)),
                     background,
                     background,
-                    background.withValues(alpha: _canDown ? 0 : 1),
+                    background.withValues(alpha: lift(bottom)),
+                    background.withValues(alpha: bottom),
                   ],
-                  stops: [0, stop, 1 - stop, 1],
+                  stops: [0, half, fade, 1 - fade, 1 - half, 1],
                 ).createShader(bounds);
               },
               child: widget.child,
