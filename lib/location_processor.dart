@@ -35,6 +35,9 @@ class LocationProcessor {
   StreamQueueStatus _streamQueueStatus = StreamQueueStatus.idle;
   bool _draining = false;
 
+  // 前台通知配置：仅语言变化时重建，其他流重启复用
+  ForegroundNotificationConfig? _foregroundNotificationConfig;
+
   // 結果コールバック（Coordinator が登録）
   LocationHandler? _onLocationUpdated;
 
@@ -103,10 +106,11 @@ class LocationProcessor {
   /// 系统语言更新
   Future<void> changeLocale(L10n l10n) async {
     _l10n = l10n;
+    _foregroundNotificationConfig = _buildForegroundNotificationConfig();
 
     if (_positionSubscription == null) return;
 
-    // FLN 通知は NotificationConsumer.changeLocale が自前で再描画する
+    // 新的通知配置を反映するため一度だけ流を再起動する
     try {
       await _startStream();
     } catch (_) {}
@@ -120,6 +124,46 @@ class LocationProcessor {
   }
 
   // ── GPS Stream ───────────────────────────────────────────────────
+  ForegroundNotificationConfig _buildForegroundNotificationConfig() {
+    return ForegroundNotificationConfig(
+      notificationChannelName: _l10n.fgnChannelName,
+      notificationTitle: _l10n.fgnNotificationTitle,
+      notificationText: _l10n.fgnNotificationBody,
+      notificationIcon: const AndroidResource(
+        name: Common.flnNotificationIcon,
+        defType: 'drawable',
+      ),
+      enableWakeLock: true,
+    );
+  }
+
+  LocationSettings _buildLocationSettings(
+    int milliseconds,
+    int distanceFilter,
+  ) {
+    final foregroundNotificationConfig = _foregroundNotificationConfig ??=
+        _buildForegroundNotificationConfig();
+
+    return switch (defaultTargetPlatform) {
+      TargetPlatform.android => AndroidSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: distanceFilter,
+        intervalDuration: Duration(milliseconds: milliseconds),
+        foregroundNotificationConfig: foregroundNotificationConfig,
+      ),
+      TargetPlatform.iOS || TargetPlatform.macOS => AppleSettings(
+        accuracy: LocationAccuracy.bestForNavigation,
+        distanceFilter: distanceFilter,
+        activityType: ActivityType.otherNavigation,
+        showBackgroundLocationIndicator: true,
+      ),
+      _ => LocationSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: distanceFilter,
+      ),
+    };
+  }
+
   /// 流启动/重启：等待旧订阅取消完成，并合并并发重启请求
   Future<void> _startStream() async {
     if (_streamQueueStatus != StreamQueueStatus.idle) {
@@ -137,41 +181,16 @@ class LocationProcessor {
             : SamplingMode.staying.filter;
         final milliseconds = _settingsManager.locationInterval.milliseconds;
 
-        final locationSettings = switch (defaultTargetPlatform) {
-          TargetPlatform.android => AndroidSettings(
-            accuracy: LocationAccuracy.high,
-            distanceFilter: distanceFilter,
-            intervalDuration: Duration(milliseconds: milliseconds),
-            foregroundNotificationConfig: ForegroundNotificationConfig(
-              notificationChannelName: _l10n.fgnChannelName,
-              notificationTitle: _l10n.fgnNotificationTitle,
-              notificationText: _l10n.fgnNotificationBody,
-              notificationIcon: const AndroidResource(
-                name: Common.flnNotificationIcon,
-                defType: 'drawable',
-              ),
-              enableWakeLock: true,
-            ),
-          ),
-          TargetPlatform.iOS || TargetPlatform.macOS => AppleSettings(
-            accuracy: LocationAccuracy.bestForNavigation,
-            distanceFilter: distanceFilter,
-            activityType: ActivityType.otherNavigation,
-            showBackgroundLocationIndicator: true,
-          ),
-          _ => LocationSettings(
-            accuracy: LocationAccuracy.high,
-            distanceFilter: distanceFilter,
-          ),
-        };
-
         // 必须先等待旧订阅取消完成，再建立新订阅
         final previous = _positionSubscription;
         _positionSubscription = null;
         await previous?.cancel();
 
         _positionSubscription = Geolocator.getPositionStream(
-          locationSettings: locationSettings,
+          locationSettings: _buildLocationSettings(
+            milliseconds,
+            distanceFilter,
+          ),
         ).listen(_onPosition);
       } while (_streamQueueStatus == StreamQueueStatus.queued);
     } finally {
