@@ -9,11 +9,10 @@ import 'manager/settings_manager.dart';
 import 'manager/station_manager.dart';
 import 'search_engine.dart';
 
-typedef LocationHandler =
-    void Function(
-      PositionResult positionResult,
-      List<StationResult> stationResults,
-    );
+typedef LocationHandler = void Function(
+  PositionResult positionResult,
+  List<StationResult> stationResults,
+);
 
 /// 位置処理クラス
 /// GPS Stream の購読・位置ズレフィルタ・SearchEngine 呼び出しを担う
@@ -21,22 +20,31 @@ typedef LocationHandler =
 class LocationProcessor {
   L10n _l10n;
   bool _active;
-  SettingsManager _settings;
-  StationManager _manager;
+  StationManager _stationManager;
+  ProcessorSettingsManager _settingsManager;
 
-  late SearchEngine _engine;
+  late SearchEngine _searchEngine;
 
   // 位置ズレフィルタ用キュー
   static const _queueSize = 3;
   final List<PositionResult> _positionQueue = [];
 
   StreamSubscription<Position>? _positionSubscription;
+  Position? _pendingPosition;
+
+  StreamQueueStatus _streamQueueStatus = StreamQueueStatus.idle;
+  bool _draining = false;
 
   // 結果コールバック（Coordinator が登録）
   LocationHandler? _onLocationUpdated;
 
-  LocationProcessor(this._l10n, this._active, this._settings, this._manager) {
-    _engine = SearchEngine(_manager);
+  LocationProcessor(
+    this._l10n,
+    this._active,
+    this._stationManager,
+    this._settingsManager,
+  ) {
+    _searchEngine = SearchEngine(_stationManager);
   }
 
   void setLocationHandler(LocationHandler handler) {
@@ -46,30 +54,30 @@ class LocationProcessor {
   // ── 起動・停止 ────────────────────────────────────────────────────
 
   Future<void> start() async {
-    _startStream();
+    await _startStream();
   }
 
   Future<void> stop() async {
-    _stopStream();
+    await _stopStream();
   }
 
   // ── 状態の変更 ──────────────────────────────────────────────────────
 
   /// 設定更新
-  Future<void> changeSettings(SettingsManager settings) async {
-    final changeInterval =
-        _settings.locationInterval.milliseconds !=
+  Future<void> changeSettings(ProcessorSettingsManager settings) async {
+    final intervalChanged =
+        _settingsManager.locationInterval.milliseconds !=
         settings.locationInterval.milliseconds;
-    final changeCount =
-        _settings.stationCount.count != settings.stationCount.count;
-    _settings = settings;
+    final countChanged =
+        _settingsManager.stationCount.count != settings.stationCount.count;
+    _settingsManager = settings;
 
     if (_positionSubscription != null) {
-      if (changeInterval) {
-        _startStream();
+      if (intervalChanged) {
+        await _startStream();
       }
 
-      if (changeCount) {
+      if (countChanged) {
         if (_positionQueue case [..., final last]) {
           _updateSearchResult(last);
         }
@@ -80,11 +88,11 @@ class LocationProcessor {
   /// UI 活動状態の変更
   /// active が false → true になった場合は count 分の再検索が必要
   void changeActive(bool active) {
-    final changeActive = _active != active;
+    final activeChanged = _active != active;
     _active = active;
 
     if (_positionSubscription != null) {
-      if (changeActive && _active) {
+      if (activeChanged && _active) {
         if (_positionQueue case [..., final last]) {
           _updateSearchResult(last);
         }
@@ -93,84 +101,132 @@ class LocationProcessor {
   }
 
   /// 系统语言更新
-  void changeLocale(L10n l10n) {
+  Future<void> changeLocale(L10n l10n) async {
     _l10n = l10n;
 
-    // 前台通知テキストを即座反映するため流を再起動
-    if (_positionSubscription != null) {
-      _startStream();
-    }
+    if (_positionSubscription == null) return;
+
+    // FLN 通知は NotificationConsumer.changeLocale が自前で再描画する
+    try {
+      await _startStream();
+    } catch (_) {}
   }
 
   /// 站点数据更新（hot reload）
   /// manager 与 SearchEngine 成对替换（同一同步块，不中断流）
-  void changeData(StationManager manager) {
-    _manager = manager;
-    _engine = SearchEngine(manager);
+  void changeData(StationManager stationManager) {
+    _stationManager = stationManager;
+    _searchEngine = SearchEngine(stationManager);
   }
 
   // ── GPS Stream ───────────────────────────────────────────────────
+  /// 流启动/重启：等待旧订阅取消完成，并合并并发重启请求
+  Future<void> _startStream() async {
+    if (_streamQueueStatus != StreamQueueStatus.idle) {
+      _streamQueueStatus = StreamQueueStatus.queued;
+      return;
+    }
 
-  void _startStream() {
-    final distanceFilter =
-        _positionQueue.isNotEmpty
+    _streamQueueStatus = StreamQueueStatus.starting;
+    try {
+      do {
+        _streamQueueStatus = StreamQueueStatus.starting;
+
+        final distanceFilter = _positionQueue.isNotEmpty
             ? _positionQueue.last.samplingMode.filter
             : SamplingMode.staying.filter;
-    final milliseconds = _settings.locationInterval.milliseconds;
+        final milliseconds = _settingsManager.locationInterval.milliseconds;
 
-    final locationSettings = switch (defaultTargetPlatform) {
-      TargetPlatform.android => AndroidSettings(
-        accuracy: LocationAccuracy.high,
-        distanceFilter: distanceFilter,
-        intervalDuration: Duration(milliseconds: milliseconds),
-        foregroundNotificationConfig: ForegroundNotificationConfig(
-          notificationChannelName: _l10n.fgnChannelName,
-          notificationTitle: _l10n.fgnNotificationTitle,
-          notificationText: _l10n.fgnNotificationBody,
-          notificationIcon: const AndroidResource(
-            name: Common.flnNotificationIcon,
-            defType: 'drawable',
+        final locationSettings = switch (defaultTargetPlatform) {
+          TargetPlatform.android => AndroidSettings(
+            accuracy: LocationAccuracy.high,
+            distanceFilter: distanceFilter,
+            intervalDuration: Duration(milliseconds: milliseconds),
+            foregroundNotificationConfig: ForegroundNotificationConfig(
+              notificationChannelName: _l10n.fgnChannelName,
+              notificationTitle: _l10n.fgnNotificationTitle,
+              notificationText: _l10n.fgnNotificationBody,
+              notificationIcon: const AndroidResource(
+                name: Common.flnNotificationIcon,
+                defType: 'drawable',
+              ),
+              enableWakeLock: true,
+            ),
           ),
-          enableWakeLock: true,
-        ),
-      ),
-      TargetPlatform.iOS || TargetPlatform.macOS => AppleSettings(
-        accuracy: LocationAccuracy.bestForNavigation,
-        distanceFilter: distanceFilter,
-        activityType: ActivityType.otherNavigation,
-        showBackgroundLocationIndicator: true,
-      ),
-      _ => LocationSettings(
-        accuracy: LocationAccuracy.high,
-        distanceFilter: distanceFilter,
-      ),
-    };
+          TargetPlatform.iOS || TargetPlatform.macOS => AppleSettings(
+            accuracy: LocationAccuracy.bestForNavigation,
+            distanceFilter: distanceFilter,
+            activityType: ActivityType.otherNavigation,
+            showBackgroundLocationIndicator: true,
+          ),
+          _ => LocationSettings(
+            accuracy: LocationAccuracy.high,
+            distanceFilter: distanceFilter,
+          ),
+        };
 
-    _positionSubscription?.cancel();
-    _positionSubscription = Geolocator.getPositionStream(
-      locationSettings: locationSettings,
-    ).listen((position) {
-      if (_handlePositionUpdated(position) case final positionResult?) {
-        _updateSearchResult(positionResult);
-      }
-    });
+        // 必须先等待旧订阅取消完成，再建立新订阅
+        final previous = _positionSubscription;
+        _positionSubscription = null;
+        await previous?.cancel();
+
+        _positionSubscription = Geolocator.getPositionStream(
+          locationSettings: locationSettings,
+        ).listen(_onPosition);
+      } while (_streamQueueStatus == StreamQueueStatus.queued);
+    } finally {
+      _streamQueueStatus = StreamQueueStatus.idle;
+    }
   }
 
-  void _stopStream() {
-    _positionSubscription?.cancel();
+  /// 位置事件单飞：只保留最新未处理位置，避免 async 回调并发操作队列
+  void _onPosition(Position position) {
+    _pendingPosition = position;
+    if (_draining) return;
+
+    _draining = true;
+    unawaited(_drainPositions());
+  }
+
+  Future<void> _drainPositions() async {
+    try {
+      while (true) {
+        final position = _pendingPosition;
+        if (position == null) break;
+        _pendingPosition = null;
+
+        if (await _handlePositionUpdated(position) case final positionResult?) {
+          _updateSearchResult(positionResult);
+        }
+      }
+    } catch (_) {
+    } finally {
+      _draining = false;
+      if (_pendingPosition != null) _onPosition(_pendingPosition!);
+    }
+  }
+
+  Future<void> _stopStream() async {
+    final previous = _positionSubscription;
     _positionSubscription = null;
+    try {
+      await previous?.cancel();
+    } catch (_) {}
 
     _positionQueue.clear();
   }
 
   // ── 位置更新処理（GPS Stream）────────────────────────────
 
-  PositionResult? _handlePositionUpdated(Position position) {
+  Future<PositionResult?> _handlePositionUpdated(Position position) async {
     // 基础数据
     final userLatitude = position.latitude;
     final userLongitude = position.longitude;
     final userHeading = position.heading;
-    final userSpeed = position.speed < 0 ? 0.0 : position.speed;
+    final userSpeed = position.speed < 0.0 ? 0.0 : position.speed;
+    final userAccuracy = position.accuracy;
+    final userTimestamp = position.timestamp;
+
     var userMode = Common.sampling(userSpeed);
 
     // 最新采样点先进入队列
@@ -180,9 +236,9 @@ class LocationProcessor {
         latitude: userLatitude,
         longitude: userLongitude,
         speed: userSpeed,
-        accuracy: position.accuracy,
+        accuracy: userAccuracy,
         heading: userHeading,
-        timestamp: position.timestamp,
+        timestamp: userTimestamp,
       ),
     );
 
@@ -212,7 +268,8 @@ class LocationProcessor {
           prevMode == SamplingMode.transit &&
           Common.sampling(_positionQueue[_positionQueue.length - 3].speed) !=
               SamplingMode.transit;
-      if (_settings.locationInterval == LocationInterval.s1 && isObserving) {
+      if (_settingsManager.locationInterval == LocationInterval.s1 &&
+          isObserving) {
         // 下一次定位又变为低速或静止
         // 认为是 GPS 漂移
         if (userMode != SamplingMode.transit) {
@@ -242,12 +299,12 @@ class LocationProcessor {
         // 最新可信采样点是高速
         // 并且当前处于观察者模式
         // 视为进入加速状态或者高速稳定状态
-        if (isObserving) _startStream(); // 重启流
+        if (isObserving) await _startStream(); // 重启流
       } else {
         // 最新可信采样点是低速
         // 但是前一个可信采样点是高速
         // 视为进入减速状态
-        if (prevMode == SamplingMode.transit) _startStream(); // 重启流
+        if (prevMode == SamplingMode.transit) await _startStream(); // 重启流
       }
     }
 
@@ -255,17 +312,18 @@ class LocationProcessor {
       _positionQueue.removeAt(0);
     }
 
+    if (_positionQueue.isEmpty) return null;
     return _positionQueue.last;
   }
 
   void _updateSearchResult(PositionResult positionResult) {
     // 取得车站数全部在 engine 内进行分歧判断
     // 取得最小车站数后再填入其他属性返回最小数据集
-    final stationResults = _engine
+    final stationResults = _searchEngine
         .locate(
           positionResult.latitude,
           positionResult.longitude,
-          _settings.stationCount.count,
+          _settingsManager.stationCount.count,
           _active,
         )
         .toList(growable: false);

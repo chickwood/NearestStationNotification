@@ -74,10 +74,22 @@ class L10n {
     return 'Location update stopped...';
   }
 
+  String get tapToStart {
+    if (_isJa) return '右上の ▶ をクリックして開始';
+    if (_isZhHans) return '点击右上角的 ▶ 开始';
+    return 'Tap ▶ in the title bar to start';
+  }
+
   String get waitingForLocation {
     if (_isJa) return '位置情報取得中...';
     if (_isZhHans) return '定位更新中...';
     return 'Location updating...';
+  }
+
+  String get waitingForLongtime {
+    if (_isJa) return '長時間固まる場合は一回 ▶ をクリックして一旦停止';
+    if (_isZhHans) return '长时间未能启动时再次点击 ▶ 可以暂时停止';
+    return 'Tap ▶ to stop for now while not start for a long time';
   }
 
   String get latitude {
@@ -116,9 +128,9 @@ class L10n {
   }
 
   String get timestamp {
-    if (_isJa) return '取得時刻';
-    if (_isZhHans) return '更新时刻';
-    return 'Updated at';
+    if (_isJa) return '時刻';
+    if (_isZhHans) return '时间';
+    return 'Time';
   }
 
   String get nearbyStations {
@@ -134,9 +146,9 @@ class L10n {
   }
 
   String get sampleDataGuide {
-    if (_isJa) return 'サンプル駅情報を使用中です。右上の情報ボタンをクリックして駅情報を確認・更新。';
-    if (_isZhHans) return '当前正在使用示例车站信息。点击右上角的信息按钮查看和更新车站信息。';
-    return 'Sample data in use. Tap the Info button on the top right to view and update station information.';
+    if (_isJa) return 'サンプル駅情報を使用中です。右上のメニューから情報をクリックして、駅情報を確認・更新。';
+    if (_isZhHans) return '当前正在使用示例车站信息。点击右上角的菜单选择信息查看和更新车站信息。';
+    return 'Sample data in use. Open the menu in the title bar and select info to view and update station information.';
   }
 
   // ── Toast ──────────────────────────────────────────────────
@@ -191,7 +203,7 @@ class L10n {
   }
 
   String flnNotificationGcd(int? gcd) {
-    return 'ID: $gcd';
+    return 'ID $gcd';
   }
 
   // String flnNotificationFull(int? gcd, String distanceInUnit) {
@@ -215,7 +227,8 @@ class L10n {
     return 'Recommended to hide this notification by long press';
   }
 
-  // ── Settings Dialog ───────────────────────────────────────────────────────────
+  // ── Settings Page ─────────────────────────────────────────────────────────────
+  String get settingsPageTitle => settingsDialogTitle;
   String get settingsDialogTitle {
     if (_isJa) return '設定';
     if (_isZhHans) return '设置';
@@ -257,6 +270,144 @@ class L10n {
     return '$seconds s';
   }
 
+  String get settingsHistory {
+    if (_isJa) return '履歴';
+    if (_isZhHans) return '历史记录';
+    return 'History';
+  }
+
+  String get settingsHistoryEnabled {
+    if (_isJa) return '最寄り駅の変更履歴を記録';
+    if (_isZhHans) return '记录车站切换历史';
+    return 'Record station change history';
+  }
+
+  String get settingsHistoryMergeView {
+    if (_isJa) return '5分以内の再切替をまとめて表示';
+    if (_isZhHans) return '将5分钟内反复切换的车站合并展示';
+    return 'Merge repeat switches within 5 minutes';
+  }
+
+  String historyMergeViewState(bool enabled) {
+    if (_isJa) return enabled ? '5分グループ表示：オン' : '5分グループ表示：オフ';
+    if (_isZhHans) return enabled ? '5分钟分组：开' : '5分钟分组：关';
+    return enabled ? '5-minute grouping: on' : '5-minute grouping: off';
+  }
+
+  String get historyTitle {
+    if (_isJa) return '履歴';
+    if (_isZhHans) return '历史记录';
+    return 'History';
+  }
+
+  String get historyToday {
+    if (_isJa) return '今日';
+    if (_isZhHans) return '今天';
+    return 'Today';
+  }
+
+  String get historyEmpty {
+    if (_isJa) return '履歴はありません';
+    if (_isZhHans) return '暂无历史记录';
+    return 'No history';
+  }
+
+  String historyDayCount(int count) {
+    if (_isJa) return '$count 件履歴';
+    if (_isZhHans) return '$count 条记录';
+    return '${count > 0 ? '$count' : 'No'} record${count == 1 ? '' : 's'}';
+  }
+
+  String get historyLoadFailed {
+    if (_isJa) return '履歴の読み込みに失敗しました';
+    if (_isZhHans) return '读取历史记录失败';
+    return 'Failed to load history';
+  }
+
+  String get historyJumpMonth {
+    if (_isJa) return '月を選択';
+    if (_isZhHans) return '选择月份';
+    return 'Select month';
+  }
+
+  String get historyArchiving {
+    if (_isJa) return 'アーカイブ中...';
+    if (_isZhHans) return '正在归档中...';
+    return 'Archiving...';
+  }
+
+  String get historyArchivingForLongtime {
+    if (_isJa) return '長時間固まる場合は一回 ▶ をクリックして一旦停止';
+    if (_isZhHans) return '长时间未能完成时再次点击 ▶ 可以暂时停止';
+    return 'Tap ▶ to stop for now while not complete for a long time';
+  }
+
+  String get historyArchiveSucceeded {
+    if (_isJa) return '履歴のアーカイブが完了しました';
+    if (_isZhHans) return '历史记录归档完成';
+    return 'History archive completed';
+  }
+
+  String get historyArchiveFailed {
+    if (_isJa) return '履歴のアーカイブに失敗しました';
+    if (_isZhHans) return '历史记录归档失败';
+    return 'Failed to archive history';
+  }
+
+  String get historyExport {
+    if (_isJa) return 'バックアップをエクスポート';
+    if (_isZhHans) return '导出备份';
+    return 'Export backup';
+  }
+
+  String get historyImport {
+    if (_isJa) return 'バックアップをインポート';
+    if (_isZhHans) return '导入备份';
+    return 'Import backup';
+  }
+
+  String get historyExporting {
+    if (_isJa) return 'エクスポート中...';
+    if (_isZhHans) return '正在导出...';
+    return 'Exporting...';
+  }
+
+  String get historyImporting {
+    if (_isJa) return 'インポート中...';
+    if (_isZhHans) return '正在导入...';
+    return 'Importing...';
+  }
+
+  String get historyExportSucceeded {
+    if (_isJa) return 'エクスポートしました';
+    if (_isZhHans) return '导出完成';
+    return 'Export complete';
+  }
+
+  String get historyImportSucceeded {
+    if (_isJa) return 'インポートしました';
+    if (_isZhHans) return '导入完成';
+    return 'Import complete';
+  }
+
+  String get historyBackupFailed {
+    if (_isJa) return 'バックアップ操作に失敗しました';
+    if (_isZhHans) return '备份操作失败';
+    return 'Backup operation failed';
+  }
+
+  String get historyImportConfirm {
+    if (_isJa) {
+      return '過去の月はバックアップの件数が多い場合のみ上書きされ、当月は統合されます。続行しますか？';
+    }
+    if (_isZhHans) {
+      return '过往月份仅在备份条数更多时覆盖，当前月将合并；继续？';
+    }
+    return 'Past months are overwritten only when the backup has more records; the current month is merged. Continue?';
+  }
+
+  String historyGcd(int gcd) => flnNotificationGcd(gcd);
+
   String get settingsSave {
     if (_isJa || _isZhHans) return '保存';
     return 'Save';
@@ -280,7 +431,8 @@ class L10n {
     return 'Close';
   }
 
-  // ── Info Dialog ──────────────────────────────────────────────────
+  // ── Info Page ──────────────────────────────────────────────────
+  String get infoPageTitle => infoDialogTitle;
   String get infoDialogTitle {
     if (_isJa) return '情報';
     if (_isZhHans) return '信息';
@@ -326,16 +478,16 @@ class L10n {
     if (_isJa) {
       return '駅情報・イベント情報データは定期的に更新してください。'
           '\nここをクリックして、ダウンロードサイトを開く。'
-          '\n\nダウンロード後、インポートをクリックして、データファイルを選択して情報を更新。';
+          '\n\nダウンロード後、右上のインポートをクリックして、データファイルを選択して情報を更新。';
     }
     if (_isZhHans) {
       return '请定期更新车站信息与事件信息数据。'
-          '\n点击此处打开下载网站。'
-          '\n\n下载后，点击导入，选择数据文件更新信息。';
+          '\n\n点击此处打开下载网站。'
+          '\n下载完成后，点击右上角的导入，选择数据文件更新信息。';
     }
     return 'Update station information and event information data periodically.'
         '\nTap here to open download website.'
-        '\n\nAfter download, tap import, select data file to update information.';
+        '\n\nAfter download, tap import in the title bar, then select data file to update information.';
   }
 
   String get infoImport {
@@ -368,8 +520,9 @@ class L10n {
     return 'Invalid file';
   }
 
-  // ── License Dialog ───────────────────────────────────────────────────────────
+  // ── License Page ───────────────────────────────────────────────────────────
   String get licensesDialogTitle => infoTitle;
+  String get licensesPageTitle => licensesDialogTitle;
 
   String licenseCount(int count) {
     if (_isJa) return '$count 件ライセンス';

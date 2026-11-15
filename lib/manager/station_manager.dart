@@ -20,7 +20,11 @@ class StationManager {
   late final Uint32List _lefts; // KD-Tree Left 区
   late final Uint32List _rights; // KD-Tree Right 区
   late final Uint32List _offsets; // 车站名偏移索引区
+  late final Uint32List _gcds; // gcd 区（v2；旧版为空）
   late final Uint8List _names; // 车站名原始数据区 (变长)
+  late final bool _legacy; // 旧格式标志（缺少 gcd 区与版本尾）
+  final Map<int, int> _nodesByGcd = {}; // gcd → node（仅旧版使用）
+  int _scanCursor = 0; // 已连续扫描的 node 上界（不含）
 
   // _manager 构造时赋值
   // _info 使用默认值
@@ -52,8 +56,10 @@ class StationManager {
     this._zcoords,
     this._lefts,
     this._rights,
+    this._gcds,
     this._offsets,
-    this._names, {
+    this._names,
+    this._legacy, {
     required this.root,
     required this.mcount,
     required this.count,
@@ -94,22 +100,34 @@ class StationManager {
     return data;
   }
 
-  /// 尺寸 / 结构校验（加载、写入共用）
-  static bool validate(ByteData data) {
-    // 数据完整性校验
-    // 总长度应大于尾部长度 (根节点索引(4) + 非叶节点数(4) + 车站数(4) + 日期戳(4) + 修订日期戳(4))
+  /// 文件末尾 2 字节是否为 v2 版本标志
+  static bool _isV2(ByteData data) {
     final size = data.lengthInBytes;
-    if (size > 20) {
-      // 提取车站数
-      final count = data.getUint32(size - 12, Endian.little);
+    if (size < 2) return false;
 
-      // 取得 count 后的数据完整性校验
-      // 总长度应大于不含车站名的基础长度加尾部长度
-      // (count * (经纬度(16) + XYZ(24) + 车站名偏移(4)) + 根节点索引(4) + 非叶节点数(4) + 车站数(4) + 日期戳(4) + 修订日期戳(4))
-      if (size > (count * 44) + 20) return true;
-    }
+    return utf8.decode(
+          data.buffer.asUint8List(data.offsetInBytes + size - 2, 2),
+          allowMalformed: true,
+        ) ==
+        Common.stationSchemaVersion;
+  }
 
-    return false;
+  /// 尺寸 / 结构校验（加载、写入共用）
+  /// v1（尾部 20 字节）与 v2（尾部 22 字节，追加 gcd 区）均接受
+  static bool validate(ByteData data) {
+    final size = data.lengthInBytes;
+    if (size < 24) return false;
+
+    final v2 = _isV2(data);
+    final tailSize = v2 ? 22 : 20;
+    final mcount = data.getUint32(size - tailSize + 4, Endian.little);
+    final count = data.getUint32(size - tailSize + 8, Endian.little);
+
+    // v2: count * (经纬度(40) + gcd(4) + 车站名偏移(4)) + left/right(mcount * 8) + 尾部(22)
+    // v1: 维持原有校验 count * (经纬度(40) + 车站名偏移(4)) + 尾部(20)
+    final base = v2 ? count * 48 + mcount * 8 + 22 : count * 44 + 20;
+
+    return size > base;
   }
 
   /// StationManager インスタンスを生成する
@@ -120,11 +138,18 @@ class StationManager {
 
     // 提取车站数和日期戳
     final size = data.lengthInBytes;
-    final root = data.getUint32(size - 20, Endian.little);
-    final mcount = data.getUint32(size - 16, Endian.little);
-    final count = data.getUint32(size - 12, Endian.little);
-    final date = data.getUint32(size - 8, Endian.little);
-    final pdate = data.getUint32(size - 4, Endian.little);
+    final v2 = _isV2(data);
+    final tailSize = v2 ? 22 : 20;
+    final tail = size - tailSize;
+    final root = data.getUint32(tail, Endian.little);
+    final mcount = data.getUint32(tail + 4, Endian.little);
+    final count = data.getUint32(tail + 8, Endian.little);
+    final date = data.getUint32(tail + 12, Endian.little);
+    final pdate = data.getUint32(tail + 16, Endian.little);
+
+    final gcdStart = (count * 40) + (mcount * 8);
+    final offsetsStart = gcdStart + (v2 ? count * 4 : 0);
+    final namesStart = offsetsStart + (count * 4);
 
     return StationManager._manager(
       data.buffer.asFloat64List(data.offsetInBytes, count),
@@ -137,14 +162,15 @@ class StationManager {
         data.offsetInBytes + (count * 40) + (mcount * 4),
         mcount,
       ),
-      data.buffer.asUint32List(
-        data.offsetInBytes + (count * 40) + (mcount * 8),
-        count,
-      ),
+      v2
+          ? data.buffer.asUint32List(data.offsetInBytes + gcdStart, count)
+          : Uint32List(0),
+      data.buffer.asUint32List(data.offsetInBytes + offsetsStart, count),
       data.buffer.asUint8List(
-        data.offsetInBytes + (count * 44) + (mcount * 8),
-        size - 20 - (count * 44) - (mcount * 8),
+        data.offsetInBytes + namesStart,
+        size - tailSize - namesStart,
       ),
+      !v2,
       root: root,
       mcount: mcount,
       count: count,
@@ -177,22 +203,28 @@ class StationManager {
 
   /// 根据索引按需获取车站名 (Lazy Loading)
   /// 解析失败时返回 (null, null) 以与正常数据区分
-  (int?, String?) getStationName(int index) {
+  (int?, String?) getGcdName(int node) {
     try {
       if (isLoaded) {
-        final int start = _offsets[index];
-        final int end =
-            (index == _offsets.length - 1)
-                ? _names.length
-                : _offsets[index + 1];
+        final int start = _offsets[node];
+        final int end = (node == _offsets.length - 1)
+            ? _names.length
+            : _offsets[node + 1];
         final nameBytes = _names.buffer.asUint8List(
           _names.offsetInBytes + start,
           end - start,
         );
 
-        final match = Common.namePattern.firstMatch(utf8.decode(nameBytes));
-        if (match != null) {
-          return (int.parse(match.group(1)!), match.group(2)!);
+        if (_legacy) {
+          final match = Common.namePattern.firstMatch(utf8.decode(nameBytes));
+          if (match != null) {
+            final gcd = int.parse(match.group(1)!);
+            _nodesByGcd[gcd] = node;
+            return (gcd, match.group(2)!);
+          }
+        } else {
+          final gcd = _gcds[node];
+          return (gcd, utf8.decode(nameBytes));
         }
       }
     } catch (e, st) {
@@ -202,12 +234,59 @@ class StationManager {
     return (null, null);
   }
 
+  /// 根据 gcd 获取 node
+  /// v2：内部节点 / 叶子节点两组各自按 gcd 升序，分别二分查找（不建缓存）
+  /// 旧版：按扫描游标增量解析站名并缓存
+  int? getNodeByGcd(int gcd) {
+    if (!isLoaded) return null;
+
+    return _legacy
+        ? _findNodeByGcdLegacy(gcd)
+        : (_findNodeByGcd(gcd, 0, mcount) ??
+              _findNodeByGcd(gcd, mcount, count));
+  }
+
+  /// 旧版 gcd→node：查缓存，未命中则按扫描游标增量解析站名
+  int? _findNodeByGcdLegacy(int gcd) {
+    final cached = _nodesByGcd[gcd];
+    if (cached != null) return cached;
+
+    // 已扫描全部 node 时，缺失即为确定结果
+    while (_scanCursor < count) {
+      final node = _scanCursor++;
+      final (stationGcd, _) = getGcdName(node);
+      if (stationGcd == gcd) return node;
+    }
+
+    return null;
+  }
+
+  /// 在 gcd 区的 [start, end) 范围内二分查找（该范围由生成器保证升序）
+  int? _findNodeByGcd(int gcd, int start, int end) {
+    var low = start;
+    var high = end - 1;
+
+    while (low <= high) {
+      final mid = low + ((high - low) >> 1);
+      final value = _gcds[mid];
+      if (value < gcd) {
+        low = mid + 1;
+      } else if (value > gcd) {
+        high = mid - 1;
+      } else {
+        return mid;
+      }
+    }
+
+    return null;
+  }
+
   // 根据索引按需获取车站坐标详情
-  double getStationLatitude(int index) => _latitudes[index];
-  double getStationLongitude(int index) => _longitudes[index];
-  double getStationXcoord(int index) => _xcoords[index];
-  double getStationYcoord(int index) => _ycoords[index];
-  double getStationZcoord(int index) => _zcoords[index];
-  int getStationLeft(int index) => _lefts[index];
-  int getStationRight(int index) => _rights[index];
+  double getStationLat(int node) => _latitudes[node];
+  double getStationLon(int node) => _longitudes[node];
+  double getStationXcoord(int node) => _xcoords[node];
+  double getStationYcoord(int node) => _ycoords[node];
+  double getStationZcoord(int node) => _zcoords[node];
+  int getStationLeft(int node) => _lefts[node];
+  int getStationRight(int node) => _rights[node];
 }

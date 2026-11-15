@@ -1,7 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_styled_toast/flutter_styled_toast.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -9,12 +7,21 @@ import '../common.dart';
 import '../coordinator.dart';
 import '../l10n.dart';
 import '../manager/event_manager.dart';
+import '../manager/history_manager.dart';
 import '../manager/settings_manager.dart';
 import '../manager/station_manager.dart';
+import '../service/history_archive_service.dart';
+import '../service/history_backup_service.dart';
 import '../service/info_import_service.dart';
 import '../service/settings_save_service.dart';
-import 'info_dialog.dart';
-import 'settings_dialog.dart';
+import 'history_page.dart';
+import 'info_page.dart';
+import 'settings_page.dart';
+import 'widgets/app_bar_action.dart';
+import 'widgets/app_bar_menu.dart';
+import 'widgets/background_task_widget.dart';
+import 'widgets/fade_scroll_widget.dart';
+import 'widgets/resetable_state.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -23,17 +30,23 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
-  SettingsManager? _settings;
+class _HomePageState extends ResetableState<HomePage>
+    with WidgetsBindingObserver {
+  SettingsManager? _settingsManager;
   StationManager? _stationManager;
   EventManager? _eventManager;
+  HistoryManager? _historyManager;
 
   Coordinator? _coordinator;
 
   late final InfoImportService _infoImportService;
   late final SettingsSaveService _settingsSaveService;
+  late final HistoryBackupService _historyBackupService;
+  late final HistoryArchiveService _historyArchiveService;
 
   int _positionVisibility = 0; // 坐标显示/关闭
+
+  final ScrollController _fadeScrollController = ScrollController();
 
   @override
   void initState() {
@@ -41,8 +54,16 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
     _infoImportService = InfoImportService();
     _settingsSaveService = SettingsSaveService();
-    _infoImportService.last.addListener(_handleImportResult);
-    _settingsSaveService.last.addListener(_handleSettingsResult);
+    _historyBackupService = HistoryBackupService();
+    _historyArchiveService = HistoryArchiveService();
+    _infoImportService.last.addListener(_handleInfoImportResultNotified);
+    _settingsSaveService.last.addListener(_handleSettingsSaveResultNotified);
+    _historyBackupService.last.addListener(_handleHistoryBackupResultNotified);
+    _historyArchiveService.last.addListener(
+      _handleHistoryArchiveResultNotified,
+    );
+    _historyArchiveService.busy.addListener(_handleHistoryArchiveChanged);
+    _historyArchiveService.progress.addListener(_handleHistoryArchiveChanged);
 
     WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -55,14 +76,29 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
 
-    _infoImportService.last.removeListener(_handleImportResult);
-    _settingsSaveService.last.removeListener(_handleSettingsResult);
+    _infoImportService.last.removeListener(_handleInfoImportResultNotified);
+    _settingsSaveService.last.removeListener(_handleSettingsSaveResultNotified);
+    _historyBackupService.last.removeListener(
+      _handleHistoryBackupResultNotified,
+    );
+    _historyArchiveService.last.removeListener(
+      _handleHistoryArchiveResultNotified,
+    );
+    _historyArchiveService.busy.removeListener(_handleHistoryArchiveChanged);
+    _historyArchiveService.progress.removeListener(
+      _handleHistoryArchiveChanged,
+    );
+    _historyArchiveService.cancel();
     _infoImportService.dispose();
     _settingsSaveService.dispose();
+    _historyBackupService.dispose();
+    _historyArchiveService.dispose();
 
     _coordinator?.removeLocationResultHandler(_handleLocationResultReceived);
     _coordinator?.removeRunningStatusHandler(_handleRunningStatusChanged);
     _coordinator?.stop();
+
+    _fadeScrollController.dispose();
 
     super.dispose();
   }
@@ -93,108 +129,134 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     if (_coordinator == null ||
-        _settings == null ||
+        _settingsManager == null ||
         _stationManager == null ||
-        _eventManager == null) {
+        _eventManager == null ||
+        _historyManager == null) {
       return const Scaffold();
     }
 
     final l10n = L10n.of(context);
-    return BackgroundTask(
-      keepBackgroundTask: _coordinator!.runningStatus != RunningStatus.stopped,
+    return BackgroundTaskWidget(
+      channelId: Common.bgtChannelId,
+      canPop: _coordinator!.runningStatus == RunningStatus.stopped,
       child: Scaffold(
         backgroundColor: Colors.grey.shade50,
         appBar: AppBar(
-          title: Row(
-            children: [
-              // Image.asset(
-              //   'assets/ic_title.png',
-              //   color: Colors.white,
-              //   width: 32,
-              //   height: 32,
-              //   fit: BoxFit.contain,
-              // ),
-              // const SizedBox(width: 4),
-              Flexible(
-                child: Text(
-                  l10n.appTitle,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w500,
+          titleSpacing: 16,
+          // title: Row(
+          //   children: [
+          //     // Image.asset(
+          //     //   'assets/ic_title.png',
+          //     //   color: Colors.white,
+          //     //   width: 32,
+          //     //   height: 32,
+          //     //   fit: BoxFit.contain,
+          //     // ),
+          //     // const SizedBox(width: 4),
+          //     Flexible(child: Text(l10n.appTitle)),
+          //   ],
+          // ),
+          title: Text(l10n.appTitle),
+          actions: [
+            // 定位详细显示切换
+            if (_coordinator!.runningStatus == RunningStatus.running)
+              AppBarAction(
+                onPressed: _switchPositionVisibility,
+                icon: _positionVisibility > 0
+                    ? const Icon(Icons.near_me)
+                    : const Icon(Icons.near_me_disabled),
+                color: _positionVisibility == 1
+                    ? const Color(0xFFA0C0FF)
+                    : Colors.white,
+              ),
+            // 开始/停止
+            AppBarAction(
+              onPressed: _handlePlay,
+              icon: _coordinator!.runningStatus == RunningStatus.running
+                  ? const Icon(Icons.stop)
+                  : const Icon(Icons.play_arrow),
+              color: _coordinator!.runningStatus == RunningStatus.starting
+                  ? const Color(0xFFA0C0FF)
+                  : Colors.white,
+            ),
+            // 设置 / 信息菜单（starting 中・アーカイブ中は無効化）
+            AppBarMenu<HomeMenuAction>(
+              enabled:
+                  !_historyArchiveService.busy.value &&
+                  _coordinator!.runningStatus != RunningStatus.starting,
+              position: PopupMenuPosition.under,
+              icon: const Icon(Icons.more_vert),
+              iconColor:
+                  _historyArchiveService.busy.value ||
+                      _coordinator!.runningStatus == RunningStatus.starting
+                  ? const Color(0xFFA0C0FF)
+                  : Colors.white,
+              onSelected: (action) {
+                switch (action) {
+                  case HomeMenuAction.settings:
+                    _showSettingsPage();
+                    break;
+                  case HomeMenuAction.history:
+                    if (_settingsManager!.historyEnabled) {
+                      _showHistoryPage();
+                    }
+                    break;
+                  case HomeMenuAction.info:
+                    _showInfoPage();
+                    break;
+                }
+              },
+              itemBuilder: (context) => [
+                PopupMenuItem(
+                  value: HomeMenuAction.settings,
+                  child: Text(l10n.settingsPageTitle),
+                ),
+                PopupMenuItem(
+                  value: HomeMenuAction.history,
+                  enabled: _settingsManager!.historyEnabled,
+                  child: Text(
+                    l10n.historyTitle,
+                    style: _settingsManager!.historyEnabled
+                        ? null
+                        : const TextStyle(color: Colors.grey),
                   ),
                 ),
-              ),
-            ],
-          ),
-          backgroundColor: const Color(0xFF4080FF),
-          actions: [
-            // 开始/停止
-            Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: GestureDetector(
-                onTap: switch (_coordinator!.runningStatus) {
-                  RunningStatus.stopped => _start,
-                  // starting でも即時停止できる
-                  RunningStatus.running || RunningStatus.starting => _stop,
-                },
-                child: Icon(
-                  _coordinator!.runningStatus == RunningStatus.running
-                      ? Icons.stop_circle
-                      : Icons.play_circle_filled, // starting/stopped
-                  color: _coordinator!.runningStatus == RunningStatus.starting
-                      ? const Color(0xFFA0C0FF)
-                      : Colors.white,
-                  size: 32,
+                PopupMenuItem(
+                  value: HomeMenuAction.info,
+                  child: Text(l10n.infoPageTitle),
                 ),
-              ),
+              ],
             ),
-            // 设置（starting 中は無効化）
-            Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: GestureDetector(
-                onTap: _coordinator!.runningStatus == RunningStatus.starting
-                    ? null
-                    : _showSettingsDialog,
-                child: Icon(
-                  Icons.settings,
-                  color: _coordinator!.runningStatus == RunningStatus.starting
-                      ? const Color(0xFFA0C0FF)
-                      : Colors.white,
-                  size: 32,
-                ),
+          ],
+        ),
+        body: Column(
+          children: [
+            if (_historyArchiveService.busy.value)
+              LinearProgressIndicator(
+                value: _historyArchiveService.progress.value > 0
+                    ? _historyArchiveService.progress.value
+                    : null,
+                color: const Color(0xFF4080FF),
+                backgroundColor: const Color(0xFFDCECFF),
               ),
-            ),
-            // 情報（starting 中は無効化）
-            Padding(
-              padding: const EdgeInsets.only(right: 12),
-              child: GestureDetector(
-                onTap: _coordinator!.runningStatus == RunningStatus.starting
-                    ? null
-                    : _showInfoDialog,
-                child: Icon(
-                  Icons.info,
-                  color: _coordinator!.runningStatus == RunningStatus.starting
-                      ? const Color(0xFFA0C0FF)
-                      : Colors.white,
-                  size: 32,
+            Expanded(
+              child: SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    children: [
+                      if (_coordinator!.runningStatus ==
+                              RunningStatus.running &&
+                          _positionVisibility > 0)
+                        ..._buildPositionResult(l10n), // 位置信息: リストの上、可隐藏
+                      _buildStationResultsExpanded(l10n), // 车站列表: リスト部分のみスクロール
+                    ],
+                  ),
                 ),
               ),
             ),
           ],
-        ),
-        body: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-            child: Column(
-              children: [
-                Expanded(
-                  child: _buildStationResultsCard(l10n), // 车站列表 + 下部可隐藏: 位置信息
-                ),
-              ],
-            ),
-          ),
         ),
       ),
     );
@@ -208,21 +270,24 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     final active = true; // 应用启动时 active 必然为 true
 
     try {
-      late SettingsManager settings;
+      late SettingsManager settingsManager;
       late StationManager stationManager;
       late EventManager eventManager;
+      late HistoryManager historyManager;
       await Future.wait([
-        SettingsManager.load().then((value) => settings = value),
+        SettingsManager.load().then((value) => settingsManager = value),
         StationManager.load().then((value) => stationManager = value),
         EventManager.load().then((value) => eventManager = value),
+        HistoryManager.load().then((value) => historyManager = value),
       ]);
 
       final coordinator = Coordinator(
         l10n,
         active,
-        settings,
+        settingsManager,
         stationManager,
         eventManager,
+        historyManager,
       );
       _coordinator = coordinator;
 
@@ -237,10 +302,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
       if (!mounted) return;
       setState(() {
-        _settings = settings;
+        _settingsManager = settingsManager;
         _stationManager = stationManager;
         _eventManager = eventManager;
+        _historyManager = historyManager;
       });
+
+      unawaited(_historyArchiveService.start(historyManager));
     } catch (e) {
       // 其他错误（文件读取失败等）
       debugPrint(e.toString());
@@ -248,25 +316,26 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
   }
 
-  void _handleLocationResultReceived(
-    PositionResult? positionResult,
-    List<StationResult>? stationResults,
-  ) {
-    if (!mounted) return;
-    setState(() {});
-  }
-
-  void _handleRunningStatusChanged(RunningStatus runningStatus) {
-    if (!mounted) return;
-    setState(() {});
-  }
-
   // ── ボタンイベント ────────────────────────────────────────────────
+
+  /// アーカイブ中はキャンセルのみ、それ以外は開始 / 停止
+  Future<void> _handlePlay() async {
+    if (_historyArchiveService.busy.value) {
+      _historyArchiveService.cancel();
+      return;
+    }
+
+    if (_coordinator!.runningStatus == RunningStatus.stopped) {
+      await _start();
+    } else {
+      await _stop();
+    }
+  }
 
   /// 起動ボタン押下時
   /// 権限リクエスト + 定位開始
   Future<void> _start() async {
-    if (_settings == null) return;
+    if (_settingsManager == null) return;
 
     await _coordinator?.start();
     // 按钮外观变更
@@ -308,9 +377,15 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     );
   }
 
+  // ── Handler ──────────────────────────────────────────────
+
+  void _handleLocationResultReceived(_, _) => resetState();
+  void _handleRunningStatusChanged(_) => resetState();
+  void _handleHistoryArchiveChanged() => resetState();
+
   // ── Service results ──────────────────────────────────────────────
 
-  void _handleImportResult() {
+  void _handleInfoImportResultNotified() {
     final result = _infoImportService.last.value;
     if (!mounted || result == null) return;
 
@@ -347,7 +422,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
   }
 
-  void _handleSettingsResult() {
+  void _handleSettingsSaveResultNotified() {
     final result = _settingsSaveService.last.value;
     if (!mounted || result == null) return;
 
@@ -359,7 +434,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
     final settings = result.settings!;
     setState(() {
-      _settings = settings;
+      _settingsManager = settings;
     });
     // 无论运行状态如何都立即反映
     // （LocationProcessor 内部会根据 stream 状态自行判断）
@@ -367,87 +442,70 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     _showToast(l10n.settingsSaveSucceeded);
   }
 
-  // ── Settings Dialog ───────────────────────────────────────────────────
+  void _handleHistoryBackupResultNotified() {
+    final result = _historyBackupService.last.value;
+    if (!mounted || result == null || result.cancelled) return;
 
-  void _showSettingsDialog() {
-    showDialog(
-      context: context,
-      barrierColor: Colors.white.withValues(alpha: 0.5),
-      builder: (context) =>
-          SettingsDialog(_settings!, settingsSaveService: _settingsSaveService),
-    );
+    final l10n = L10n.of(context);
+    if (!result.succeeded) {
+      _showToast(l10n.historyBackupFailed, isError: true);
+      return;
+    }
+
+    if (result.action == HistoryBackupAction.export) {
+      _showToast(l10n.historyExportSucceeded);
+    } else {
+      _showToast(l10n.historyImportSucceeded);
+    }
   }
 
-  // ── Info Dialog ─────────────────────────────────────────────────────
+  void _handleHistoryArchiveResultNotified() {
+    final result = _historyArchiveService.last.value;
+    if (!mounted || result == null || result.cancelled) return;
 
-  void _showInfoDialog() {
-    showDialog(
-      context: context,
-      barrierColor: Colors.white.withValues(alpha: 0.5),
-      builder: (context) => InfoDialog(
-        _stationManager!,
-        _eventManager!,
-        infoImportService: _infoImportService,
+    final l10n = L10n.of(context);
+    if (!result.succeeded) {
+      _showToast(l10n.historyArchiveFailed, isError: true);
+      return;
+    }
+
+    _showToast(l10n.historyArchiveSucceeded);
+  }
+
+  // ── Settings Page ─────────────────────────────────────────────────────
+
+  void _showSettingsPage() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => SettingsPage(_settingsManager!, _settingsSaveService),
       ),
     );
   }
 
-  // ── Service results card ─────────────────────────────────────────
+  // ── History Page ───────────────────────────────────────────────────
 
-  Widget _buildStationResultsCard(L10n l10n) {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(8),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // タイトル行
-            Padding(
-              padding: const EdgeInsets.all(4),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.radar,
-                    color: const Color(0xFF4080FF), // Colors.orange.shade700
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    l10n.nearbyStations,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const Spacer(),
-                  // 定位详细显示切换
-                  if (_coordinator!.runningStatus == RunningStatus.running)
-                    GestureDetector(
-                      onTap: _switchPositionVisibility,
-                      child: Icon(
-                        _positionVisibility > 0
-                            ? Icons.near_me
-                            : Icons.near_me_disabled,
-                        color: _positionVisibility < 2
-                            ? const Color(0xFFA0C0FF)
-                            : const Color(0xFF4080FF),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            if (_coordinator!.runningStatus == RunningStatus.running &&
-                _positionVisibility > 0) ...[
-              _buildPositionResult(l10n), // 下部可隐藏: 位置信息（リスト外・カード下端）
-              const Divider(height: 8, indent: 8, endIndent: 8),
-            ],
-            const SizedBox(height: 2),
-            Expanded(
-              child: _buildStationResultsExpanded(l10n), // リスト部分のみスクロール
-            ),
-          ],
+  void _showHistoryPage() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => HistoryPage(
+          _coordinator!.historyConsumer,
+          _historyManager!,
+          _historyBackupService,
+          _stationManager!,
+          _settingsManager!,
+          _settingsSaveService,
         ),
+      ),
+    );
+  }
+
+  // ── Info Page ───────────────────────────────────────────────────────
+
+  void _showInfoPage() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) =>
+            InfoPage(_stationManager!, _eventManager!, _infoImportService),
       ),
     );
   }
@@ -455,56 +513,27 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   // ── Station results (expanded) ────────────────────────────────────────────────
 
   Widget _buildStationResultsExpanded(L10n l10n) {
-    if (_stationManager!.count > 0) {
-      if (_coordinator!.runningStatus == RunningStatus.stopped) {
-        return Align(
-          alignment: Alignment.topCenter,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(l10n.notStarted, style: const TextStyle(color: Colors.grey)),
-              if (_stationManager!.isSampleData) ...[
-                const SizedBox(height: 4),
-                Text(
-                  l10n.sampleDataGuide,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.grey),
-                ),
-              ],
-            ],
-          ),
-        );
-      } else if (_coordinator!.runningStatus == RunningStatus.starting) {
-        return Align(
-          alignment: Alignment.topCenter,
-          child: Text(
-            l10n.waitingForLocation,
-            style: const TextStyle(color: Colors.grey),
-          ),
-        );
-      } else {
-        return Padding(
-          padding: const EdgeInsets.all(4),
-          child: ListView.separated(
-            itemCount: _coordinator!.stationResults!.length,
-            itemBuilder: (context, index) {
-              final stationResult = _coordinator!.stationResults![index];
+    if (_historyArchiveService.busy.value) {
+      return Align(
+        alignment: Alignment.topCenter,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              l10n.historyArchiving,
+              style: const TextStyle(color: Colors.grey),
+            ),
+            Text(
+              l10n.historyArchivingForLongtime,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.grey),
+            ),
+          ],
+        ),
+      );
+    }
 
-              return _StationTile(
-                index: index,
-                name: stationResult.name ?? '',
-                distance: stationResult.distanceInUnit,
-                direction: l10n.direction(stationResult.bearingIndex),
-                part: _settings!.stationCount.part(index),
-              );
-            },
-            separatorBuilder: (BuildContext context, int index) {
-              return const SizedBox(height: 4);
-            },
-          ),
-        );
-      }
-    } else {
+    if (_stationManager!.count <= 0) {
       return Align(
         alignment: Alignment.topCenter,
         child: Text(
@@ -513,115 +542,189 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         ),
       );
     }
-  }
 
-  // ── Position result ────────────────────────────────────────────────
-
-  Widget _buildPositionResult(L10n l10n) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      child: Column(
-        children: [
-          Row(
-            children: [
+    if (_coordinator!.runningStatus == RunningStatus.stopped) {
+      return Align(
+        alignment: Alignment.topCenter,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(l10n.notStarted, style: const TextStyle(color: Colors.grey)),
+            Text(l10n.tapToStart, style: const TextStyle(color: Colors.grey)),
+            if (_stationManager!.isSampleData) ...[
+              const SizedBox(height: 4),
               Text(
-                _positionVisibility == 1
-                    ? l10n.currentLocation
-                    : l10n.currentLocationStatus,
-                style: const TextStyle(fontWeight: FontWeight.bold),
+                l10n.sampleDataGuide,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.grey),
               ),
             ],
-          ),
-          const SizedBox(height: 4),
-          Row(
-            children: [
-              Expanded(
-                child: _PositionRow(
-                  label: l10n.latitude,
-                  value: _coordinator!.positionResult!.latitude.toStringAsFixed(
-                    6,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 24),
-              Expanded(
-                child: _PositionRow(
-                  label: l10n.longitude,
-                  value: _coordinator!.positionResult!.longitude
-                      .toStringAsFixed(6),
-                ),
-              ),
-            ],
-          ),
-          if (_positionVisibility == 2) ...[
-            const SizedBox(height: 4),
-            Row(
-              children: [
-                Expanded(
-                  child: _PositionRow(
-                    label: l10n.speed,
-                    value: _coordinator!.positionResult!.speedString,
-                  ),
-                ),
-                const SizedBox(width: 24),
-                Expanded(
-                  child: _PositionRow(
-                    label: l10n.accuracy,
-                    value: _coordinator!.positionResult!.accuracyString,
-                  ),
-                ),
-              ],
+          ],
+        ),
+      );
+    }
+
+    if (_coordinator!.runningStatus == RunningStatus.starting) {
+      return Align(
+        alignment: Alignment.topCenter,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              l10n.waitingForLocation,
+              style: const TextStyle(color: Colors.grey),
             ),
-            const SizedBox(height: 4),
-            Row(
-              children: [
-                Expanded(
-                  child: _PositionRow(
-                    label: l10n.heading,
-                    value: l10n.direction(
-                      _coordinator!.positionResult!.headingIndex,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 24),
-                Expanded(
-                  child: _PositionRow(
-                    label: l10n.timestamp,
-                    value: _coordinator!.positionResult!.timestampString,
-                  ),
-                ),
-              ],
+            Text(
+              l10n.waitingForLongtime,
+              style: const TextStyle(color: Colors.grey),
             ),
           ],
+        ),
+      );
+    }
+
+    return Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            l10n.nearbyStations,
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 2),
+              child: FadeScrollWidget(
+                controller: _fadeScrollController,
+                child: ListView.separated(
+                  controller: _fadeScrollController,
+                  itemCount: _coordinator!.stationResults!.length,
+                  itemBuilder: (_, index) {
+                    final stationResult = _coordinator!.stationResults![index];
+
+                    return _StationTile(
+                      index: index,
+                      name: stationResult.name ?? '',
+                      distance: stationResult.distanceInUnit,
+                      direction: l10n.direction(stationResult.bearingIndex),
+                      part: _settingsManager!.stationCount.part(index),
+                    );
+                  },
+                  separatorBuilder: (_, _) {
+                    return const SizedBox(height: 4);
+                  },
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
+
+  // ── Position result ────────────────────────────────────────────────
+
+  List<Widget> _buildPositionResult(L10n l10n) {
+    return [
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            _positionVisibility == 1
+                ? l10n.currentLocation
+                : l10n.currentLocationStatus,
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          _PositionRow(
+            labelL: l10n.latitude,
+            valueL: _coordinator!.positionResult!.latitude.toStringAsFixed(6),
+            labelR: l10n.longitude,
+            valueR: _coordinator!.positionResult!.longitude.toStringAsFixed(6),
+          ),
+          if (_positionVisibility == 2) ...[
+            const SizedBox(height: 4),
+            _PositionRow(
+              labelL: l10n.speed,
+              valueL: _coordinator!.positionResult!.speedString,
+              labelR: l10n.accuracy,
+              valueR: _coordinator!.positionResult!.accuracyString,
+            ),
+            const SizedBox(height: 4),
+            _PositionRow(
+              labelL: l10n.heading,
+              valueL: l10n.direction(
+                _coordinator!.positionResult!.headingIndex,
+              ),
+              labelR: l10n.timestamp,
+              valueR: _coordinator!.positionResult!.timeString,
+            ),
+          ],
+        ],
+      ),
+      const Divider(height: 16),
+    ];
+  }
 }
 
 // ── Position row ─────────────────────────────────────────────────
-
 class _PositionRow extends StatelessWidget {
+  final String labelL;
+  final String valueL;
+  final String labelR;
+  final String valueR;
+
+  const _PositionRow({
+    required this.labelL,
+    required this.valueL,
+    required this.labelR,
+    required this.valueR,
+  });
+
+  @override
+  Widget build(Object context) {
+    return Row(
+      children: [
+        _PositionCell(label: labelL, value: valueL),
+        const SizedBox(width: 4),
+        _PositionCell(label: labelR, value: valueR),
+      ],
+    );
+  }
+}
+
+// ── Position cell ─────────────────────────────────────────────────
+
+class _PositionCell extends StatelessWidget {
   final String label;
   final String value;
 
-  const _PositionRow({required this.label, required this.value});
+  const _PositionCell({required this.label, required this.value});
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(label, style: TextStyle(color: Colors.grey.shade600)),
-        Text(
-          value,
-          style: TextStyle(
-            color: Colors.grey.shade800,
-            // fontFamily: 'monospace',
-            fontWeight: FontWeight.bold,
-          ),
+    return Expanded(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              label,
+              style: TextStyle(color: Colors.grey.shade600, fontSize: 12.0),
+            ),
+            Text(
+              value,
+              style: TextStyle(
+                color: Colors.grey.shade800,
+                fontSize: 12.0,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
 }
@@ -651,7 +754,7 @@ class _StationTile extends StatelessWidget {
     StationCountPart.natsume: const Color(0xFFFFF0B0),
   };
   static final _partFillColors = <StationCountPart, Color>{
-    StationCountPart.friend: Colors.grey.shade100,
+    StationCountPart.friend: Colors.grey.shade200,
     StationCountPart.event: const Color(0xFFDCECFF),
     StationCountPart.radar: const Color(0xFFE0F4E8),
     StationCountPart.natsume: const Color(0xFFFFF9E0),
@@ -661,7 +764,6 @@ class _StationTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final isNearest = index == 0;
     return Container(
-      // margin: const EdgeInsets.only(bottom: 4),
       padding: EdgeInsets.symmetric(
         horizontal: 12,
         vertical: isNearest ? 8 : 6,
@@ -689,7 +791,7 @@ class _StationTile extends StatelessWidget {
                 '${index + 1}',
                 style: TextStyle(
                   color: isNearest ? Colors.white : Colors.grey.shade800,
-                  fontSize: 12,
+                  fontSize: 12.0,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -701,7 +803,7 @@ class _StationTile extends StatelessWidget {
               name,
               style: TextStyle(
                 color: Colors.grey.shade800,
-                fontSize: 12,
+                fontSize: 12.0,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -721,7 +823,7 @@ class _StationTile extends StatelessWidget {
                 direction,
                 style: TextStyle(
                   color: isNearest ? Colors.white : Colors.grey.shade800,
-                  fontSize: 12,
+                  fontSize: 12.0,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -742,7 +844,7 @@ class _StationTile extends StatelessWidget {
                 distance,
                 style: TextStyle(
                   color: isNearest ? Colors.white : Colors.grey.shade800,
-                  fontSize: 12,
+                  fontSize: 12.0,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -750,45 +852,6 @@ class _StationTile extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-// ── Background task ──────────────────────────────────────────────
-
-class BackgroundTask extends StatelessWidget {
-  static const _channel = MethodChannel(
-    'name.w57.nearest_station_notification/background_task',
-  );
-
-  final bool keepBackgroundTask;
-  final Widget child;
-
-  const BackgroundTask({
-    super.key,
-    required this.keepBackgroundTask,
-    required this.child,
-  });
-
-  static bool get _isNativeAndroid =>
-      !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
-
-  Future<void> _moveTaskToBack() async {
-    await _channel.invokeMethod<void>('moveTaskToBack');
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (!_isNativeAndroid) return child;
-
-    return PopScope(
-      canPop: !keepBackgroundTask,
-      onPopInvokedWithResult: (didPop, result) {
-        if (!didPop && keepBackgroundTask) {
-          unawaited(_moveTaskToBack());
-        }
-      },
-      child: child,
     );
   }
 }

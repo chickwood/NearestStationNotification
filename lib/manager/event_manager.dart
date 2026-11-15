@@ -62,7 +62,7 @@ class EventManager {
       if (header is! Map) return null;
 
       final version = header['v'];
-      if (version is! int || version != Common.eventVersion) return null;
+      if (version is! int || version != Common.eventSchemaVersion) return null;
 
       final fields = header['fields'];
       if (fields is! List || fields.length != Common.eventFields.length) {
