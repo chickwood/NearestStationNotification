@@ -130,7 +130,7 @@ lib/
   - 不需要被对象在多处内部方法间保存和复用
 
 - **Service 与 Widget 的传参**：
-   - `InfoImportService` / `SettingsSaveService` / `HistoryBackupService` / `HistoryArchiveService` 由 HomePage 在 `initState` 创建并持有，经构造参数传给页面 / HistoryPage；其公开字段为 `final`
+  - `InfoImportService` / `SettingsSaveService` / `HistoryBackupService` / `HistoryArchiveService` 由 HomePage 在 `initState` 创建并持有，经构造参数传给页面 / HistoryPage；其公开字段为 `final`
   - Widget 为不可变描述，字段公开且 `final`；可变性由配套 `State` 承接
   - 更新「当前状态」类字段时，使用专门的 `changeXxx()` 方法，不通过构造函数重新赋值
   - `start()` / `stop()` 等生命周期方法尽量保持无参数、成对存在，所需状态在构造函数或 `changeXxx()` 中已经就绪
