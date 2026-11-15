@@ -338,6 +338,7 @@ Coordinator 只负责协调（Coordinate），不负责业务实现（Implement�
 - 仅返回算法结果
 - 维护长度上限为 3 的采样队列
 - 在 locale / 定位间隔 / 采样模式变化时按需重启流
+- locale 变化时重建缓存的 `ForegroundNotificationConfig`，并重启流一次以刷新前台通知文本
 
 不负责：
 
@@ -351,7 +352,7 @@ SearchEngine 属于 LocationProcessor 的内部依赖。
 
 平台参数：
 
-- Android：`AndroidSettings`，高精度、`intervalDuration`、自适应 distanceFilter、Geolocator 前台服务通知、wake lock
+- Android：`AndroidSettings`，高精度、`intervalDuration`、自适应 distanceFilter、`ForegroundNotificationConfig`（缓存，仅语言变化重建）、wake lock
 - iOS / macOS：`AppleSettings`，`bestForNavigation`、`otherNavigation`、显示后台定位指示
 - 其他平台：`LocationSettings`，高精度
 
@@ -1013,7 +1014,7 @@ stopped ──start()──► starting ──首个定位结果──► runnin
 分工：
 
 - UI 呈现（按钮 / 图标 / 列表占位 / keepBackgroundTask）只读取 RunningStatus。
-- 是否重启 GPS 流等控制流由 LocationProcessor 依据自身订阅状态（_positionSubscription）自行判断，UI 层不设状态门控。
+- 是否重启 GPS 流等控制流由 LocationProcessor 依据自身订阅状态（`_positionSubscription`）与流队列状态（`_streamQueueStatus`）自行判断，UI 层不设状态门控。
 
 ---
 
@@ -1021,7 +1022,7 @@ stopped ──start()──► starting ──首个定位结果──► runnin
 
 changeXxx 家族（外部事件驱动的状态更新）：
 
-- changeLocale：l10n 更新（系统语言变化；传播至 LocationProcessor 与 NotificationConsumer；已订阅时重启流以刷新前台通知文本）
+- changeLocale：l10n 更新（系统语言变化；传播至 LocationProcessor 与 NotificationConsumer；LocationProcessor 重建缓存的 `ForegroundNotificationConfig`，已订阅时重启流一次以刷新前台通知文本；FLN 通知由 NotificationConsumer 自行重绘）
 - changeActive：active 更新（前后台切换；LocationProcessor 切换搜索件数；恢复前台时立即重发缓存结果；进入后台不强制 flush，后台写盘依赖 10 条阈值 / 首条起算的 5 分钟窗口 / stop）
 - changeSettings：settings 更新（设置项保存；向 LocationProcessor 传 `processorSettingsManager`、向 HistoryConsumer 传 `historySettingsManager`；定位间隔变化时重启流，数量变化时用最后采样点重算；HistoryConsumer 在关→开时补记当前通知车站）
 - changeStationData：站点数据更新（导入）
