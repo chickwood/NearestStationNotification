@@ -105,8 +105,6 @@ class NotificationConsumer {
         final stationChanged = _lastNearestResult?.gcd != first.gcd;
         _lastNearestResult = first;
 
-        // 最近车站切换时取消当前通知重新显示
-        if (stationChanged) await _fln.cancelAll();
         // 通知模式是每次定位更新时更新通知内的距离
         // if (forceUpdate ||
         //     isStationChanged ||

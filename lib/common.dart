@@ -587,6 +587,8 @@ class HistorySummary {
 
 enum RunningStatus { stopped, starting, running }
 
+enum StreamQueueStatus { idle, starting, queued }
+
 enum SamplingMode {
   staying(speed: 0.0), // 静止
   walking(speed: 1.0), // 步行 >= 1 m/s

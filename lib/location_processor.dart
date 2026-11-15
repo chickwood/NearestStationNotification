@@ -31,9 +31,7 @@ class LocationProcessor {
   StreamSubscription<LocationData>? _positionSubscription;
   LocationData? _pendingPosition;
 
-  bool _running = false;
-  bool _restarting = false;
-  bool _restartRequested = false;
+  StreamQueueStatus _streamQueueStatus = StreamQueueStatus.idle;
   bool _draining = false;
 
   // 結果コールバック（Coordinator が登録）
@@ -55,14 +53,27 @@ class LocationProcessor {
   // ── 起動・停止 ────────────────────────────────────────────────────
 
   Future<void> start() async {
-    _running = true;
+    // 会話開始時のみ通知文案とバックグラウンドモードを設定する
+    try {
+      await _applyNotificationOptions();
+    } catch (_) {}
+
+    try {
+      await Location.instance.enableBackgroundMode(
+        enable: true,
+        requireBackgroundPermission: false,
+      );
+    } catch (_) {}
+
     await _startStream();
   }
 
   Future<void> stop() async {
-    _running = false;
-    _pendingPosition = null;
     await _stopStream();
+
+    try {
+      await Location.instance.enableBackgroundMode(enable: false);
+    } catch (_) {}
   }
 
   // ── 状態の変更 ──────────────────────────────────────────────────────
@@ -108,10 +119,12 @@ class LocationProcessor {
   Future<void> changeLocale(L10n l10n) async {
     _l10n = l10n;
 
-    // 前台通知テキストを即座反映するため流を再起動
-    if (_positionSubscription != null) {
-      await _startStream();
-    }
+    if (_positionSubscription == null) return;
+
+    // FLN 通知は NotificationConsumer.changeLocale が自前で再描画する
+    try {
+      await _applyNotificationOptions();
+    } catch (_) {}
   }
 
   /// 站点数据更新（hot reload）
@@ -124,16 +137,15 @@ class LocationProcessor {
   // ── GPS Stream ───────────────────────────────────────────────────
   /// 流启动/重启：等待旧订阅取消完成，并合并并发重启请求
   Future<void> _startStream() async {
-    if (!_running) return;
-    if (_restarting) {
-      _restartRequested = true;
+    if (_streamQueueStatus != StreamQueueStatus.idle) {
+      _streamQueueStatus = StreamQueueStatus.queued;
       return;
     }
 
-    _restarting = true;
+    _streamQueueStatus = StreamQueueStatus.starting;
     try {
       do {
-        _restartRequested = false;
+        _streamQueueStatus = StreamQueueStatus.starting;
 
         final distanceFilter = _positionQueue.isNotEmpty
             ? _positionQueue.last.samplingMode.filter
@@ -145,8 +157,6 @@ class LocationProcessor {
         _positionSubscription = null;
         await previous?.cancel();
 
-        if (!_running) return;
-
         await Location.instance.changeSettings(
           accuracy: LocationAccuracy.high,
           interval: milliseconds,
@@ -155,27 +165,22 @@ class LocationProcessor {
           backgroundInterval: milliseconds,
         );
 
-        await Location.instance.changeNotificationOptions(
-          channelName: _l10n.fgnChannelName,
-          title: _l10n.fgnNotificationTitle,
-          description: _l10n.fgnNotificationBody,
-          iconName: Common.flnNotificationIcon,
-        );
-
-        await Location.instance.enableBackgroundMode(
-          enable: true,
-          requireBackgroundPermission: false,
-        );
-
-        if (!_running) return;
-
         _positionSubscription = Location.instance.onLocationChanged.listen(
           _onPosition,
         );
-      } while (_restartRequested && _running);
+      } while (_streamQueueStatus == StreamQueueStatus.queued);
     } finally {
-      _restarting = false;
+      _streamQueueStatus = StreamQueueStatus.idle;
     }
+  }
+
+  Future<void> _applyNotificationOptions() async {
+    await Location.instance.changeNotificationOptions(
+      channelName: _l10n.fgnChannelName,
+      title: _l10n.fgnNotificationTitle,
+      description: _l10n.fgnNotificationBody,
+      iconName: Common.flnNotificationIcon,
+    );
   }
 
   /// 位置事件单飞：只保留最新未处理位置，避免 async 回调并发操作队列
@@ -189,7 +194,7 @@ class LocationProcessor {
 
   Future<void> _drainPositions() async {
     try {
-      while (_running) {
+      while (true) {
         final position = _pendingPosition;
         if (position == null) break;
         _pendingPosition = null;
@@ -201,7 +206,7 @@ class LocationProcessor {
     } catch (_) {
     } finally {
       _draining = false;
-      if (_running && _pendingPosition != null) _onPosition(_pendingPosition!);
+      if (_pendingPosition != null) _onPosition(_pendingPosition!);
     }
   }
 
@@ -212,18 +217,12 @@ class LocationProcessor {
       await previous?.cancel();
     } catch (_) {}
 
-    try {
-      await Location.instance.enableBackgroundMode(enable: false);
-    } catch (_) {}
-
     _positionQueue.clear();
   }
 
   // ── 位置更新処理（GPS Stream）────────────────────────────
 
   Future<PositionResult?> _handlePositionUpdated(LocationData position) async {
-    if (!_running) return null;
-
     // 基础数据
     final userLatitude = position.latitude;
     final userLongitude = position.longitude;
@@ -314,9 +313,6 @@ class LocationProcessor {
         // 视为进入减速状态
         if (prevMode == SamplingMode.transit) await _startStream(); // 重启流
       }
-
-      // 重启流期间可能已被 stop，避免继续使用被清空的队列
-      if (!_running) return null;
     }
 
     while (_positionQueue.length > _queueSize) {
