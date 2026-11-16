@@ -135,6 +135,15 @@ class LocationProcessor {
   }
 
   // ── GPS Stream ───────────────────────────────────────────────────
+  Future<void> _applyNotificationOptions() async {
+    await Location.instance.changeNotificationOptions(
+      channelName: _l10n.fgnChannelName,
+      title: _l10n.fgnNotificationTitle,
+      description: _l10n.fgnNotificationBody,
+      iconName: Common.flnNotificationIcon,
+    );
+  }
+
   /// 流启动/重启：等待旧订阅取消完成，并合并并发重启请求
   Future<void> _startStream() async {
     if (_streamQueueStatus != StreamQueueStatus.idle) {
@@ -172,15 +181,6 @@ class LocationProcessor {
     } finally {
       _streamQueueStatus = StreamQueueStatus.idle;
     }
-  }
-
-  Future<void> _applyNotificationOptions() async {
-    await Location.instance.changeNotificationOptions(
-      channelName: _l10n.fgnChannelName,
-      title: _l10n.fgnNotificationTitle,
-      description: _l10n.fgnNotificationBody,
-      iconName: Common.flnNotificationIcon,
-    );
   }
 
   /// 位置事件单飞：只保留最新未处理位置，避免 async 回调并发操作队列
