@@ -425,7 +425,6 @@ BIN 布局（小端）：
 
 未来消费者：
 
-- HistoryManager
 - VoronoiRenderer
 
 必须：
@@ -1307,7 +1306,6 @@ SHA256SUMS
 
 未来计划：
 
-- History（定位历史记录）
 - Voronoi 图着色
 
 新增功能应作为定位结果消费者。
