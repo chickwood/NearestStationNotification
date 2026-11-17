@@ -157,9 +157,11 @@ class LocationProcessor {
   }
 
   void _clearStream() {
-    final previous = _positionSubscription;
-    _positionSubscription = null;
-    unawaited(previous?.cancel().catchError((_) {}));
+    try {
+      final previous = _positionSubscription;
+      _positionSubscription = null;
+      unawaited(previous?.cancel().catchError((_) {}));
+    } catch (_) {}
   }
 
   /// 流启动/重启：丢弃旧订阅后立即建立新订阅
