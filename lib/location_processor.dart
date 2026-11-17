@@ -171,9 +171,11 @@ class LocationProcessor {
 
     _clearStream();
 
-    _positionSubscription = Geolocator.getPositionStream(
-      locationSettings: _buildLocationSettings(milliseconds, distanceFilter),
-    ).listen(_onPosition, onError: (_) => _clearStream());
+    try {
+      _positionSubscription = Geolocator.getPositionStream(
+        locationSettings: _buildLocationSettings(milliseconds, distanceFilter),
+      ).listen(_onPosition, onError: (_) => _clearStream());
+    } catch (_) {}
   }
 
   void _stopStream() {
