@@ -66,7 +66,7 @@ class NotificationConsumer {
       return;
     }
 
-    unawaited(show(_stationResults!));
+    unawaited(_show(_stationResults!));
   }
 
   // ── Locale 更新 ──────────────────────────────────────────────────
@@ -76,7 +76,7 @@ class NotificationConsumer {
     _l10n = l10n;
 
     if (_stationResults != null) {
-      unawaited(show(_stationResults!, forceUpdate: true));
+      unawaited(_show(_stationResults!, forceUpdate: true));
     }
   }
 
@@ -93,23 +93,34 @@ class NotificationConsumer {
 
   // ── 通知表示（FLN） ────────────────────────────────────────────────
 
-  Future<void> show(
+  Future<void> _show(
     List<StationResult> stationResults, {
     bool forceUpdate = false,
   }) async {
+    // 单飞
     if (_isNotificationUpdating) return;
 
-    _isNotificationUpdating = true;
-    try {
-      if (stationResults case [final first, ...]) {
-        final stationChanged = _lastNearestResult?.gcd != first.gcd;
-        _lastNearestResult = first;
+    if (stationResults case [final first, ...]) {
+      final stationChanged = _lastNearestResult?.gcd != first.gcd;
+      _lastNearestResult = first;
 
-        // 通知模式是每次定位更新时更新通知内的距离
-        // if (forceUpdate ||
-        //     isStationChanged ||
-        //     _settings?.notificationMode == NotificationMode.location) {
-        if (forceUpdate || stationChanged) {
+      // 通知模式是每次定位更新时更新通知内的距离
+      // if (forceUpdate ||
+      //     isStationChanged ||
+      //     _settings?.notificationMode == NotificationMode.location) {
+      if (forceUpdate || stationChanged) {
+        _isNotificationUpdating = true;
+
+        // 最近车站切换时取消当前通知
+        if (stationChanged) {
+          try {
+            await _fln.cancelAll();
+          } catch (_) {}
+        }
+
+        // 系统语言更新时仅更新通知内容(不重复弹出)
+        // 最近车站切换时重新显示
+        try {
           await _fln.show(
             id: Common.flnNotificationId,
             title: _l10n.flnNotificationTitle(first.name),
@@ -143,11 +154,10 @@ class NotificationConsumer {
               ),
             ),
           );
-        }
+        } catch (_) {}
+
+        _isNotificationUpdating = false;
       }
-    } catch (_) {
-    } finally {
-      _isNotificationUpdating = false;
     }
   }
 }

@@ -338,6 +338,10 @@ Coordinator 只负责协调（Coordinate），不负责业务实现（Implement�
 - 仅返回算法结果
 - 维护长度上限为 3 的采样队列
 - 在定位间隔 / 采样模式变化时重启流；locale 变化只更新前台服务通知配置，不重启流
+- 位置事件处理同步完成；处理路径上的重启不等待
+- 取消旧订阅后不等待回执；并发重启以代次最新的为准，旧代次直接放弃订阅
+- `stop()` 递增代次，使在途重启失效，避免停止后又被重新订阅
+- 重启过程中的异常（取消、`changeSettings`、建立订阅）在 `_startStream` 内吞掉，不向外抛
 
 不负责：
 
@@ -513,12 +517,12 @@ schema：
 - 当前语言
 - 最近一次定位结果列表
 - 最近一次通知的车站（按 `gcd` 判定切换）
-- 通知更新锁（单飞）
+- 通知更新锁（单飞，更新中的新要求直接丢弃）
 
 显示规则：
 
 - 收到 null 结果 → `cancelAll()`
-- 最近车站切换 → 取消当前通知后重新显示
+- 最近车站切换 → 先 `cancelAll()` 再重新显示（同一 id 更新不会再次提醒）；只清通知，不清消费者状态
 - 仅在 `forceUpdate` 或最近车站变化时调用 show
 - 静音、无振动、`onlyAlertOnce`、`autoCancel: false`、高 importance / priority
 - iOS 不播放声音、不显示 badge
@@ -1014,7 +1018,7 @@ stopped ──start()──► starting ──首个定位结果──► runnin
 分工：
 
 - UI 呈现（按钮 / 图标 / 列表占位 / keepBackgroundTask）只读取 RunningStatus。
-- 是否重启 GPS 流等控制流由 LocationProcessor 依据自身订阅状态（`_positionSubscription`）与流队列状态（`_streamQueueStatus`）自行判断，UI 层不设状态门控。
+- 是否重启 GPS 流等控制流由 LocationProcessor 依据自身订阅状态（`_positionSubscription`）自行判断，UI 层不设状态门控。
 
 ---
 
