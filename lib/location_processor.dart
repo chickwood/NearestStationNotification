@@ -30,10 +30,6 @@ class LocationProcessor {
   final List<PositionResult> _positionQueue = [];
 
   StreamSubscription<Position>? _positionSubscription;
-  Position? _pendingPosition;
-
-  StreamQueueStatus _streamQueueStatus = StreamQueueStatus.idle;
-  bool _draining = false;
 
   // 前台通知配置：仅语言变化时重建，其他流重启复用
   ForegroundNotificationConfig? _foregroundNotificationConfig;
@@ -56,18 +52,18 @@ class LocationProcessor {
 
   // ── 起動・停止 ────────────────────────────────────────────────────
 
-  Future<void> start() async {
-    await _startStream();
+  void start() {
+    _startStream();
   }
 
-  Future<void> stop() async {
-    await _stopStream();
+  void stop() {
+    _stopStream();
   }
 
   // ── 状態の変更 ──────────────────────────────────────────────────────
 
   /// 設定更新
-  Future<void> changeSettings(ProcessorSettingsManager settings) async {
+  void changeSettings(ProcessorSettingsManager settings) {
     final intervalChanged =
         _settingsManager.locationInterval.milliseconds !=
         settings.locationInterval.milliseconds;
@@ -76,9 +72,7 @@ class LocationProcessor {
     _settingsManager = settings;
 
     if (_positionSubscription != null) {
-      if (intervalChanged) {
-        await _startStream();
-      }
+      if (intervalChanged) _startStream();
 
       if (countChanged) {
         if (_positionQueue case [..., final last]) {
@@ -104,16 +98,14 @@ class LocationProcessor {
   }
 
   /// 系统语言更新
-  Future<void> changeLocale(L10n l10n) async {
+  void changeLocale(L10n l10n) {
     _l10n = l10n;
     _foregroundNotificationConfig = _buildForegroundNotificationConfig();
 
     if (_positionSubscription == null) return;
 
     // 新的通知配置を反映するため一度だけ流を再起動する
-    try {
-      await _startStream();
-    } catch (_) {}
+    _startStream();
   }
 
   /// 站点数据更新（hot reload）
@@ -164,80 +156,45 @@ class LocationProcessor {
     };
   }
 
-  /// 流启动/重启：等待旧订阅取消完成，并合并并发重启请求
-  Future<void> _startStream() async {
-    if (_streamQueueStatus != StreamQueueStatus.idle) {
-      _streamQueueStatus = StreamQueueStatus.queued;
-      return;
-    }
-
-    _streamQueueStatus = StreamQueueStatus.starting;
-    try {
-      do {
-        _streamQueueStatus = StreamQueueStatus.starting;
-
-        final distanceFilter = _positionQueue.isNotEmpty
-            ? _positionQueue.last.samplingMode.filter
-            : SamplingMode.staying.filter;
-        final milliseconds = _settingsManager.locationInterval.milliseconds;
-
-        // 必须先等待旧订阅取消完成，再建立新订阅
-        final previous = _positionSubscription;
-        _positionSubscription = null;
-        await previous?.cancel();
-
-        _positionSubscription = Geolocator.getPositionStream(
-          locationSettings: _buildLocationSettings(
-            milliseconds,
-            distanceFilter,
-          ),
-        ).listen(_onPosition);
-      } while (_streamQueueStatus == StreamQueueStatus.queued);
-    } finally {
-      _streamQueueStatus = StreamQueueStatus.idle;
-    }
-  }
-
-  /// 位置事件单飞：只保留最新未处理位置，避免 async 回调并发操作队列
-  void _onPosition(Position position) {
-    _pendingPosition = position;
-    if (_draining) return;
-
-    _draining = true;
-    unawaited(_drainPositions());
-  }
-
-  Future<void> _drainPositions() async {
-    try {
-      while (true) {
-        final position = _pendingPosition;
-        if (position == null) break;
-        _pendingPosition = null;
-
-        if (await _handlePositionUpdated(position) case final positionResult?) {
-          _updateSearchResult(positionResult);
-        }
-      }
-    } catch (_) {
-    } finally {
-      _draining = false;
-      if (_pendingPosition != null) _onPosition(_pendingPosition!);
-    }
-  }
-
-  Future<void> _stopStream() async {
+  void _clearStream() {
     final previous = _positionSubscription;
     _positionSubscription = null;
-    try {
-      await previous?.cancel();
-    } catch (_) {}
+    unawaited(previous?.cancel().catchError((_) {}));
+  }
 
+  /// 流启动/重启：丢弃旧订阅后立即建立新订阅
+  void _startStream() {
+    final distanceFilter = _positionQueue.isNotEmpty
+        ? _positionQueue.last.samplingMode.filter
+        : SamplingMode.staying.filter;
+    final milliseconds = _settingsManager.locationInterval.milliseconds;
+
+    _clearStream();
+
+    _positionSubscription = Geolocator.getPositionStream(
+      locationSettings: _buildLocationSettings(milliseconds, distanceFilter),
+    ).listen(_onPosition, onError: (_) => _clearStream());
+  }
+
+  void _stopStream() {
+    _clearStream();
     _positionQueue.clear();
+  }
+
+  /// 位置イベント：処理は同期のみなので、その場で完結させる
+  /// 例外で流れが止まらないよう境界で握りつぶす
+  void _onPosition(Position position) {
+    try {
+      if (_handlePositionUpdated(position) case final result?) {
+        _updateSearchResult(result);
+      }
+    } catch (_) {}
   }
 
   // ── 位置更新処理（GPS Stream）────────────────────────────
 
-  Future<PositionResult?> _handlePositionUpdated(Position position) async {
+  /// 同期処理に限定する
+  PositionResult? _handlePositionUpdated(Position position) {
     // 基础数据
     final userLatitude = position.latitude;
     final userLongitude = position.longitude;
@@ -318,12 +275,12 @@ class LocationProcessor {
         // 最新可信采样点是高速
         // 并且当前处于观察者模式
         // 视为进入加速状态或者高速稳定状态
-        if (isObserving) await _startStream(); // 重启流
+        if (isObserving) _startStream(); // 重启流
       } else {
         // 最新可信采样点是低速
         // 但是前一个可信采样点是高速
         // 视为进入减速状态
-        if (prevMode == SamplingMode.transit) await _startStream(); // 重启流
+        if (prevMode == SamplingMode.transit) _startStream(); // 重启流
       }
     }
 

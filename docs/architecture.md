@@ -319,7 +319,7 @@ BackgroundTask 包裹 HomePage（Android only）。
 
 Coordinator 只负责协调（Coordinate），不负责业务实现（Implement）：快照（position / stations / runningStatus）+ 广播 + 控制面转发 + 历史门面。
 
-控制面（Coordinator 直调消费者）：NotificationConsumer 的 `init()` / `requestPermissions()` / `changeLocale()` / `cancelAll()`，HistoryConsumer 的 `changeActive()` / `changeSettings()` / `flush()`；数据面统一走 handler 广播。
+控制面（Coordinator 直调消费者）：NotificationConsumer 的 `init()` / `requestPermissions()` / `changeLocale()` / `cancelAll()`，HistoryConsumer 的 `changeActive()` / `changeSettings()` / `flush()`；数据面统一走 handler 广播。LocationProcessor 的控制方法（`start()` / `stop()` / `changeSettings()` / `changeLocale()`）全部同步，由 Coordinator 直接调用，不 `await`。
 
 ---
 
@@ -339,6 +339,11 @@ Coordinator 只负责协调（Coordinate），不负责业务实现（Implement�
 - 维护长度上限为 3 的采样队列
 - 在 locale / 定位间隔 / 采样模式变化时按需重启流
 - locale 变化时重建缓存的 `ForegroundNotificationConfig`，并重启流一次以刷新前台通知文本
+- 对外控制方法（`start` / `stop` / `changeSettings` / `changeLocale`）为同步方法，不返回 Future
+- 任何时刻只持有一个订阅；取消统一走 `_clearStream()`，取消后不等待回执
+- 启动、重启、停止都是同步路径；位置事件处理同步完成，不 `await` 订阅操作
+- 流异常时只取消并丢弃当前订阅，不自动重试；后续重启由下一次显式启动 / 重启触发
+- 流异常、取消回执异常都不能中断位置处理
 
 不负责：
 
@@ -513,12 +518,12 @@ schema：
 - 当前语言
 - 最近一次定位结果列表
 - 最近一次通知的车站（按 `gcd` 判定切换）
-- 通知更新锁（单飞）
+- 通知更新锁（单飞，更新中的新要求直接丢弃）
 
 显示规则：
 
 - 收到 null 结果 → `cancelAll()`
-- 最近车站切换 → 取消当前通知后重新显示
+- 最近车站切换 → 先 `cancelAll()` 再重新显示（同一 id 更新不会再次提醒）；只清通知，不清消费者状态
 - 仅在 `forceUpdate` 或最近车站变化时调用 show
 - 静音、无振动、`onlyAlertOnce`、`autoCancel: false`、高 importance / priority
 - iOS 不播放声音、不显示 badge
@@ -1007,13 +1012,13 @@ stopped ──start()──► starting ──首个定位结果──► runnin
 不变式：
 
 - `running ⇔ positionResult != null`（升级与赋值在同一同步块完成；stop() 同步清空）
-- `stopped ⇒ GPS 订阅不存在`（stop() 先取消订阅再置状态；start() 在权限等待期间被停止则中断，不建立订阅）
+- `stopped ⇒ GPS 订阅不存在`（stop() 置状态后同步停止 LocationProcessor；start() 在权限等待期间被停止则中断，不建立订阅）
 - 停止后到达的延迟定位结果被 Coordinator 丢弃
 
 分工：
 
 - UI 呈现（按钮 / 图标 / 列表占位 / keepBackgroundTask）只读取 RunningStatus。
-- 是否重启 GPS 流等控制流由 LocationProcessor 依据自身订阅状态（`_positionSubscription`）与流队列状态（`_streamQueueStatus`）自行判断，UI 层不设状态门控。
+- 是否重启 GPS 流等控制流由 LocationProcessor 依据自身订阅状态（`_positionSubscription`）自行判断，UI 层不设状态门控。
 
 ---
 
