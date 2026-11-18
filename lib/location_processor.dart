@@ -205,7 +205,7 @@ class LocationProcessor {
     final userHeading = position.heading;
     final userSpeed = position.speed < 0.0 ? 0.0 : position.speed;
     final userAccuracy = position.accuracy;
-    final userTimestamp = position.timestamp;
+    final userEpoch = position.timestamp.millisecondsSinceEpoch;
 
     var userMode = Common.sampling(userSpeed);
 
@@ -218,7 +218,7 @@ class LocationProcessor {
         speed: userSpeed,
         accuracy: userAccuracy,
         heading: userHeading,
-        timestamp: userTimestamp,
+        epoch: userEpoch,
       ),
     );
 

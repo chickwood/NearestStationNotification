@@ -378,19 +378,24 @@ class StationResult {
 
 class PositionResult {
   final double latitude, longitude, speed, accuracy, heading;
-  final DateTime timestamp;
+  final int epoch;
+
   const PositionResult({
     required this.latitude,
     required this.longitude,
     required this.speed,
     required this.accuracy,
     required this.heading,
-    required this.timestamp,
+    required this.epoch,
   });
 
   @override
   String toString() {
-    return '{latitude: $latitude, longitude: $longitude, speed: $speedString, accuracy: $accuracyString, heading: $headingIndex, datetime: $timeString}';
+    return '{'
+        'latitude: $latitude, longitude: $longitude, '
+        'speed: $speedString, accuracy: $accuracyString, '
+        'heading: $headingIndex, datetime: $timeString'
+        '}';
   }
 
   String get speedString => speed < SamplingMode.cycling.speed
@@ -398,8 +403,15 @@ class PositionResult {
       : '${(speed * 3.6).toStringAsFixed(2)} km/h';
   String get accuracyString => '${accuracy.toStringAsFixed(1)} m';
   Direction get headingIndex => Common.direction(heading, speed: speed);
-  String get timeString =>
-      "${timestamp.hour.toString().padLeft(2, '0')}:${timestamp.minute.toString().padLeft(2, '0')}:${timestamp.second.toString().padLeft(2, '0')}";
+  String get timeString {
+    final timestamp = DateTime.fromMillisecondsSinceEpoch(epoch);
+    return Common.timeString(
+      timestamp.hour,
+      timestamp.minute,
+      timestamp.second,
+    );
+  }
+
   // int get elapsed => DateTime.now().difference(timestamp).inMilliseconds;
   SamplingMode get samplingMode => Common.sampling(speed);
 
