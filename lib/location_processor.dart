@@ -204,13 +204,11 @@ class LocationProcessor {
     final userLatitude = position.latitude;
     final userLongitude = position.longitude;
     final userHeading = position.heading ?? 0.0;
-    final rawSpeed = position.speed ?? -1.0;
-    final userSpeed = rawSpeed < 0.0 ? 0.0 : rawSpeed;
+    final userSpeed = (position.speed ?? -1.0) < 0.0 ? 0.0 : position.speed!;
     final userAccuracy = position.accuracy ?? 0.0;
-    final rawTimestamp = position.time ?? -1.0;
-    final userTimestamp = rawTimestamp < 0.0
-        ? DateTime.now()
-        : DateTime.fromMillisecondsSinceEpoch(rawTimestamp.round());
+    final userEpoch = (position.time ?? -1.0) < 0.0
+        ? DateTime.now().millisecondsSinceEpoch
+        : position.time!.round();
     var userMode = Common.sampling(userSpeed);
 
     // 最新采样点先进入队列
@@ -222,7 +220,7 @@ class LocationProcessor {
         speed: userSpeed,
         accuracy: userAccuracy,
         heading: userHeading,
-        timestamp: userTimestamp,
+        epoch: userEpoch,
       ),
     );
 

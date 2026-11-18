@@ -63,9 +63,8 @@ class HistoryConsumer {
     }
 
     // 前台復帰時の再放送など、同一の定位結果をもう一度受けても二重処理しない
-    final epoch = positionResult.timestamp.millisecondsSinceEpoch;
-    if (epoch == _lastProcessedEpoch) return;
-    _lastProcessedEpoch = epoch;
+    if (positionResult.epoch == _lastProcessedEpoch) return;
+    _lastProcessedEpoch = positionResult.epoch;
 
     _lastPositionResult = positionResult;
     _lastStationResults = stationResults;
@@ -187,8 +186,9 @@ class HistoryConsumer {
     }
 
     final first = _lastStationResults!.first;
-    final stationChanged =
-        _hasLastHistory ? first.gcd != _lastHistoryGcd : first.gcd != null;
+    final stationChanged = _hasLastHistory
+        ? first.gcd != _lastHistoryGcd
+        : first.gcd != null;
 
     _hasLastHistory = true;
     _lastHistoryGcd = first.gcd;
@@ -202,7 +202,7 @@ class HistoryConsumer {
     _append(
       HistoryRecord(
         gcd: first.gcd!,
-        epoch: _lastPositionResult!.timestamp.millisecondsSinceEpoch,
+        epoch: _lastPositionResult!.epoch,
         latE6: (_lastPositionResult!.latitude * 1e6).round(),
         lonE6: (_lastPositionResult!.longitude * 1e6).round(),
       ),
