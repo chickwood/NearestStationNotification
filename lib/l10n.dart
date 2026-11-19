@@ -464,9 +464,9 @@ class L10n {
   }
 
   String get infoLicense {
-    if (_isJa) return 'ここをクリックして、ライセンス・駅情報詳細を表示。';
-    if (_isZhHans) return '点击此处显示许可证及车站信息详情。';
-    return 'Tap here to view licenses and station information details.';
+    if (_isJa) return 'ここをクリックして、ライセンスと詳細を表示。';
+    if (_isZhHans) return '点击此处显示许可证及更多详情。';
+    return 'Tap here to view licenses and more details.';
   }
 
   String get infoUpdateTitle {
@@ -477,8 +477,8 @@ class L10n {
   String get infoUpdateNotice {
     if (_isJa) {
       return '駅情報・イベント情報データは定期的に更新してください。'
-          '\nここをクリックして、ダウンロードサイトを開く。'
-          '\n\nダウンロード後、右上のインポートをクリックして、データファイルを選択して情報を更新。';
+          '\n\nここをクリックして、ダウンロードサイトを開く。'
+          '\nダウンロード後、右上のインポートをクリックして、データファイルを選択して情報を更新。';
     }
     if (_isZhHans) {
       return '请定期更新车站信息与事件信息数据。'
@@ -486,8 +486,8 @@ class L10n {
           '\n下载完成后，点击右上角的导入，选择数据文件更新信息。';
     }
     return 'Update station information and event information data periodically.'
-        '\nTap here to open download website.'
-        '\n\nAfter download, tap import in the title bar, then select data file to update information.';
+        '\n\nTap here to open download website.'
+        '\nAfter download, tap import in the title bar, then select data file to update information.';
   }
 
   String get infoImport {

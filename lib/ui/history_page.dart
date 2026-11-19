@@ -927,8 +927,8 @@ class _HistoryStationTile extends StatelessWidget {
         child: Row(
           children: [
             Container(
-              width: 40,
               height: 20,
+              width: 40,
               decoration: BoxDecoration(
                 color: Colors.grey.shade200,
                 borderRadius: BorderRadius.circular(10),
@@ -958,7 +958,8 @@ class _HistoryStationTile extends StatelessWidget {
             ),
             Container(
               height: 20,
-              padding: const EdgeInsets.symmetric(horizontal: 8),
+              width: 96,
+              // padding: const EdgeInsets.symmetric(horizontal: 8),
               decoration: BoxDecoration(
                 color: Colors.grey.shade200,
                 borderRadius: BorderRadius.circular(16),
@@ -995,7 +996,7 @@ class _HistoryRecordRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 1),
       child: Row(
         children: [
-          _HistoryNearestCell(
+          _HistoryRecordCell(
             label: l10n.timestamp,
             value: Common.timeString(
               timestamp.hour,
@@ -1004,12 +1005,12 @@ class _HistoryRecordRow extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
-          _HistoryNearestCell(
+          _HistoryRecordCell(
             label: l10n.latitude,
             value: record.latitude.toStringAsFixed(6),
           ),
           const SizedBox(width: 8),
-          _HistoryNearestCell(
+          _HistoryRecordCell(
             label: l10n.longitude,
             value: record.longitude.toStringAsFixed(6),
           ),
@@ -1019,11 +1020,11 @@ class _HistoryRecordRow extends StatelessWidget {
   }
 }
 
-class _HistoryNearestCell extends StatelessWidget {
+class _HistoryRecordCell extends StatelessWidget {
   final String label;
   final String value;
 
-  const _HistoryNearestCell({required this.label, required this.value});
+  const _HistoryRecordCell({required this.label, required this.value});
 
   @override
   Widget build(BuildContext context) {

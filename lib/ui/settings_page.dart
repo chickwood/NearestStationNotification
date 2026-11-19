@@ -77,7 +77,10 @@ class _SettingsPageState extends ResetableState<SettingsPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // ── 検出駅数 ────────────────────────────────────────────
-              Text(l10n.settingsStationCount),
+              Text(
+                l10n.settingsStationCount,
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
               const SizedBox(height: 8),
               _SegmentedRow<StationCount>(
                 values: const [StationCount.game, StationCount.max],
@@ -86,9 +89,12 @@ class _SettingsPageState extends ResetableState<SettingsPage> {
                 onChanged: (v) =>
                     setState(() => _draft = _draft.copyWith(stationCount: v)),
               ),
-              const Divider(height: 16),
+              const SizedBox(height: 12),
               // ── 位置情報取得頻度 ────────────────────────────────────
-              Text(l10n.settingsLocationInterval),
+              Text(
+                l10n.settingsLocationInterval,
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
               const SizedBox(height: 8),
               _SegmentedRow<LocationInterval>(
                 values: LocationInterval.values,
@@ -98,9 +104,12 @@ class _SettingsPageState extends ResetableState<SettingsPage> {
                   () => _draft = _draft.copyWith(locationInterval: v),
                 ),
               ),
-              const Divider(height: 16),
+              const SizedBox(height: 12),
               // ── 历史记录开关 ────────────────────────────────────
-              Text(l10n.settingsHistory),
+              Text(
+                l10n.settingsHistory,
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
               const SizedBox(height: 8),
               _CheckboxRow(
                 label: l10n.settingsHistoryEnabled,

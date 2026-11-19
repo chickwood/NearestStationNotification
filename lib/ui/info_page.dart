@@ -115,7 +115,10 @@ class _InfoPageState extends ResetableState<InfoPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // ── 駅情報（ライセンス入口）────────────────────────
-              Text(l10n.infoTitle),
+              Text(
+                l10n.infoTitle,
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
               const SizedBox(height: 8),
               GestureDetector(
                 // behavior: HitTestBehavior.opaque,
@@ -161,9 +164,12 @@ class _InfoPageState extends ResetableState<InfoPage> {
                   ),
                 ),
               ),
-              const Divider(height: 16),
+              const SizedBox(height: 12),
               // ── 更新案内──────────────────────────────
-              Text(l10n.infoUpdateTitle),
+              Text(
+                l10n.infoUpdateTitle,
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
               const SizedBox(height: 8),
               GestureDetector(
                 // behavior: HitTestBehavior.opaque,

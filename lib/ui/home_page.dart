@@ -663,7 +663,7 @@ class _HomePageState extends ResetableState<HomePage>
           ],
         ],
       ),
-      const Divider(height: 16),
+      const SizedBox(height: 12),
     ];
   }
 }
@@ -687,7 +687,7 @@ class _PositionRow extends StatelessWidget {
     return Row(
       children: [
         _PositionCell(label: labelL, value: valueL),
-        const SizedBox(width: 4),
+        const SizedBox(width: 8),
         _PositionCell(label: labelR, value: valueR),
       ],
     );
@@ -810,8 +810,8 @@ class _StationTile extends StatelessWidget {
           ),
           Container(
             height: 20,
-            width: 40,
-            // padding: const EdgeInsets.symmetric(horizontal: 6),
+            width: 104,
+            // padding: const EdgeInsets.symmetric(horizontal: 8),
             decoration: BoxDecoration(
               color: isNearest
                   ? const Color(0xFF4080FF)
@@ -820,28 +820,7 @@ class _StationTile extends StatelessWidget {
             ),
             child: Center(
               child: Text(
-                direction,
-                style: TextStyle(
-                  color: isNearest ? Colors.white : Colors.grey.shade800,
-                  fontSize: 12.0,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 4),
-          Container(
-            height: 20,
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            decoration: BoxDecoration(
-              color: isNearest
-                  ? const Color(0xFF4080FF)
-                  : _partFillColors[part]!,
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Center(
-              child: Text(
-                distance,
+                '$direction $distance',
                 style: TextStyle(
                   color: isNearest ? Colors.white : Colors.grey.shade800,
                   fontSize: 12.0,

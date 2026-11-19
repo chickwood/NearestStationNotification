@@ -357,7 +357,9 @@ class StationResult {
 
     return d < 1000.0
         ? '${d.toStringAsFixed(1)} m'
-        : '${(d / 1000.0).toStringAsFixed(2)} km';
+        : d < 1000000.0
+        ? '${(d / 1000.0).toStringAsFixed(2)} km'
+        : '${(d / 1000000.0).toStringAsFixed(2)} Mm';
   }
 
   Direction get bearingIndex => Common.direction(bearing);
