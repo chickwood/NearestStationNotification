@@ -195,15 +195,6 @@ class LocationProcessor {
     } catch (_) {}
   }
 
-  /// 位置事件：处理是同步的，就地完成
-  void _onPosition(LocationData position) {
-    try {
-      if (_handlePositionUpdated(position) case final positionResult?) {
-        _updateSearchResult(positionResult);
-      }
-    } catch (_) {}
-  }
-
   // ── 位置更新処理（GPS Stream）────────────────────────────
 
   /// 同期処理に限定する
