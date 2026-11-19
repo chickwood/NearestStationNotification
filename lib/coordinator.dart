@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:location/location.dart';
+import 'package:geolocator/geolocator.dart';
 
 import 'common.dart';
 import 'consumer/history_consumer.dart';
@@ -169,13 +169,11 @@ class Coordinator {
     // 権限要求中に停止された場合は開始処理を中断する
     if (_stopping || _runningStatus != RunningStatus.starting) return;
 
-    await _locationProcessor.start();
+    _locationProcessor.start();
 
     // start 中に stop された場合は、開始した流を確実に停止する
     if (_stopping || _runningStatus != RunningStatus.starting) {
-      try {
-        await _locationProcessor.stop();
-      } catch (_) {}
+      _locationProcessor.stop();
     }
   }
 
@@ -193,7 +191,7 @@ class Coordinator {
           _notifyRunningStatusChanged(_runningStatus);
         } catch (_) {}
 
-        await _locationProcessor.stop();
+        _locationProcessor.stop();
         await _historyConsumer.flush();
         await _notificationConsumer.cancelAll();
 
@@ -220,7 +218,7 @@ class Coordinator {
     _settingsManager = manager;
 
     await _historyConsumer.changeSettings(manager.historySettingsManager);
-    await _locationProcessor.changeSettings(manager.processorSettingsManager);
+    _locationProcessor.changeSettings(manager.processorSettingsManager);
   }
 
   void changeLocale(L10n l10n) {
@@ -267,15 +265,15 @@ class Coordinator {
   // ── 権限 ────────────────────────────────────────────────────────
 
   Future<bool> _requestLocationPermissions() async {
-    if (!await Location.instance.serviceEnabled()) return false;
+    if (!await Geolocator.isLocationServiceEnabled()) return false;
 
-    PermissionStatus perm = await Location.instance.hasPermission();
-    if (perm == PermissionStatus.denied) {
-      perm = await Location.instance.requestPermission();
+    LocationPermission perm = await Geolocator.checkPermission();
+    if (perm == LocationPermission.denied) {
+      perm = await Geolocator.requestPermission();
     }
-
-    return perm == PermissionStatus.granted ||
-        perm == PermissionStatus.grantedLimited;
+    // 仅接受 whileInUse，严禁引导开启 always
+    return perm == LocationPermission.whileInUse ||
+        perm == LocationPermission.always;
   }
 
   Future<bool> _requestNotificationPermissions() async {

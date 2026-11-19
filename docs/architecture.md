@@ -319,7 +319,7 @@ BackgroundTask 包裹 HomePage（Android only）。
 
 Coordinator 只负责协调（Coordinate），不负责业务实现（Implement）：快照（position / stations / runningStatus）+ 广播 + 控制面转发 + 历史门面。
 
-控制面（Coordinator 直调消费者）：NotificationConsumer 的 `init()` / `requestPermissions()` / `changeLocale()` / `cancelAll()`，HistoryConsumer 的 `changeActive()` / `changeSettings()` / `flush()`；数据面统一走 handler 广播。
+控制面（Coordinator 直调消费者）：NotificationConsumer 的 `init()` / `requestPermissions()` / `changeLocale()` / `cancelAll()`，HistoryConsumer 的 `changeActive()` / `changeSettings()` / `flush()`；数据面统一走 handler 广播。LocationProcessor 的控制方法（`start()` / `stop()` / `changeSettings()` / `changeLocale()`）全部同步，由 Coordinator 直接调用，不 `await`。
 
 ---
 
@@ -327,7 +327,7 @@ Coordinator 只负责协调（Coordinate），不负责业务实现（Implement�
 
 职责：
 
-- Location Stream 的建立、重启与停止
+- Geolocator Stream 的建立、重启与停止
 - 按速度选择 distanceFilter，并按更新频率切换采样参数
 - GPS 漂移过滤（近距过滤 + 1 秒间隔下的观察者模式）
 - 调用 SearchEngine
@@ -337,11 +337,13 @@ Coordinator 只负责协调（Coordinate），不负责业务实现（Implement�
 
 - 仅返回算法结果
 - 维护长度上限为 3 的采样队列
-- 在定位间隔 / 采样模式变化时重启流；locale 变化只更新前台服务通知配置，不重启流
-- 位置事件处理同步完成；处理路径上的重启不等待
-- 取消旧订阅后不等待回执；并发重启以代次最新的为准，旧代次直接放弃订阅
-- `stop()` 递增代次，使在途重启失效，避免停止后又被重新订阅
-- 重启过程中的异常（取消、`changeSettings`、建立订阅）在 `_startStream` 内吞掉，不向外抛
+- 在 locale / 定位间隔 / 采样模式变化时按需重启流
+- locale 变化时重建缓存的 `ForegroundNotificationConfig`，并重启流一次以刷新前台通知文本
+- 对外控制方法（`start` / `stop` / `changeSettings` / `changeLocale`）为同步方法，不返回 Future
+- 任何时刻只持有一个订阅；取消统一走 `_clearStream()`，取消后不等待回执
+- 启动、重启、停止都是同步路径；位置事件处理同步完成，不 `await` 订阅操作
+- 流异常时只取消并丢弃当前订阅，不自动重试；后续重启由下一次显式启动 / 重启触发
+- 流异常、取消回执异常都不能中断位置处理
 
 不负责：
 
@@ -355,10 +357,9 @@ SearchEngine 属于 LocationProcessor 的内部依赖。
 
 平台参数：
 
-- 统一使用 `location` 包的 `Location.instance`：`changeSettings` 设置高精度、`interval` / `backgroundInterval` 为设置间隔、`distanceFilter` 按采样模式、`pausesLocationUpdatesAutomatically: false`
-- `changeNotificationOptions` 使用本地化的前台服务通知文本与 `Common.flnNotificationIcon`；`enableBackgroundMode(enable: true, requireBackgroundPermission: false)` 启用后台，停止时关闭
-- 通知选项与 FGS 开关只在 start / stop 与 locale 变化时下发；模式 / 间隔变化重启流时只调用 `changeSettings`
-- 平台差异由 `location` 插件处理（Android 前台服务/通知、iOS 后台定位）
+- Android：`AndroidSettings`，高精度、`intervalDuration`、自适应 distanceFilter、`ForegroundNotificationConfig`（缓存，仅语言变化重建）、wake lock
+- iOS / macOS：`AppleSettings`，`bestForNavigation`、`otherNavigation`、显示后台定位指示
+- 其他平台：`LocationSettings`，高精度
 
 ---
 
@@ -878,8 +879,7 @@ info page：
 - 定位流程进行中（starting/running）按返回键不销毁 Activity，而是调用 Android `moveTaskToBack(true)`。
 - 系统杀死进程后的冷启动不恢复旧 Coordinator 状态。
 - 使用 Android 默认的应用 task affinity（包名 `name.w57.nearest_station_notification`），不额外设置 `taskAffinity`。
-- Android manifest 声明 `ACCESS_COARSE_LOCATION` / `ACCESS_FINE_LOCATION` / `FOREGROUND_SERVICE_LOCATION` / `FOREGROUND_SERVICE` / `POST_NOTIFICATIONS` / `WAKE_LOCK`，并注册通知图标元数据；前台服务由 `location` 插件提供。
-- iOS `Info.plist` 声明 `UIBackgroundModes`（`location` / `fetch`）与定位用途说明。
+- 声明定位、前台服务、通知与 wake lock 权限；注册 Geolocator 前台服务与通知图标元数据。
 
 ---
 
@@ -1012,7 +1012,7 @@ stopped ──start()──► starting ──首个定位结果──► runnin
 不变式：
 
 - `running ⇔ positionResult != null`（升级与赋值在同一同步块完成；stop() 同步清空）
-- `stopped ⇒ GPS 订阅不存在`（stop() 先取消订阅再置状态；start() 在权限等待期间被停止则中断，不建立订阅）
+- `stopped ⇒ GPS 订阅不存在`（stop() 置状态后同步停止 LocationProcessor；start() 在权限等待期间被停止则中断，不建立订阅）
 - 停止后到达的延迟定位结果被 Coordinator 丢弃
 
 分工：
@@ -1026,7 +1026,7 @@ stopped ──start()──► starting ──首个定位结果──► runnin
 
 changeXxx 家族（外部事件驱动的状态更新）：
 
-- changeLocale：l10n 更新（系统语言变化；传播至 LocationProcessor 与 NotificationConsumer；LocationProcessor 更新 `location` 插件的前台服务通知配置（`changeNotificationOptions`），不重启流；FLN 通知由 NotificationConsumer 自行重绘）
+- changeLocale：l10n 更新（系统语言变化；传播至 LocationProcessor 与 NotificationConsumer；LocationProcessor 重建缓存的 `ForegroundNotificationConfig`，已订阅时重启流一次以刷新前台通知文本；FLN 通知由 NotificationConsumer 自行重绘）
 - changeActive：active 更新（前后台切换；LocationProcessor 切换搜索件数；恢复前台时立即重发缓存结果；进入后台不强制 flush，后台写盘依赖 10 条阈值 / 首条起算的 5 分钟窗口 / stop）
 - changeSettings：settings 更新（设置项保存；向 LocationProcessor 传 `processorSettingsManager`、向 HistoryConsumer 传 `historySettingsManager`；定位间隔变化时重启流，数量变化时用最后采样点重算；HistoryConsumer 在关→开时补记当前通知车站）
 - changeStationData：站点数据更新（导入）

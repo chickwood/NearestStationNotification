@@ -1,6 +1,7 @@
 import 'dart:async';
 
-import 'package:location/location.dart';
+import 'package:flutter/foundation.dart';
+import 'package:geolocator/geolocator.dart';
 
 import 'common.dart';
 import 'l10n.dart';
@@ -28,10 +29,10 @@ class LocationProcessor {
   static const _queueSize = 3;
   final List<PositionResult> _positionQueue = [];
 
-  StreamSubscription<LocationData>? _positionSubscription;
+  StreamSubscription<Position>? _positionSubscription;
 
-  // 重启代次：start 每次递增，stop 也递增，用于丢弃已被取代的订阅
-  int _streamGeneration = 0;
+  // 前台通知配置：仅语言变化时重建，其他流重启复用
+  ForegroundNotificationConfig? _foregroundNotificationConfig;
 
   // 結果コールバック（Coordinator が登録）
   LocationHandler? _onLocationUpdated;
@@ -51,32 +52,18 @@ class LocationProcessor {
 
   // ── 起動・停止 ────────────────────────────────────────────────────
 
-  Future<void> start() async {
-    // 会話開始時のみ通知文案とバックグラウンドモードを設定する
-    await _applyNotificationOptions();
-
-    try {
-      await Location.instance.enableBackgroundMode(
-        enable: true,
-        requireBackgroundPermission: false,
-      );
-    } catch (_) {}
-
-    await _startStream();
+  void start() {
+    _startStream();
   }
 
-  Future<void> stop() async {
+  void stop() {
     _stopStream();
-
-    try {
-      await Location.instance.enableBackgroundMode(enable: false);
-    } catch (_) {}
   }
 
   // ── 状態の変更 ──────────────────────────────────────────────────────
 
   /// 設定更新
-  Future<void> changeSettings(ProcessorSettingsManager settings) async {
+  void changeSettings(ProcessorSettingsManager settings) {
     final intervalChanged =
         _settingsManager.locationInterval.milliseconds !=
         settings.locationInterval.milliseconds;
@@ -85,9 +72,7 @@ class LocationProcessor {
     _settingsManager = settings;
 
     if (_positionSubscription != null) {
-      if (intervalChanged) {
-        await _startStream();
-      }
+      if (intervalChanged) _startStream();
 
       if (countChanged) {
         if (_positionQueue case [..., final last]) {
@@ -113,13 +98,14 @@ class LocationProcessor {
   }
 
   /// 系统语言更新
-  Future<void> changeLocale(L10n l10n) async {
+  void changeLocale(L10n l10n) {
     _l10n = l10n;
+    _foregroundNotificationConfig = _buildForegroundNotificationConfig();
 
     if (_positionSubscription == null) return;
 
-    // FLN 通知は NotificationConsumer.changeLocale が自前で再描画する
-    await _applyNotificationOptions();
+    // 新的通知配置を反映するため一度だけ流を再起動する
+    _startStream();
   }
 
   /// 站点数据更新（hot reload）
@@ -130,15 +116,44 @@ class LocationProcessor {
   }
 
   // ── GPS Stream ───────────────────────────────────────────────────
-  Future<void> _applyNotificationOptions() async {
-    try {
-      await Location.instance.changeNotificationOptions(
-        channelName: _l10n.fgnChannelName,
-        title: _l10n.fgnNotificationTitle,
-        description: _l10n.fgnNotificationBody,
-        iconName: Common.flnNotificationIcon,
-      );
-    } catch (_) {}
+  ForegroundNotificationConfig _buildForegroundNotificationConfig() {
+    return ForegroundNotificationConfig(
+      notificationChannelName: _l10n.fgnChannelName,
+      notificationTitle: _l10n.fgnNotificationTitle,
+      notificationText: _l10n.fgnNotificationBody,
+      notificationIcon: const AndroidResource(
+        name: Common.flnNotificationIcon,
+        defType: 'drawable',
+      ),
+      enableWakeLock: true,
+    );
+  }
+
+  LocationSettings _buildLocationSettings(
+    int milliseconds,
+    int distanceFilter,
+  ) {
+    final foregroundNotificationConfig = _foregroundNotificationConfig ??=
+        _buildForegroundNotificationConfig();
+
+    return switch (defaultTargetPlatform) {
+      TargetPlatform.android => AndroidSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: distanceFilter,
+        intervalDuration: Duration(milliseconds: milliseconds),
+        foregroundNotificationConfig: foregroundNotificationConfig,
+      ),
+      TargetPlatform.iOS || TargetPlatform.macOS => AppleSettings(
+        accuracy: LocationAccuracy.bestForNavigation,
+        distanceFilter: distanceFilter,
+        activityType: ActivityType.otherNavigation,
+        showBackgroundLocationIndicator: true,
+      ),
+      _ => LocationSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: distanceFilter,
+      ),
+    };
   }
 
   void _clearStream() {
@@ -149,11 +164,8 @@ class LocationProcessor {
     } catch (_) {}
   }
 
-  /// 流启动/重启：丢弃旧订阅后按新参数重建
-  /// 并发重启以代次最新的为准，旧代次直接放弃订阅
-  Future<void> _startStream() async {
-    final generation = ++_streamGeneration;
-
+  /// 流启动/重启：丢弃旧订阅后立即建立新订阅
+  void _startStream() {
     final distanceFilter = _positionQueue.isNotEmpty
         ? _positionQueue.last.samplingMode.filter
         : SamplingMode.staying.filter;
@@ -162,30 +174,25 @@ class LocationProcessor {
     _clearStream();
 
     try {
-      await Location.instance.changeSettings(
-        accuracy: LocationAccuracy.high,
-        interval: milliseconds,
-        distanceFilter: distanceFilter,
-        pausesLocationUpdatesAutomatically: false,
-        backgroundInterval: milliseconds,
-      );
-
-      // 期间被 stop 或被更新的重启取代
-      if (generation != _streamGeneration) return;
-
-      _positionSubscription = Location.instance.onLocationChanged.listen(
-        _onPosition,
-        onError: (_) => _clearStream(),
-      );
+      _positionSubscription = Geolocator.getPositionStream(
+        locationSettings: _buildLocationSettings(milliseconds, distanceFilter),
+      ).listen(_onPosition, onError: (_) => _clearStream());
     } catch (_) {}
   }
 
   void _stopStream() {
-    // 使在途重启失效，避免 stop 之后又被重新订阅
-    _streamGeneration++;
-
     _clearStream();
     _positionQueue.clear();
+  }
+
+  /// 位置イベント：処理は同期のみなので、その場で完結させる
+  /// 例外で流れが止まらないよう境界で握りつぶす
+  void _onPosition(Position position) {
+    try {
+      if (_handlePositionUpdated(position) case final result?) {
+        _updateSearchResult(result);
+      }
+    } catch (_) {}
   }
 
   /// 位置事件：处理是同步的，就地完成
@@ -199,16 +206,16 @@ class LocationProcessor {
 
   // ── 位置更新処理（GPS Stream）────────────────────────────
 
-  PositionResult? _handlePositionUpdated(LocationData position) {
+  /// 同期処理に限定する
+  PositionResult? _handlePositionUpdated(Position position) {
     // 基础数据
     final userLatitude = position.latitude;
     final userLongitude = position.longitude;
-    final userHeading = position.heading ?? 0.0;
-    final userSpeed = (position.speed ?? -1.0) < 0.0 ? 0.0 : position.speed!;
-    final userAccuracy = position.accuracy ?? 0.0;
-    final userEpoch = (position.time ?? -1.0) < 0.0
-        ? DateTime.now().millisecondsSinceEpoch
-        : position.time!.round();
+    final userHeading = position.heading;
+    final userSpeed = position.speed < 0.0 ? 0.0 : position.speed;
+    final userAccuracy = position.accuracy;
+    final userEpoch = position.timestamp.millisecondsSinceEpoch;
+
     var userMode = Common.sampling(userSpeed);
 
     // 最新采样点先进入队列

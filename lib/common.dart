@@ -603,12 +603,12 @@ enum SamplingMode {
   staying(speed: 0.0), // 静止
   walking(speed: 1.0), // 步行 >= 1 m/s
   cycling(speed: 4.0), // 骑自行车 >= 4 m/s
-  transit(speed: 8.0, filter: 16.0); // 乘车 >= 8 m/s（~ 30 km/h）
+  transit(speed: 8.0, filter: 16); // 乘车 >= 8 m/s（~ 30 km/h）
 
   final double speed;
-  final double filter;
+  final int filter;
 
-  const SamplingMode({required this.speed, this.filter = 4.0});
+  const SamplingMode({required this.speed, this.filter = 4});
 
   @override
   String toString() {
