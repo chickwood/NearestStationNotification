@@ -90,14 +90,12 @@ class SearchEngine {
         _ => 0,
       };
 
-      final int nearChild =
-          diff < 0
-              ? _manager.getStationLeft(node)
-              : _manager.getStationRight(node);
-      final int farChild =
-          diff < 0
-              ? _manager.getStationRight(node)
-              : _manager.getStationLeft(node);
+      final int nearChild = diff < 0
+          ? _manager.getStationLeft(node)
+          : _manager.getStationRight(node);
+      final int farChild = diff < 0
+          ? _manager.getStationRight(node)
+          : _manager.getStationLeft(node);
 
       // 递归
       // 在函数开头检查 NULL_PTR
@@ -122,22 +120,25 @@ class SearchEngine {
       double dSinLonRad,
     })
     transferNode(({int node, double score}) result) {
+      // 单位球面 XYZ：cos/sin 由 XYZ 反推
+      final stXcoord = _manager.getStationXcoord(result.node);
+      final stYcoord = _manager.getStationYcoord(result.node);
+      final stZcoord = _manager.getStationZcoord(result.node);
+      final stCosLatRad = sqrt(stXcoord * stXcoord + stYcoord * stYcoord);
+      final stSinLatRad = stZcoord;
+
       final stLatRad = Common.radians(_manager.getStationLat(result.node));
       final stLonRad = Common.radians(_manager.getStationLon(result.node));
       final dLatRad = inside ? stLatRad - userLatRad : double.nan;
       final dLonRad = stLonRad - userLonRad;
-
-      final stCosLatRad = cos(stLatRad);
-      final stSinLatRad = sin(stLatRad);
       final dCosLonRad = cos(dLonRad);
       final dSinLonRad = sin(dLonRad);
 
       // inside 时计算 pythagorean
-      final score =
-          inside
-              // ? Common.pythagorean(userCosLatRad, stCosLatRad, dLatRad, dLonRad)
-              ? Common.pythagorean(dLatRad, dLonRad)
-              : result.score;
+      final score = inside
+          // ? Common.pythagorean(userCosLatRad, stCosLatRad, dLatRad, dLonRad)
+          ? Common.pythagorean(dLatRad, dLonRad)
+          : result.score;
 
       return (
         node: result.node,
@@ -149,19 +150,17 @@ class SearchEngine {
       );
     }
 
-    final transferNodes =
-        inside
-            ? (bestNodes.map((result) => transferNode(result)).toList()
-                  ..sort((a, b) => a.score.compareTo(b.score)))
-                .take(take)
-            : bestNodes.take(take).map((result) => transferNode(result));
+    final transferNodes = inside
+        ? (bestNodes.map((result) => transferNode(result)).toList()
+                ..sort((a, b) => a.score.compareTo(b.score)))
+              .take(take)
+        : bestNodes.take(take).map((result) => transferNode(result));
 
     return transferNodes
         .map((result) {
-          final distance =
-              inside
-                  ? Common.equirectangular(result.score)
-                  : Common.haversine(result.score);
+          final distance = inside
+              ? Common.equirectangular(result.score)
+              : Common.haversine(result.score);
 
           return StationResult(
             node: result.node,
