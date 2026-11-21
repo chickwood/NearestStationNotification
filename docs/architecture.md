@@ -211,9 +211,9 @@ BackgroundTask 包裹 HomePage（Android only）。
 - EventManager 是事件数据来源，独立于定位结果流；HomePage、Coordinator、InfoPage、LicenseListPage 可直接依赖。
 - HistoryConsumer 持有 pending 缓冲并负责记录判定、开关补记与按日批量写穿；记录按自身 `epoch` 写入对应日文件，同一天的多条一次写入，成功后从 pending 移除。
 - NotificationConsumer / HistoryConsumer 是 Coordinator 的常驻定位结果消费者：接收广播 payload，各自持有私有状态并在 Coordinator 之外产生副作用；不读取 Coordinator 快照。
-- HistoryConsumer 每次成功写入后递增 `flushCount`、每次追加 pending 后递增 `pendingRevision`；非活跃期间两者均不递增，恢复 active 时成对递增。历史页只订阅 `pendingRevision`，`flushCount` 不再触发整月重读。
+- HistoryConsumer 在记录追加进 pending 时递增 `pendingRevision`；非活跃期间不递增，恢复 active 时递增一次让页面重取。历史页订阅 `pendingRevision` 做前台增量合并，并在恢复前台时整体重读磁盘以对齐后台已落盘部分。
 - HistoryManager 是过往历史存储与查询的唯一来源；不持有当天内存状态、不注册定位 handler、不依赖 Coordinator / HistoryConsumer、UI 或文件对话框。
-- HistoryPage 由 HomePage 三点菜单直接打开并注入 `HistoryConsumer`、`HistoryManager`、`HistoryBackupService`、`StationManager`、已保存的 `historySettingsManager` 与 `historyMergeView` 写回回调，不依赖 Coordinator：日模式用 `readDayFile()` 只读所选日期并合并同日 pending，月模式用 `readMonth()` 一次加载整月；页面只判断 `mounted`。
+- HistoryPage 由 HomePage 三点菜单直接打开并注入 `HistoryConsumer`、`HistoryManager`、`HistoryBackupService`、`StationManager`、已保存的 `historySettingsManager` 与 `historyMergeView` 写回回调，不依赖 Coordinator：日模式用 `readDayFile()` 只读所选日期并合并同日 pending，月模式用 `readMonth()` 一次加载整月；页面只判断 `mounted`。页面同时是 `WidgetsBindingObserver`：`resumed` 且当前显示的是今天或当月时重载可用月份与当前模式（后台 flush 已把记录写入磁盘并从 pending 移除）。
 - HistoryBackupService 由 HomePage 在 `initState` 创建并持有，不持有 HistoryManager；`createExport(HistoryManager)` / `import(HistoryManager, path)` 由调用方传入参数，不接触文件对话框。注入 HistoryPage；文件选择/保存由 HistoryPage 负责，进入 Service 的处理在页面关闭后继续。
 - HistoryArchiveService 由 HomePage 在 `initState` 创建并持有，不持有 Manager；`start(HistoryManager)` 由调用方传入，启动后扫描未归档往月并调用 `consolidateMonths()`；`busy` / `progress` / `last` 供 HomePage 展示与 Toast，取消由 play 触发。
 - Coordinator 通过 `changeEventData` 将事件期间判定注入 `StationCount.eventPeriod`。
@@ -554,9 +554,8 @@ schema：
 - `_flushBlockedUntilTimer` 期间不响应计数触发；失败后窗口从失败时刻重新起算，5 分钟后重试
 - `flush()`：按日期分组，同一天的多条一次批量追加；成功一组即移除该组记录，遇错停止，保留失败及后续记录
 - flush 结束后若 pending 仍非空：达到 10 条时立即再 flush 一次，否则重新按窗口起点计时
-- 前后台门控（`changeActive(bool)`）：非活跃期间不递增 `pendingRevision` / `flushCount`，恢复活跃时成对递增，让历史页重取 pending 状态
-- 进度通知：一次 flush 中只要有写入成功且处于活跃状态，就递增 `flushCount`；仅表示落盘推进，历史页不再据此整月重读
-- pending 通知：每次记录进入 pending 且处于活跃状态就递增 `pendingRevision`；历史页据此按日合并
+- 前后台门控（`changeActive(bool)`）：非活跃期间不递增 `pendingRevision`，恢复活跃时递增一次，让历史页重取 pending 状态
+- pending 通知：每次记录进入 pending 且处于活跃状态就递增 `pendingRevision`；历史页据此按日合并。后台落盘不通知，由历史页在 `resumed` 时重读磁盘对齐
 - 失败重试：失败后不响应阈值触发，只在从失败时刻起算的 5 分钟窗口到期时重试
 - 会话复位：收到 `(null, null)`（stop 的 forceNotify）时清空切换基线、缓存的 payload 与已处理时间戳，取消定时器；pending 保留
 - 幂等：同一 `PositionResult` 时间戳的重复广播（前台复归时的再放送）不重复处理
@@ -566,7 +565,6 @@ schema：
 - 记录开关
 - 活跃状态（`_active`，构造函数传入，`changeActive()` 更新）
 - pending 列表（未落盘记录）
-- 自身 `flushCount`（`ValueNotifier<int>`，落盘进度）
 - 自身 `pendingRevision`（`ValueNotifier<int>`，pending 追加）
 - 5 分钟窗口定时器、窗口起点 `_pendingSince`（pending 0→1 时刻）与单飞 flush future
 - 失败后暂停阈值触发的标志
@@ -579,8 +577,8 @@ schema：
 
 - 以常驻 handler 注册：pending 必须在 active handler 之前更新，否则 UI 会读到不含本条记录的缓冲
 - flush 单飞：定时器、阈值、stop / 导出 / 导入可能并发触发，共用同一个 future
-- 不持有 Coordinator 引用；`pendingRecords` / `pendingRevision` / `flushCount` 由自身发布，Coordinator 只公开引用
-- `pendingRevision` / `flushCount` 受 `changeActive()` 门控：非活跃期间不通知，恢复时成对递增，让页面重取 pending 状态；`flushCount` 仅表示落盘进度，不再触发磁盘重读
+- 不持有 Coordinator 引用；`pendingRecords` / `pendingRevision` 由自身发布，Coordinator 只公开引用
+- `pendingRevision` 受 `changeActive()` 门控：非活跃期间不通知，恢复时递增一次，让页面重取 pending 状态
 - 由 Coordinator 公开 `historyConsumer`，HomePage 在三点菜单中打开 HistoryPage
 - 写入失败只记录日志，不抛出
 - 日模式由 HistoryPage 合并 `readDayFile(int date)` 与同日的 `historyConsumer.pendingRecords`，不假设 pending 覆盖整天；月模式不混入 pending
@@ -712,7 +710,7 @@ ZIP 限制与规则：
 - 所有写入（`appendRecords` / 月度合并 / 汇总写入 / 备份 / 导入）共用同一把异步串行锁
 - 汇总文件读取与写入同样在锁内执行；公开查询 API 包锁，归档/导入内部调用无锁私有变体，避免重入死锁
 - 汇总文件写入使用临时文件 → rename；失败不破坏旧汇总文件
-- `readHistorySummaries()` 不缓存，每次解析汇总文件与当前月日文件；后续若页面频繁查询，再按 `pendingRevision` / `flushCount` / 跨月切换设计失效策略
+- `readHistorySummaries()` 不缓存，每次解析汇总文件与当前月日文件；后续若页面频繁查询，再按 `pendingRevision` / 跨月切换设计失效策略
 - 月度归档使用临时 NDJSON → 临时 ZIP → rename → 删除日文件；取消或失败保留日文件与临时文件清理
 - 取消为协作式：扫描日文件、读取 ZIP、解析、写临时文件、rename、删除日文件前检查；已在锁内的月份不会被打断
 - 不依赖 Coordinator / HistoryConsumer、SettingsManager、UI 或文件对话框
@@ -781,7 +779,8 @@ ZIP 限制与规则：
 - 打开时默认今天：当前月进入日模式；构造日期属于往月时进入月模式；今天日期头显示 `Today`
 - 日模式：`readDayFile(_selectedDate)` + 同日 pending 按 `key` 去重合并（`HistoryRecord.mergeDedup`）；无记录显示日空状态；不加载同月其他日期
 - 月模式：按 `Common.dateOfEpoch` 分组，只保留有记录日期，不插入空日期节点；初始顶部为最后有记录日；不加载前后月份；只缓存一个月，切换月份直接替换
-- 订阅 `historyConsumer.pendingRevision`：日模式合并所选日期；月模式不混入当前月 pending；不订阅 `flushCount`
+- 订阅 `historyConsumer.pendingRevision`：日模式合并所选日期；月模式不混入当前月 pending
+- 页面混入 `WidgetsBindingObserver`：`resumed` 时若显示的是今天或当月，重载可用月份（`listMonths()` / `listDays()`）与当前模式；过往月日不会新增记录，不重载。State 存活即代表页面或其上的对话框可见（仅由 HomePage 进入、不 push 其他路由），因此不判断路由
 - 订阅 `HistoryBackupService.busy` / `progress`：显示进度；结束时重载可用月份与当前模式；不订阅 `last`
 - 日历：可用月份来自 `listMonths()` + pending 月份，当前月无条件加入；当前月可用日期来自 `listDays(当前月)` + pending 日期；当月选日进入日模式，往月选月进入月模式；今天始终可选，当前月今天之前的日期仅在有记录（含 pending）时可选；未来日期与无数据往月禁用
 - 日历对话框背景与导入确认对话框一致（`colorScheme.surface`）；按钮三态：选中月/日（当前展示月/日）为蓝色外框 + 淡蓝色底色 + `grey800` 文字；可选月/日为 `grey300` 外框 + 白色底色 + `grey800` 文字；不可选月/日为无外框 + 无背景 + `grey500` 文字
@@ -984,7 +983,7 @@ Coordinator
 - Dependency flows downward.
 - Results flow upward.
 
-Coordinator 通过 Handler 集合广播定位结果；HomePage 以前台消费者（active: true）触发 setState，NotificationConsumer 与 HistoryConsumer 以常驻消费者分别更新通知与待落盘缓冲。历史页不订阅定位结果，改为订阅 `historyConsumer.pendingRevision`，日模式按日合并 `HistoryManager.readDayFile()` 与 `pendingRecords`；门控在 Consumer（`changeActive` 由 Coordinator 转发，非活跃不通知，恢复时成对补发），页面只判断 `mounted`；HistoryManager 不接收定位结果。
+Coordinator 通过 Handler 集合广播定位结果；HomePage 以前台消费者（active: true）触发 setState，NotificationConsumer 与 HistoryConsumer 以常驻消费者分别更新通知与待落盘缓冲。历史页不订阅定位结果，改为订阅 `historyConsumer.pendingRevision`，日模式按日合并 `HistoryManager.readDayFile()` 与 `pendingRecords`；门控在 Consumer（`changeActive` 由 Coordinator 转发，非活跃不通知，恢复时递增一次），页面只判断 `mounted`，并在 `resumed` 时重读磁盘以覆盖后台 flush 已落盘的部分；HistoryManager 不接收定位结果。
 
 LocationProcessor 通过单一的 LocationHandler 向 Coordinator 返回算法结果，再由 Coordinator 补全并广播。
 
@@ -1073,6 +1072,23 @@ HomePage.dispose 时：
 - `Coordinator.stop()`、导出前、导入前强制 `flush()`
 - 进入后台不强制 flush：未达阈值时后台最多积攒 9 条，进程被杀最多丢失这一窗口内的记录；若写入失败，丢失量以失败窗口为准
 - 历史页日模式合并 `readDayFile()` 与 `pendingRecords`；`pendingRevision` 由 Consumer 在活跃时通知、恢复时补发，页面只判断 `mounted`；月模式不混入 pending
+
+HistoryPage 生命周期（重载时机）：
+
+```text
+AppLifecycleState.resumed
+↓
+HistoryPage.didChangeAppLifecycleState()
+↓
+显示的是今天 / 当月？（过往月日不会新增记录，跳过）
+↓
+_loadAvailableMonths() → _reload()
+（读盘并合并当前 pending，覆盖后台 flush 已落盘的部分）
+```
+
+- 后台期间 `HistoryConsumer` 仍按阈值 / 5 分钟窗口落盘并从 pending 移除，但非活跃不通知页面；回到前台由页面自行重读对齐，因此不订阅落盘进度
+- `_reload()` 内部递增 `_loadGeneration` 丢弃旧结果，`HistoryRecord.mergeDedup` 去重，不会重复计数
+- 进入 HistoryPage 一定经过 HomePage，打开时自身已完成首次加载，故无需在路由切换处额外处理
 
 ---
 

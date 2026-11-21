@@ -38,7 +38,8 @@ class HistoryPage extends StatefulWidget {
   State<HistoryPage> createState() => _HistoryPageState();
 }
 
-class _HistoryPageState extends ResetableState<HistoryPage> {
+class _HistoryPageState extends ResetableState<HistoryPage>
+    with WidgetsBindingObserver {
   late int _selectedDateOrMonth;
 
   _MonthCache? _monthCache;
@@ -48,7 +49,7 @@ class _HistoryPageState extends ResetableState<HistoryPage> {
 
   List<int> _availableDates = const [];
   List<int> _availableMonths = const [];
-  List<int> _storedMonths = const [];
+  List<int> _previousMonths = const [];
 
   bool _loading = true;
   int _loadGeneration = 0;
@@ -71,6 +72,8 @@ class _HistoryPageState extends ResetableState<HistoryPage> {
 
     _selectedDateOrMonth = Common.today();
 
+    WidgetsBinding.instance.addObserver(this);
+
     _backupWasBusy = widget.historyBackupService.busy.value;
     widget.historyConsumer.pendingRevision.addListener(_handlePendingChanged);
     widget.historyBackupService.busy.addListener(_handleBackupChanged);
@@ -90,7 +93,36 @@ class _HistoryPageState extends ResetableState<HistoryPage> {
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+
+    if (state != AppLifecycleState.resumed) return;
+
+    // 前台復帰時のみ再読込する（非表示中は reload しない）。
+    // 后台中に flush 済みの記録は pending から消えているため、
+    // disk を読み直して表示中のスコープを揃える。
+    // 過去の月日は以後増えないため対象外。
+    // 本页面只从 Home 进入且不会再 push 其他页面，State 存活即代表
+    // 本页面或其上的日付ダイアログが表示中なので、路由判定は不要
+    if (!mounted || !_isLiveScope()) return;
+
+    unawaited(_refreshFromDisk());
+  }
+
+  /// 表示中のスコープが今後も記録が増え得るか（当日 / 当月）
+  bool _isLiveScope() =>
+      _selectedDateOrMonth == Common.today() ||
+      _selectedDateOrMonth == Common.currentMonth();
+
+  Future<void> _refreshFromDisk() async {
+    await _loadAvailableMonths();
+    await _reload();
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+
     widget.historyConsumer.pendingRevision.removeListener(
       _handlePendingChanged,
     );
@@ -106,37 +138,35 @@ class _HistoryPageState extends ResetableState<HistoryPage> {
 
   Future<void> _loadAvailableMonths() async {
     try {
-      final stored = await widget.historyManager.listMonths();
+      final previousMonths = await widget.historyManager.listMonths();
       final currentMonthDays = await widget.historyManager.listDays(
         Common.currentMonth(),
       );
       if (!mounted) return;
-      _applyAvailableMonths(stored, currentMonthDays);
+
+      final currentMonth = Common.currentMonth();
+      final months = <int>{...previousMonths, currentMonth};
+      final dates = <int>{...currentMonthDays};
+
+      for (final record in widget.historyConsumer.pendingRecords) {
+        final date = Common.dateOfEpoch(record.epoch);
+        if (Common.monthDateOf(date) == currentMonth) dates.add(date);
+        months.add(Common.monthDateOf(date));
+      }
+      final sorted = months.toList()..sort((a, b) => b.compareTo(a));
+      final sortedDates = dates.toList()..sort();
+
+      setState(() {
+        _previousMonths = previousMonths;
+        _availableMonths = List<int>.unmodifiable(sorted);
+        _availableDates = List<int>.unmodifiable(sortedDates);
+        _hasHistory =
+            previousMonths.isNotEmpty ||
+            widget.historyConsumer.pendingRecords.isNotEmpty;
+      });
     } catch (e, st) {
       debugPrint('error: $e\n$st');
     }
-  }
-
-  void _applyAvailableMonths(List<int> stored, List<int> currentMonthDays) {
-    final currentMonth = Common.currentMonth();
-    final months = <int>{...stored, currentMonth};
-    final dates = <int>{...currentMonthDays};
-
-    for (final record in widget.historyConsumer.pendingRecords) {
-      final date = Common.dateOfEpoch(record.epoch);
-      if (Common.monthDateOf(date) == currentMonth) dates.add(date);
-      months.add(Common.monthDateOf(date));
-    }
-    final sorted = months.toList()..sort((a, b) => b.compareTo(a));
-    final sortedDates = dates.toList()..sort();
-
-    setState(() {
-      _storedMonths = stored;
-      _availableMonths = List<int>.unmodifiable(sorted);
-      _availableDates = List<int>.unmodifiable(sortedDates);
-      _hasHistory =
-          stored.isNotEmpty || widget.historyConsumer.pendingRecords.isNotEmpty;
-    });
   }
 
   Future<void> _reload() async {
@@ -158,6 +188,7 @@ class _HistoryPageState extends ResetableState<HistoryPage> {
         ..._pendingForScope(),
       ]);
       if (!mounted || generation != _loadGeneration) return;
+
       setState(() {
         _monthCache = _MonthCache.build(records, _mergeView);
         _loading = false;
@@ -214,7 +245,7 @@ class _HistoryPageState extends ResetableState<HistoryPage> {
     if (!mounted) return;
 
     final pending = widget.historyConsumer.pendingRecords;
-    final months = <int>{..._storedMonths, Common.currentMonth()};
+    final months = <int>{..._previousMonths, Common.currentMonth()};
     for (final record in pending) {
       months.add(Common.monthDateOf(Common.dateOfEpoch(record.epoch)));
     }
