@@ -10,7 +10,7 @@ import '../manager/settings_manager.dart';
 /// - 放送された payload だけで駅切替・記録スイッチ・同駅 5 分以内の補記スキップを判定する
 /// - 記録は pending に溜め、10 条または先頭の入隊から 5 分で
 ///   HistoryManager へ日付単位でまとめて追記する
-/// - 書き込み成功分だけ pending から除去し、進捗を自身の flushCount で通知する
+/// - 書き込み成功分だけ pending から除去する
 /// - pending の公開は Coordinator が担い、UI へは直接触れない
 class HistoryConsumer {
   static const _flushThreshold = 10;
@@ -27,7 +27,6 @@ class HistoryConsumer {
   Future<void>? _flushing;
   bool _flushBlockedUntilTimer = false;
   DateTime? _pendingSince;
-  final ValueNotifier<int> _flushCount = ValueNotifier<int>(0);
 
   bool _hasLastHistory = false;
   int? _lastHistoryGcd;
@@ -45,9 +44,6 @@ class HistoryConsumer {
 
   /// pending 追加通知（値ではなく変化のみを購読する）
   ValueListenable<int> get pendingRevision => _pendingRevision;
-
-  /// 落盘进度通知（値そのものは使わず、変化のみを購読する）
-  ValueListenable<int> get flushCount => _flushCount;
 
   // ── 定位結果イベント（常駐 handler） ──────────────────────────────
 
@@ -96,7 +92,6 @@ class HistoryConsumer {
     if (activeChanged && _active) {
       // HomePage の再放送に相当：復帰時に pending / disk を取り直させる
       _pendingRevision.value++;
-      _flushCount.value++;
     }
   }
 
@@ -117,7 +112,6 @@ class HistoryConsumer {
     _flushTimer?.cancel();
     _flushTimer = null;
 
-    var wroteAny = false;
     var failed = false;
     try {
       while (_pending.isNotEmpty) {
@@ -131,12 +125,9 @@ class HistoryConsumer {
         }
         final written = Set<HistoryRecord>.identity()..addAll(batch);
         _pending.removeWhere(written.contains);
-        wroteAny = true;
       }
       if (!failed) _flushBlockedUntilTimer = false;
     } finally {
-      if (wroteAny && _active) _flushCount.value++;
-
       _flushing = null;
 
       if (failed) {
