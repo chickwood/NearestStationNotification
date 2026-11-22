@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:material_ui/material_ui.dart';
 
 import '../common.dart';
@@ -25,6 +27,11 @@ class SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends ResetableState<SettingsPage> {
   late SettingsManager _draft;
+  late SettingsManager _baseline;
+  bool _dialogOpen = false;
+
+  bool get _isDirty => !_draft.sameAs(_baseline);
+  bool get _busy => widget.settingsSaveService.busy.value;
 
   @override
   void initState() {
@@ -35,6 +42,8 @@ class _SettingsPageState extends ResetableState<SettingsPage> {
     if (!_draft.historyEnabled) {
       _draft = _draft.copyWith(historyMergeView: false);
     }
+    // 正規化後の値を基準にする（入場直後に「変更あり」と誤判定しない）
+    _baseline = _draft;
     widget.settingsSaveService.last.addListener(_handleLastChanged);
     widget.settingsSaveService.busy.addListener(_handleBusyChanged);
   }
@@ -50,88 +59,134 @@ class _SettingsPageState extends ResetableState<SettingsPage> {
   void _handleBusyChanged() => resetState();
 
   Future<void> _save() async {
-    await widget.settingsSaveService.save(_draft);
+    if (await widget.settingsSaveService.save(_draft) && mounted) {
+      setState(() => _baseline = _draft);
+    }
+  }
+
+  /// 唯一の退出経路。未保存の変更がある場合のみ確認する。
+  Future<void> _requestExit() async {
+    if (!_isDirty || _busy) {
+      Navigator.of(context).pop();
+      return;
+    }
+    if (_dialogOpen) return; // 連打・二重表示の防止
+    _dialogOpen = true;
+
+    try {
+      final l10n = L10n.of(context);
+      final localizations = MaterialLocalizations.of(context);
+      final discard = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          backgroundColor: Theme.of(context).colorScheme.surface,
+          content: Text(l10n.settingsDiscardConfirm),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text(localizations.cancelButtonLabel),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: Text(localizations.okButtonLabel),
+            ),
+          ],
+        ),
+      );
+
+      if (!mounted) return;
+      if (discard == true) Navigator.of(context).pop();
+    } finally {
+      _dialogOpen = false;
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final l10n = L10n.of(context);
-    final busy = widget.settingsSaveService.busy.value;
+    final busy = _busy;
 
-    return Scaffold(
-      backgroundColor: Colors.grey.shade50,
-      appBar: AppBar(
-        title: Text(l10n.settingsPageTitle),
-        actions: [
-          AppBarAction(
-            onPressed: busy ? null : _save,
-            icon: const Icon(Icons.save),
-            tooltip: l10n.settingsSave,
-          ),
-        ],
-      ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // ── 検出駅数 ────────────────────────────────────────────
-              Text(
-                l10n.settingsStationCount,
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              _SegmentedRow<StationCount>(
-                values: const [StationCount.game, StationCount.max],
-                selected: _draft.stationCount,
-                labelOf: (v) => v.label,
-                onChanged: (v) =>
-                    setState(() => _draft = _draft.copyWith(stationCount: v)),
-              ),
-              const SizedBox(height: 12),
-              // ── 位置情報取得頻度 ────────────────────────────────────
-              Text(
-                l10n.settingsLocationInterval,
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              _SegmentedRow<LocationInterval>(
-                values: LocationInterval.values,
-                selected: _draft.locationInterval,
-                labelOf: (v) => l10n.settingsLocationIntervalLabel(v.seconds),
-                onChanged: (v) => setState(
-                  () => _draft = _draft.copyWith(locationInterval: v),
+    return PopScope<Object?>(
+      canPop: !_isDirty || _busy,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) unawaited(_requestExit());
+      },
+      child: Scaffold(
+        backgroundColor: Colors.grey.shade50,
+        appBar: AppBar(
+          title: Text(l10n.settingsPageTitle),
+          actions: [
+            AppBarAction(
+              onPressed: busy || !_isDirty ? null : _save,
+              icon: const Icon(Icons.save),
+              tooltip: l10n.settingsSave,
+            ),
+          ],
+        ),
+        body: SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // ── 検出駅数 ────────────────────────────────────────────
+                Text(
+                  l10n.settingsStationCount,
+                  style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
-              ),
-              const SizedBox(height: 12),
-              // ── 历史记录开关 ────────────────────────────────────
-              Text(
-                l10n.settingsHistory,
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              _CheckboxRow(
-                label: l10n.settingsHistoryEnabled,
-                value: _draft.historyEnabled,
-                onChanged: (v) => setState(() {
-                  _draft = _draft.copyWith(
-                    historyEnabled: v,
-                    historyMergeView: v ? _draft.historyMergeView : false,
-                  );
-                }),
-              ),
-              const SizedBox(height: 4),
-              _CheckboxRow(
-                label: l10n.settingsHistoryMergeView,
-                value: _draft.historyEnabled && _draft.historyMergeView,
-                onChanged: (v) => setState(() {
-                  _draft = _draft.copyWith(historyMergeView: v);
-                }),
-                addPaddingLeft: 24,
-                enabled: _draft.historyEnabled,
-              ),
-            ],
+                const SizedBox(height: 8),
+                _SegmentedRow<StationCount>(
+                  values: const [StationCount.game, StationCount.max],
+                  selected: _draft.stationCount,
+                  labelOf: (v) => v.label,
+                  onChanged: (v) =>
+                      setState(() => _draft = _draft.copyWith(stationCount: v)),
+                ),
+                const SizedBox(height: 12),
+                // ── 位置情報取得頻度 ────────────────────────────────────
+                Text(
+                  l10n.settingsLocationInterval,
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                _SegmentedRow<LocationInterval>(
+                  values: LocationInterval.values,
+                  selected: _draft.locationInterval,
+                  labelOf: (v) => l10n.settingsLocationIntervalLabel(v.seconds),
+                  onChanged: (v) => setState(
+                    () => _draft = _draft.copyWith(locationInterval: v),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                // ── 历史记录开关 ────────────────────────────────────
+                Text(
+                  l10n.settingsHistory,
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                _CheckboxRow(
+                  label: l10n.settingsHistoryEnabled,
+                  value: _draft.historyEnabled,
+                  onChanged: (v) => setState(() {
+                    _draft = _draft.copyWith(
+                      historyEnabled: v,
+                      historyMergeView: v ? _draft.historyMergeView : false,
+                    );
+                  }),
+                ),
+                const SizedBox(height: 4),
+                _CheckboxRow(
+                  label: l10n.settingsHistoryMergeView,
+                  value: _draft.historyEnabled && _draft.historyMergeView,
+                  onChanged: (v) => setState(() {
+                    _draft = _draft.copyWith(historyMergeView: v);
+                  }),
+                  addPaddingLeft: 24,
+                  enabled: _draft.historyEnabled,
+                ),
+              ],
+            ),
           ),
         ),
       ),

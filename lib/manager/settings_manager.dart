@@ -15,8 +15,10 @@ class _Keys {
 // ── 消费者ごとの設定ビュー ─────────────────────────────────────────
 
 /// LocationProcessor が使う設定だけを公開する
-typedef ProcessorSettingsManager =
-    ({StationCount stationCount, LocationInterval locationInterval});
+typedef ProcessorSettingsManager = ({
+  StationCount stationCount,
+  LocationInterval locationInterval,
+});
 
 /// 履歴機能が使う設定だけを公開する
 typedef HistorySettingsManager = ({bool historyEnabled, bool historyMergeView});
@@ -39,16 +41,12 @@ class SettingsManager {
   });
 
   /// LocationProcessor 向けの読み取り専用ビュー
-  ProcessorSettingsManager get processorSettingsManager => (
-    stationCount: stationCount,
-    locationInterval: locationInterval,
-  );
+  ProcessorSettingsManager get processorSettingsManager =>
+      (stationCount: stationCount, locationInterval: locationInterval);
 
   /// 履歴機能向けの読み取り専用ビュー
-  HistorySettingsManager get historySettingsManager => (
-    historyEnabled: historyEnabled,
-    historyMergeView: historyMergeView,
-  );
+  HistorySettingsManager get historySettingsManager =>
+      (historyEnabled: historyEnabled, historyMergeView: historyMergeView);
 
   @override
   String toString() {
@@ -78,6 +76,13 @@ class SettingsManager {
     await prefs.setBool(_Keys.historyEnabled, historyEnabled);
     await prefs.setBool(_Keys.historyMergeView, historyMergeView);
   }
+
+  // 値の同一判定（未保存変更の有無に使用）
+  bool sameAs(SettingsManager other) =>
+      stationCount == other.stationCount &&
+      locationInterval == other.locationInterval &&
+      historyEnabled == other.historyEnabled &&
+      historyMergeView == other.historyMergeView;
 
   // 复制（用于弹窗内的临时副本）
   SettingsManager copyWith({

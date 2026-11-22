@@ -398,12 +398,12 @@ class L10n {
 
   String get historyImportConfirm {
     if (_isJa) {
-      return '過去の月はバックアップの件数が多い場合のみ上書きされ、当月は統合されます。続行しますか？';
+      return '過去の月はバックアップの件数が多い場合のみ上書きされ、当月は統合されます。\n続行しますか？';
     }
     if (_isZhHans) {
-      return '过往月份仅在备份条数更多时覆盖，当前月将合并；继续？';
+      return '过往月份仅在备份条数更多时覆盖，当前月将合并。\n继续？';
     }
-    return 'Past months are overwritten only when the backup has more records; the current month is merged. Continue?';
+    return 'Past months are overwritten only when the backup has more records, the current month is merged.\nContinue?';
   }
 
   String historyGcd(int gcd) => flnNotificationGcd(gcd);
@@ -423,6 +423,12 @@ class L10n {
     if (_isJa) return '設定の保存に失敗しました';
     if (_isZhHans) return '保存设置失败';
     return 'Failed to save settings';
+  }
+
+  String get settingsDiscardConfirm {
+    if (_isJa) return '保存していない変更は破棄されます。\n続行しますか？';
+    if (_isZhHans) return '未保存的更改将被放弃。\n继续？';
+    return 'Unsaved changes will be discarded. \nContinue?';
   }
 
   String get dialogClose {
