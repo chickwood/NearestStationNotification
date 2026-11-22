@@ -44,7 +44,8 @@ class _HistoryPageState extends ResetableState<HistoryPage>
 
   _MonthCache? _monthCache;
 
-  final Map<int, List<_HistoryBlock>> _blocksByDay = {};
+  final Map<int, ({List<HistoryRecord> records, List<_HistoryBlock> blocks})>
+  _blocksByDay = {};
   late _StationNameCache _nameCache;
 
   List<int> _availableDates = const [];
@@ -455,8 +456,18 @@ class _HistoryPageState extends ResetableState<HistoryPage>
 
   // ── ブロック ────────────────────────────────────────────────────
 
-  List<_HistoryBlock> _blocksForDay(int date, List<HistoryRecord> records) =>
-      _blocksByDay.putIfAbsent(date, () => _buildBlocks(records));
+  List<_HistoryBlock> _blocksForDay(int date, List<HistoryRecord> records) {
+    // 日付ごとの records はキャッシュ再構築のたびに新しいインスタンスになるため、
+    // 同一性で判定すれば手動失効の順序に依存せず古いブロックを返さない
+    final cached = _blocksByDay[date];
+    if (cached != null && identical(cached.records, records)) {
+      return cached.blocks;
+    }
+
+    final blocks = _buildBlocks(records);
+    _blocksByDay[date] = (records: records, blocks: blocks);
+    return blocks;
+  }
 
   // ── 描画 ────────────────────────────────────────────────────────
 
