@@ -4,6 +4,8 @@ class Common {
   // ── 动态包名常驻内存（由 main 在冷启动时注入） ───────────────────────
   static late final String appName;
 
+  static late final String appVersion;
+
   // 駅情報
   static const binFileName = 'station_data_xyz.bin';
   static const stationSchemaVersion = 'v2';
@@ -50,7 +52,7 @@ class Common {
   // // 駅データ.jp へのリンク
   // static final uriEkidata = Uri.parse('https://ekidata.jp/');
 
-  // 駅情報・イベント情報データダウンロードへのリンク
+  // 駅・イベント情報データダウンロードへのリンク
   static final uriInformation = Uri.parse('https://w57.name/p2.html');
 
   static const flnChannelId = 'notification_fln_channel';
@@ -713,7 +715,7 @@ enum LocationInterval {
 
 // StationCount 的四个预设
 // friend: 传入 engine 的基础数量
-// event: 事件期间追加的数量
+// event: 活动期间追加的数量
 // radar: 第一段扩展（+4）
 // natsume: 第二段扩展（+2）
 enum StationCount {
@@ -732,17 +734,17 @@ enum StationCount {
     required this.natsume,
   });
 
-  /// 事件期间判定器（由 EventManager 初始化时注入；默认 false）
-  static bool Function() eventPeriod = () => false;
+  /// 活动期间判定器（由 EventManager 初始化时注入；默认 false）
+  static bool Function() isEventPeriod = () => false;
 
   // 传入 engine 的实际 count
-  int get count => friend + (eventPeriod() ? event : 0) + radar + natsume;
+  int get count => friend + (isEventPeriod() ? event : 0) + radar + natsume;
 
   StationCountPart part(int part) {
     if (part < friend) {
       return StationCountPart.friend;
     } else {
-      if (eventPeriod()) {
+      if (isEventPeriod()) {
         if (part < friend + event) return StationCountPart.event;
         if (part < friend + event + radar) return StationCountPart.radar;
         return StationCountPart.natsume;
@@ -755,7 +757,7 @@ enum StationCount {
 
   // 显示标签，例如 "12"、"12 + 4"、"12 + 4 + 2"
   String get label {
-    return '$friend${(event > 0 && eventPeriod() ? ' + $event' : '')}'
+    return '$friend${(event > 0 && isEventPeriod() ? ' + $event' : '')}'
         '${(radar > 0 ? ' + $radar' : '')}${(natsume > 0 ? ' + $natsume' : '')}';
   }
 }

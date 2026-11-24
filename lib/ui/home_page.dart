@@ -504,8 +504,12 @@ class _HomePageState extends ResetableState<HomePage>
   void _showInfoPage() {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) =>
-            InfoPage(_stationManager!, _eventManager!, _infoImportService),
+        builder: (_) => InfoPage(
+          _settingsManager!,
+          _stationManager!,
+          _eventManager!,
+          _infoImportService,
+        ),
       ),
     );
   }
@@ -554,7 +558,7 @@ class _HomePageState extends ResetableState<HomePage>
             if (_stationManager!.isSampleData) ...[
               const SizedBox(height: 4),
               Text(
-                l10n.sampleDataGuide,
+                l10n.sampleInformationGuide,
                 textAlign: TextAlign.center,
                 style: const TextStyle(color: Colors.grey),
               ),

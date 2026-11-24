@@ -84,7 +84,7 @@ class Coordinator {
     addLocationResultHandler(_historyConsumer.handleLocationResultReceived);
 
     // 初期イベント期間判定の注入（起動時に一度）
-    StationCount.eventPeriod = () => _eventManager.isEventPeriod;
+    StationCount.isEventPeriod = () => _eventManager.eventPeriods.isNotEmpty;
   }
 
   // ── イベント購読・コールバック ────────────────────────────────────────────
@@ -258,8 +258,8 @@ class Coordinator {
   /// 活动数据更新
   void changeEventData(EventManager manager) {
     _eventManager = manager;
-    // StationCount 检索件数所需的事件期间判定器注入（幂等）
-    StationCount.eventPeriod = () => manager.isEventPeriod;
+    // StationCount 检索件数所需的活动期间判定器注入（幂等）
+    StationCount.isEventPeriod = () => manager.eventPeriods.isNotEmpty;
   }
 
   // ── 権限 ────────────────────────────────────────────────────────

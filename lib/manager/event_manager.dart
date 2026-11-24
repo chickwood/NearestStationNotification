@@ -6,7 +6,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../common.dart';
 
-/// 事件数据管理器
+/// 活动数据管理器
 /// documents 覆盖（缺失 / 无效时为空）
 class EventManager {
   final List<({int startEpoch, int endEpoch})> _periods;
@@ -14,12 +14,16 @@ class EventManager {
   // _manager 构造时赋值
   EventManager._manager(this._periods);
 
-  /// 当前是否处于事件期间（毫秒精度，含端点）
-  bool get isEventPeriod {
+  /// 当前活动期间列表
+  List<({int startEpoch, int endEpoch})> get eventPeriods {
     final nowEpoch = DateTime.now().millisecondsSinceEpoch;
-    return _periods.any((period) {
-      return nowEpoch >= period.startEpoch && nowEpoch <= period.endEpoch;
-    });
+    return _periods
+        .where(
+          (period) =>
+              nowEpoch >= period.startEpoch && nowEpoch <= period.endEpoch,
+        )
+        .toList(growable: false)
+      ..sort((a, b) => a.startEpoch.compareTo(b.startEpoch));
   }
 
   // ── NDJSON 文件读写 ──────────────────────────────────────────────
@@ -51,11 +55,10 @@ class EventManager {
         text = text.substring(1);
       }
 
-      final lines =
-          const LineSplitter()
-              .convert(text)
-              .where((line) => line.trim().isNotEmpty)
-              .toList();
+      final lines = const LineSplitter()
+          .convert(text)
+          .where((line) => line.trim().isNotEmpty)
+          .toList();
       if (lines.isEmpty) return null;
 
       final header = jsonDecode(lines.first);

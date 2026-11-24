@@ -151,7 +151,9 @@ class SearchEngine {
     }
 
     final transferNodes = inside
-        ? (bestNodes.map((result) => transferNode(result)).toList()
+        ? (bestNodes
+                  .map((result) => transferNode(result))
+                  .toList(growable: false)
                 ..sort((a, b) => a.score.compareTo(b.score)))
               .take(take)
         : bestNodes.take(take).map((result) => transferNode(result));
