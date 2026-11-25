@@ -395,6 +395,16 @@ class L10n {
     return 'Backup operation failed';
   }
 
+  String get historyExportConfirm {
+    if (_isJa) {
+      return 'すべての履歴をエクスポートします。データ量が多い場合は 1 分以上かかることがあります。\n実行中はこの画面を閉じないでください。\n続行しますか？';
+    }
+    if (_isZhHans) {
+      return '将导出全部历史记录，数据量较大时可能需要超过一分钟。\n执行中请勿退出本页面。\n继续？';
+    }
+    return 'Export all history records. Large amounts of data may take more than a minute.\nDo not exit this page while exporting.\nContinue?';
+  }
+
   String get historyImportConfirm {
     if (_isJa) {
       return '過去の月はバックアップの件数が多い場合のみ上書きされ、当月は統合されます。\n続行しますか？';

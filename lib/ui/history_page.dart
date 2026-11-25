@@ -365,6 +365,33 @@ class _HistoryPageState extends ResetableState<HistoryPage>
     if (_runningAction != null || widget.historyBackupService.busy.value) {
       return;
     }
+
+    final l10n = L10n.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        content: Text(l10n.historyExportConfirm),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(MaterialLocalizations.of(context).cancelButtonLabel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(MaterialLocalizations.of(context).okButtonLabel),
+          ),
+        ],
+      ),
+    );
+
+    if (!mounted ||
+        confirmed != true ||
+        _runningAction != null ||
+        widget.historyBackupService.busy.value) {
+      return;
+    }
+
     setState(() => _runningAction = HistoryBackupAction.export);
     await widget.historyConsumer.flush();
     if (!mounted) return;
