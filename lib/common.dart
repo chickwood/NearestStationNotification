@@ -152,6 +152,9 @@ class Common {
         '${second.toString().padLeft(2, '0')}';
   }
 
+  static const jstOffset = Duration(hours: 9);
+  static bool get isJst => DateTime.now().timeZoneOffset == jstOffset;
+
   // 地球半径常数（米）
   static const _earthRadius = 6371000.0;
   // 角度转弧度的常数

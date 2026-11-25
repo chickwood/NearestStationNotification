@@ -106,7 +106,7 @@ class _InfoPageState extends ResetableState<InfoPage> {
         actions: [
           AppBarAction(
             onPressed: _importBusy ? null : _import,
-            icon: const Icon(Icons.file_open),
+            icon: const Icon(Icons.file_download_outlined),
             tooltip: l10n.infoImport,
           ),
         ],

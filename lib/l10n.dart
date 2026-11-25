@@ -492,21 +492,44 @@ class L10n {
   }
 
   String infoEventPeriod(int startEpoch, int endEpoch) {
-    const jstOffset = Duration(hours: 9);
-    final startTimestamp = DateTime.fromMillisecondsSinceEpoch(
-      startEpoch,
-      isUtc: true,
-    ).add(jstOffset);
-    final endTimestamp = DateTime.fromMillisecondsSinceEpoch(
-      endEpoch,
-      isUtc: true,
-    ).add(jstOffset);
-
-    return '${Common.dateString(startTimestamp.year, startTimestamp.month, startTimestamp.day)} '
+    final startTimestamp = DateTime.fromMillisecondsSinceEpoch(startEpoch);
+    final endTimestamp = DateTime.fromMillisecondsSinceEpoch(endEpoch);
+    var period =
+        '${Common.dateString(startTimestamp.year, startTimestamp.month, startTimestamp.day)} '
         '${Common.timeString(startTimestamp.hour, startTimestamp.minute, startTimestamp.second)} '
         '~ '
         '${Common.dateString(endTimestamp.year, endTimestamp.month, endTimestamp.day)} '
-        '${Common.timeString(endTimestamp.hour, endTimestamp.minute, endTimestamp.second)} (JST)';
+        '${Common.timeString(endTimestamp.hour, endTimestamp.minute, endTimestamp.second)}';
+
+    if (Common.isJst) {
+      return period;
+    } else {
+      final startTimestampJst = DateTime.fromMillisecondsSinceEpoch(
+        startEpoch,
+        isUtc: true,
+      ).add(Common.jstOffset);
+      final endTimestampJst = DateTime.fromMillisecondsSinceEpoch(
+        endEpoch,
+        isUtc: true,
+      ).add(Common.jstOffset);
+
+      if (_isJa) {
+        period += '\n(日本時間) ';
+      } else if (_isZhHans) {
+        period += '\n(日本时间) ';
+      } else {
+        period += '\n(JST) ';
+      }
+
+      period +=
+          '${Common.dateString(startTimestampJst.year, startTimestampJst.month, startTimestampJst.day)} '
+          '${Common.timeString(startTimestampJst.hour, startTimestampJst.minute, startTimestampJst.second)} '
+          '~ '
+          '${Common.dateString(endTimestampJst.year, endTimestampJst.month, endTimestampJst.day)} '
+          '${Common.timeString(endTimestampJst.hour, endTimestampJst.minute, endTimestampJst.second)}';
+
+      return period;
+    }
   }
 
   String get infoLicense {

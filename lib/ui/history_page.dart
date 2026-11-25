@@ -501,12 +501,12 @@ class _HistoryPageState extends ResetableState<HistoryPage>
           ),
           AppBarAction(
             onPressed: exportDisabled ? null : _export,
-            icon: const Icon(Icons.save_alt),
+            icon: const Icon(Icons.file_upload_outlined),
             tooltip: l10n.historyExport,
           ),
           AppBarAction(
             onPressed: importDisabled ? null : _import,
-            icon: const Icon(Icons.file_open),
+            icon: const Icon(Icons.file_download_outlined),
             tooltip: l10n.historyImport,
           ),
         ],
