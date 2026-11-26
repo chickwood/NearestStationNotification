@@ -397,22 +397,37 @@ class L10n {
 
   String get historyExportConfirm {
     if (_isJa) {
-      return 'すべての履歴をエクスポートします。データ量が多い場合は 1 分以上かかることがあります。\n実行中はこの画面を閉じないでください。\n続行しますか？';
+      return 'すべての履歴をエクスポートします。'
+          'データ量が多い場合は 1 分以上かかることがあります。'
+          '実行中はこの画面を閉じないでください。'
+          '\n\n続行しますか？';
     }
     if (_isZhHans) {
-      return '将导出全部历史记录，数据量较大时可能需要超过一分钟。\n执行中请勿退出本页面。\n继续？';
+      return '将导出全部历史记录，'
+          '数据量较大时可能需要超过一分钟，'
+          '执行中请勿退出本页面。'
+          '\n\n继续？';
     }
-    return 'Export all history records. Large amounts of data may take more than a minute.\nDo not exit this page while exporting.\nContinue?';
+    return 'Export all history records. '
+        'Large amounts of data may take more than a minute. '
+        'Do not exit this page while exporting.'
+        '\n\nContinue?';
   }
 
   String get historyImportConfirm {
     if (_isJa) {
-      return '過去の月はバックアップの件数が多い場合のみ上書きされ、当月は統合されます。\n続行しますか？';
+      return '過去の月はバックアップの件数が多い場合のみ上書きされ、'
+          '当月は統合されます。'
+          '\n\n続行しますか？';
     }
     if (_isZhHans) {
-      return '过往月份仅在备份条数更多时覆盖，当前月将合并。\n继续？';
+      return '过往月份仅在备份条数更多时覆盖，'
+          '当前月将合并。'
+          '\n\n继续？';
     }
-    return 'Past months are overwritten only when the backup has more records, the current month is merged.\nContinue?';
+    return 'Past months are overwritten only when the backup has more records, '
+        'the current month is merged.'
+        '\n\nContinue?';
   }
 
   String historyGcd(int gcd) => flnNotificationGcd(gcd);
@@ -435,9 +450,16 @@ class L10n {
   }
 
   String get settingsDiscardConfirm {
-    if (_isJa) return '保存していない変更は破棄されます。\n続行しますか？';
-    if (_isZhHans) return '未保存的更改将被放弃。\n继续？';
-    return 'Unsaved changes will be discarded. \nContinue?';
+    if (_isJa) {
+      return '保存していない変更は破棄されます。'
+          '\n\n続行しますか？';
+    }
+    if (_isZhHans) {
+      return '未保存的更改将被放弃。'
+          '\n\n继续？';
+    }
+    return 'Unsaved changes will be discarded.'
+        '\n\nContinue?';
   }
 
   String get dialogClose {
@@ -575,6 +597,19 @@ class L10n {
     if (_isJa) return 'インポート';
     if (_isZhHans) return '导入';
     return 'Import';
+  }
+
+  String get infoImportConfirm {
+    if (_isJa) {
+      return '駅・イベント情報を選択したファイルで更新します。'
+          '\n\n続行しますか？';
+    }
+    if (_isZhHans) {
+      return '将使用所选文件更新车站与活动信息。'
+          '\n\n继续？';
+    }
+    return 'Station and event information will be updated from the selected file.'
+        '\n\nContinue?';
   }
 
   String get infoImportedStationAndEvent {
