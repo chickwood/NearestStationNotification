@@ -367,19 +367,21 @@ class _HistoryPageState extends ResetableState<HistoryPage>
     }
 
     final l10n = L10n.of(context);
+    final ml10n = MaterialLocalizations.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: Theme.of(context).colorScheme.surface,
+        actionsPadding: const EdgeInsets.fromLTRB(16.0, 0.0, 16.0, 8.0),
         content: Text(l10n.historyExportConfirm),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: Text(MaterialLocalizations.of(context).cancelButtonLabel),
+            child: Text(ml10n.cancelButtonLabel),
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: Text(MaterialLocalizations.of(context).okButtonLabel),
+            child: Text(ml10n.okButtonLabel),
           ),
         ],
       ),
@@ -427,19 +429,21 @@ class _HistoryPageState extends ResetableState<HistoryPage>
 
   Future<void> _import() async {
     final l10n = L10n.of(context);
+    final ml10n = MaterialLocalizations.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: Theme.of(context).colorScheme.surface,
+        actionsPadding: const EdgeInsets.fromLTRB(16.0, 0.0, 16.0, 8.0),
         content: Text(l10n.historyImportConfirm),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: Text(MaterialLocalizations.of(context).cancelButtonLabel),
+            child: Text(ml10n.cancelButtonLabel),
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: Text(MaterialLocalizations.of(context).okButtonLabel),
+            child: Text(ml10n.okButtonLabel),
           ),
         ],
       ),
