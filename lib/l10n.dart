@@ -145,10 +145,10 @@ class L10n {
     return '${count > 0 ? '$count' : 'No'} station${count == 1 ? '' : 's'} loaded.';
   }
 
-  String get sampleDataGuide {
+  String get sampleInformationGuide {
     if (_isJa) return 'サンプル駅情報を使用中です。右上のメニューから情報をクリックして、駅情報を確認・更新。';
     if (_isZhHans) return '当前正在使用示例车站信息。点击右上角的菜单选择信息查看和更新车站信息。';
-    return 'Sample data in use. Open the menu in the title bar and select info to view and update station information.';
+    return 'Sample station information in use. Open the menu in the title bar and select info to view and update station information.';
   }
 
   // ── Toast ──────────────────────────────────────────────────
@@ -197,9 +197,9 @@ class L10n {
   }
 
   String flnNotificationTitle(String? name) {
-    if (_isJa) return '🚉 最寄り駅: $name';
-    if (_isZhHans) return '🚉 最近车站: $name';
-    return '🚉 Nearest: $name';
+    if (_isJa) return '🚉 最寄り駅 $name';
+    if (_isZhHans) return '🚉 最近车站 $name';
+    return '🚉 Nearest $name';
   }
 
   String flnNotificationGcd(int? gcd) {
@@ -207,9 +207,9 @@ class L10n {
   }
 
   // String flnNotificationFull(int? gcd, String distanceInUnit) {
-  //   if (_isJa) return '${flnNotificationGcd(gcd)}\n距離: $distanceInUnit';
-  //   if (_isZhHans) return '${flnNotificationGcd(gcd)}\n距离: $distanceInUnit';
-  //   return '${flnNotificationGcd(gcd)}\nDistance: $distanceInUnit';
+  //   if (_isJa) return '${flnNotificationGcd(gcd)}\n距離 $distanceInUnit';
+  //   if (_isZhHans) return '${flnNotificationGcd(gcd)}\n距离 $distanceInUnit';
+  //   return '${flnNotificationGcd(gcd)}\nDistance $distanceInUnit';
   // }
 
   // Geolocator 服务通知标题
@@ -228,8 +228,7 @@ class L10n {
   }
 
   // ── Settings Page ─────────────────────────────────────────────────────────────
-  String get settingsPageTitle => settingsDialogTitle;
-  String get settingsDialogTitle {
+  String get settingsPageTitle {
     if (_isJa) return '設定';
     if (_isZhHans) return '设置';
     return 'Settings';
@@ -289,9 +288,9 @@ class L10n {
   }
 
   String historyMergeViewState(bool enabled) {
-    if (_isJa) return enabled ? '5分グループ表示：オン' : '5分グループ表示：オフ';
-    if (_isZhHans) return enabled ? '5分钟分组：开' : '5分钟分组：关';
-    return enabled ? '5-minute grouping: on' : '5-minute grouping: off';
+    if (_isJa) return enabled ? '5分グループ表示 オン' : '5分グループ表示 オフ';
+    if (_isZhHans) return enabled ? '5分钟分组 开' : '5分钟分组 关';
+    return enabled ? '5-minute grouping on' : '5-minute grouping off';
   }
 
   String get historyTitle {
@@ -396,14 +395,39 @@ class L10n {
     return 'Backup operation failed';
   }
 
-  String get historyImportConfirm {
+  String get historyExportConfirm {
     if (_isJa) {
-      return '過去の月はバックアップの件数が多い場合のみ上書きされ、当月は統合されます。\n続行しますか？';
+      return 'すべての履歴をエクスポートします。'
+          'データ量が多い場合は 1 分以上かかることがあります。'
+          '実行中はこの画面を閉じないでください。'
+          '\n\n続行しますか？';
     }
     if (_isZhHans) {
-      return '过往月份仅在备份条数更多时覆盖，当前月将合并。\n继续？';
+      return '将导出全部历史记录，'
+          '数据量较大时可能需要超过一分钟，'
+          '执行中请勿退出本页面。'
+          '\n\n继续？';
     }
-    return 'Past months are overwritten only when the backup has more records, the current month is merged.\nContinue?';
+    return 'Export all history records. '
+        'Large amounts of data may take more than a minute. '
+        'Do not exit this page while exporting.'
+        '\n\nContinue?';
+  }
+
+  String get historyImportConfirm {
+    if (_isJa) {
+      return '過去の月はバックアップの件数が多い場合のみ上書きされ、'
+          '当月は統合されます。'
+          '\n\n続行しますか？';
+    }
+    if (_isZhHans) {
+      return '过往月份仅在备份条数更多时覆盖，'
+          '当前月将合并。'
+          '\n\n继续？';
+    }
+    return 'Past months are overwritten only when the backup has more records, '
+        'the current month is merged.'
+        '\n\nContinue?';
   }
 
   String historyGcd(int gcd) => flnNotificationGcd(gcd);
@@ -426,9 +450,16 @@ class L10n {
   }
 
   String get settingsDiscardConfirm {
-    if (_isJa) return '保存していない変更は破棄されます。\n続行しますか？';
-    if (_isZhHans) return '未保存的更改将被放弃。\n继续？';
-    return 'Unsaved changes will be discarded. \nContinue?';
+    if (_isJa) {
+      return '保存していない変更は破棄されます。'
+          '\n\n続行しますか？';
+    }
+    if (_isZhHans) {
+      return '未保存的更改将被放弃。'
+          '\n\n继续？';
+    }
+    return 'Unsaved changes will be discarded.'
+        '\n\nContinue?';
   }
 
   String get dialogClose {
@@ -438,41 +469,105 @@ class L10n {
   }
 
   // ── Info Page ──────────────────────────────────────────────────
-  String get infoPageTitle => infoDialogTitle;
-  String get infoDialogTitle {
+  String get infoPageTitle {
     if (_isJa) return '情報';
     if (_isZhHans) return '信息';
     return 'Info';
   }
 
-  String get infoTitle {
-    if (_isJa) return 'ライセンス・駅情報';
-    if (_isZhHans) return '许可证及车站信息';
-    return 'Licenses and Station Information';
+  String get infoAboutTitle {
+    if (_isJa) return 'このアプリについて';
+    if (_isZhHans) return '关于';
+    return 'About';
   }
 
-  String infoStations(int count) => countStations(count); // 定义别名区分使用位置
+  String infoAppVersion(String version) {
+    if (_isJa) return 'バージョン $version';
+    if (_isZhHans) return '版本 $version';
+    return 'Version $version';
+  }
 
-  String infoVersion(int date, int pdate) {
+  String infoStationCount(int count) => countStations(count); // 定义别名区分使用位置
+
+  String get infoStationInfo {
+    if (_isJa) return '駅情報';
+    if (_isZhHans) return '车站信息';
+    return 'Station information';
+  }
+
+  String infoStationVersion(int date, int pdate) {
     if (_isJa) {
-      return 'バージョン: ${date > 0 ? '$date${pdate > 0 ? ' + パッチ: $pdate' : ''}' : ''}';
+      return 'バージョン ${date > 0 ? '$date${pdate > 0 ? ' + パッチ $pdate' : ''}' : ''}';
     }
     if (_isZhHans) {
-      return '版本: ${date > 0 ? '$date${pdate > 0 ? ' + 修订: $pdate' : ''}' : ''}';
+      return '版本 ${date > 0 ? '$date${pdate > 0 ? ' + 修订 $pdate' : ''}' : ''}';
     }
-    return 'Version: ${date > 0 ? '$date${pdate > 0 ? ' + Patch: $pdate' : ''}' : ''}';
+    return 'Version ${date > 0 ? '$date${pdate > 0 ? ' + Patch $pdate' : ''}' : ''}';
   }
 
-  String infoSize(int size) {
-    if (_isJa) return 'サイズ: ${size ~/ 1024} KB';
-    if (_isZhHans) return '大小: ${size ~/ 1024} KB';
-    return 'Size: ${size ~/ 1024} KB';
+  String infoStationSize(int size) {
+    if (_isJa) return 'サイズ ${size ~/ 1024} KB';
+    if (_isZhHans) return '大小 ${size ~/ 1024} KB';
+    return 'Size ${size ~/ 1024} KB';
+  }
+
+  String get infoEventInfo {
+    if (_isJa) return 'イベント情報';
+    if (_isZhHans) return '活动信息';
+    return 'Event information';
+  }
+
+  String infoEventCount(int count) {
+    if (_isJa) return '$count 件イベント期間を読み込みました。';
+    if (_isZhHans) return '已读取 $count 条活动期间。';
+    return '${count > 0 ? '$count' : 'No'} event period${count == 1 ? '' : 's'} loaded.';
+  }
+
+  String infoEventPeriod(int startEpoch, int endEpoch) {
+    final startTimestamp = DateTime.fromMillisecondsSinceEpoch(startEpoch);
+    final endTimestamp = DateTime.fromMillisecondsSinceEpoch(endEpoch);
+    var period =
+        '${Common.dateString(startTimestamp.year, startTimestamp.month, startTimestamp.day)} '
+        '${Common.timeString(startTimestamp.hour, startTimestamp.minute, startTimestamp.second)} '
+        '~ '
+        '${Common.dateString(endTimestamp.year, endTimestamp.month, endTimestamp.day)} '
+        '${Common.timeString(endTimestamp.hour, endTimestamp.minute, endTimestamp.second)}';
+
+    if (Common.isJst) {
+      return period;
+    } else {
+      final startTimestampJst = DateTime.fromMillisecondsSinceEpoch(
+        startEpoch,
+        isUtc: true,
+      ).add(Common.jstOffset);
+      final endTimestampJst = DateTime.fromMillisecondsSinceEpoch(
+        endEpoch,
+        isUtc: true,
+      ).add(Common.jstOffset);
+
+      if (_isJa) {
+        period += '\n(日本時間) ';
+      } else if (_isZhHans) {
+        period += '\n(日本时间) ';
+      } else {
+        period += '\n(JST) ';
+      }
+
+      period +=
+          '${Common.dateString(startTimestampJst.year, startTimestampJst.month, startTimestampJst.day)} '
+          '${Common.timeString(startTimestampJst.hour, startTimestampJst.minute, startTimestampJst.second)} '
+          '~ '
+          '${Common.dateString(endTimestampJst.year, endTimestampJst.month, endTimestampJst.day)} '
+          '${Common.timeString(endTimestampJst.hour, endTimestampJst.minute, endTimestampJst.second)}';
+
+      return period;
+    }
   }
 
   String get infoLicense {
-    if (_isJa) return 'ここをクリックして、ライセンスと詳細を表示。';
-    if (_isZhHans) return '点击此处显示许可证及更多详情。';
-    return 'Tap here to view licenses and more details.';
+    if (_isJa) return 'ここをクリックして、ライセンスと駅情報に関する説明を表示。';
+    if (_isZhHans) return '点击此处显示许可证及关于车站信息的说明。';
+    return 'Tap here to view licenses and notice for station information.';
   }
 
   String get infoUpdateTitle {
@@ -481,19 +576,21 @@ class L10n {
   }
 
   String get infoUpdateNotice {
-    if (_isJa) {
-      return '駅情報・イベント情報データは定期的に更新してください。'
-          '\n\nここをクリックして、ダウンロードサイトを開く。'
-          '\nダウンロード後、右上のインポートをクリックして、データファイルを選択して情報を更新。';
-    }
-    if (_isZhHans) {
-      return '请定期更新车站信息与事件信息数据。'
-          '\n\n点击此处打开下载网站。'
-          '\n下载完成后，点击右上角的导入，选择数据文件更新信息。';
-    }
-    return 'Update station information and event information data periodically.'
-        '\n\nTap here to open download website.'
-        '\nAfter download, tap import in the title bar, then select data file to update information.';
+    if (_isJa) return '駅・イベント情報を定期的に更新してください。';
+    if (_isZhHans) return '请定期更新车站与活动信息。';
+    return 'Update station and event information periodically.';
+  }
+
+  String get infoUpdateDownload {
+    if (_isJa) return 'ここをクリックして、ダウンロードサイトを開く。';
+    if (_isZhHans) return '点击此处打开下载网站。';
+    return 'Tap here to open download website.';
+  }
+
+  String get infoUpdateAfter {
+    if (_isJa) return 'ダウンロード後、右上のインポートをクリックして、ファイルを選択して情報を更新。';
+    if (_isZhHans) return '下载完成后，点击右上角的导入，选择文件更新信息。';
+    return 'After download, tap import in the title bar, then select file to update information.';
   }
 
   String get infoImport {
@@ -502,8 +599,21 @@ class L10n {
     return 'Import';
   }
 
+  String get infoImportConfirm {
+    if (_isJa) {
+      return '駅・イベント情報を選択したファイルで更新します。'
+          '\n\n続行しますか？';
+    }
+    if (_isZhHans) {
+      return '将使用所选文件更新车站与活动信息。'
+          '\n\n继续？';
+    }
+    return 'Station and event information will be updated from the selected file.'
+        '\n\nContinue?';
+  }
+
   String get infoImportedStationAndEvent {
-    if (_isJa) return '駅情報・イベント情報をインポートしました。';
+    if (_isJa) return '駅・イベント情報をインポートしました。';
     if (_isZhHans) return '已导入车站及活动信息。';
     return 'Station and event information imported.';
   }
@@ -527,8 +637,11 @@ class L10n {
   }
 
   // ── License Page ───────────────────────────────────────────────────────────
-  String get licensesDialogTitle => infoTitle;
-  String get licensesPageTitle => licensesDialogTitle;
+  String get licensesPageTitle {
+    if (_isJa) return 'ライセンス・駅情報';
+    if (_isZhHans) return '许可证及车站信息';
+    return 'Licenses and Station Information';
+  }
 
   String licenseCount(int count) {
     if (_isJa) return '$count 件ライセンス';
@@ -539,7 +652,7 @@ class L10n {
   String licenseCountWithAdditionalNotice(int count) {
     if (_isJa) return '${licenseCount(count)} 及び 駅情報に関する説明';
     if (_isZhHans) return '${licenseCount(count)} 及 关于车站信息的说明';
-    return '${licenseCount(count)} and Notice for Station Information';
+    return '${licenseCount(count)} and notice for station information';
   }
 
   String get licensePublish {

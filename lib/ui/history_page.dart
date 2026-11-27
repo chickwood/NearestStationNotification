@@ -365,6 +365,35 @@ class _HistoryPageState extends ResetableState<HistoryPage>
     if (_runningAction != null || widget.historyBackupService.busy.value) {
       return;
     }
+
+    final l10n = L10n.of(context);
+    final ml10n = MaterialLocalizations.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        actionsPadding: const EdgeInsets.fromLTRB(16.0, 0.0, 16.0, 8.0),
+        content: Text(l10n.historyExportConfirm),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(ml10n.cancelButtonLabel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(ml10n.okButtonLabel),
+          ),
+        ],
+      ),
+    );
+
+    if (!mounted ||
+        confirmed != true ||
+        _runningAction != null ||
+        widget.historyBackupService.busy.value) {
+      return;
+    }
+
     setState(() => _runningAction = HistoryBackupAction.export);
     await widget.historyConsumer.flush();
     if (!mounted) return;
@@ -400,19 +429,21 @@ class _HistoryPageState extends ResetableState<HistoryPage>
 
   Future<void> _import() async {
     final l10n = L10n.of(context);
+    final ml10n = MaterialLocalizations.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: Theme.of(context).colorScheme.surface,
+        actionsPadding: const EdgeInsets.fromLTRB(16.0, 0.0, 16.0, 8.0),
         content: Text(l10n.historyImportConfirm),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: Text(MaterialLocalizations.of(context).cancelButtonLabel),
+            child: Text(ml10n.cancelButtonLabel),
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: Text(MaterialLocalizations.of(context).okButtonLabel),
+            child: Text(ml10n.okButtonLabel),
           ),
         ],
       ),
@@ -501,12 +532,12 @@ class _HistoryPageState extends ResetableState<HistoryPage>
           ),
           AppBarAction(
             onPressed: exportDisabled ? null : _export,
-            icon: const Icon(Icons.save_alt),
+            icon: const Icon(Icons.file_upload_outlined),
             tooltip: l10n.historyExport,
           ),
           AppBarAction(
             onPressed: importDisabled ? null : _import,
-            icon: const Icon(Icons.file_open),
+            icon: const Icon(Icons.file_download_outlined),
             tooltip: l10n.historyImport,
           ),
         ],

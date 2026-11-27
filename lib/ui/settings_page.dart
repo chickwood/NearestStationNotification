@@ -75,21 +75,22 @@ class _SettingsPageState extends ResetableState<SettingsPage> {
 
     try {
       final l10n = L10n.of(context);
-      final localizations = MaterialLocalizations.of(context);
+      final ml10n = MaterialLocalizations.of(context);
       final discard = await showDialog<bool>(
         context: context,
         barrierDismissible: false,
         builder: (context) => AlertDialog(
           backgroundColor: Theme.of(context).colorScheme.surface,
+          actionsPadding: const EdgeInsets.fromLTRB(16.0, 0.0, 16.0, 8.0),
           content: Text(l10n.settingsDiscardConfirm),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
-              child: Text(localizations.cancelButtonLabel),
+              child: Text(ml10n.cancelButtonLabel),
             ),
             TextButton(
               onPressed: () => Navigator.of(context).pop(true),
-              child: Text(localizations.okButtonLabel),
+              child: Text(ml10n.okButtonLabel),
             ),
           ],
         ),

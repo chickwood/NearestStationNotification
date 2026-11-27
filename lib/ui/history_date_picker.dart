@@ -101,6 +101,7 @@ class _HistoryDatePickerDialogState extends State<_HistoryDatePickerDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final ml10n = MaterialLocalizations.of(context);
     return Dialog(
       backgroundColor: Theme.of(context).colorScheme.surface,
       child: ConstrainedBox(
@@ -115,9 +116,7 @@ class _HistoryDatePickerDialogState extends State<_HistoryDatePickerDialog> {
                 alignment: Alignment.centerRight,
                 child: TextButton(
                   onPressed: () => Navigator.of(context).pop(),
-                  child: Text(
-                    MaterialLocalizations.of(context).cancelButtonLabel,
-                  ),
+                  child: Text(ml10n.cancelButtonLabel),
                 ),
               ),
             ],
@@ -207,13 +206,13 @@ class _HistoryDatePickerDialogState extends State<_HistoryDatePickerDialog> {
   }
 
   Widget _buildDayView(BuildContext context) {
-    final localizations = MaterialLocalizations.of(context);
+    final ml10n = MaterialLocalizations.of(context);
     final year = widget.currentMonth ~/ 100;
     final month = widget.currentMonth % 100;
     final todayDay = widget.today % 100;
     final daysInMonth = DateUtils.getDaysInMonth(year, month);
-    final leadingDays = DateUtils.firstDayOffset(year, month, localizations);
-    final firstWeekday = localizations.firstDayOfWeekIndex;
+    final leadingDays = DateUtils.firstDayOffset(year, month, ml10n);
+    final firstWeekday = ml10n.firstDayOfWeekIndex;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -224,14 +223,14 @@ class _HistoryDatePickerDialogState extends State<_HistoryDatePickerDialog> {
               IconButton(
                 onPressed: () => setState(() => _dayMode = false),
                 icon: const Icon(Icons.chevron_left),
-                tooltip: localizations.backButtonTooltip,
+                tooltip: ml10n.backButtonTooltip,
               )
             else
               const SizedBox(width: 48),
             Expanded(
               child: Center(
                 child: Text(
-                  localizations.formatMonthYear(DateTime(year, month)),
+                  ml10n.formatMonthYear(DateTime(year, month)),
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
               ),
@@ -246,7 +245,7 @@ class _HistoryDatePickerDialogState extends State<_HistoryDatePickerDialog> {
               Expanded(
                 child: Center(
                   child: Text(
-                    localizations.narrowWeekdays[(firstWeekday + i) % 7],
+                    ml10n.narrowWeekdays[(firstWeekday + i) % 7],
                     style: Theme.of(context).textTheme.labelSmall,
                   ),
                 ),

@@ -11,9 +11,9 @@ import 'ui/home_page.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  Common.appName = (await PackageInfo.fromPlatform()).packageName
-      .split('.')
-      .last;
+  final packageInfo = await PackageInfo.fromPlatform();
+  Common.appName = packageInfo.packageName.split('.').last;
+  Common.appVersion = packageInfo.version;
 
   // // LICENSE（MIT License 本体）
   // LicenseRegistry.addLicense(() async* {

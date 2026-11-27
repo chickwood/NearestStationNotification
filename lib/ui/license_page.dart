@@ -70,7 +70,8 @@ class _LicenseListPageState extends State<LicenseListPage> {
             }
 
             final licenses = (snapshot.data ?? []).toList();
-            // ADDITIONAL_NOTICE 单独处理
+
+            // 本应用单独处理
             final appLicenses = licenses.removeLast();
             final appLicensesLength = appLicenses.licenses.length - 1;
 
@@ -83,7 +84,14 @@ class _LicenseListPageState extends State<LicenseListPage> {
                     MaterialPageRoute<void>(
                       builder: (_) => LicenseDetailPage(
                         l10n.appTitle,
-                        appLicenses.licenses,
+
+                        // ADDITIONAL_NOTICE 特别处理
+                        _stationManager.count > 0
+                            ? appLicenses.licenses
+                            : appLicenses.licenses.sublist(
+                                0,
+                                appLicensesLength,
+                              ),
                       ),
                     ),
                   ),
@@ -111,11 +119,7 @@ class _LicenseListPageState extends State<LicenseListPage> {
                         if (_stationManager.count > 0) ...[
                           const SizedBox(height: 4),
                           Text(
-                            '${l10n.licenseStationDetailsTitle}'
-                            '\n${l10n.infoStations(_stationManager.count)}'
-                            '\n${l10n.infoVersion(_stationManager.date, _stationManager.pdate)}'
-                            '\n${l10n.infoSize(_stationManager.size)}'
-                            '\n${l10n.licenseStationDetailsEkidata}',
+                            l10n.licenseStationDetailsEkidata,
                             style: const TextStyle(fontSize: 12.0),
                           ),
                         ],

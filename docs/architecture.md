@@ -32,7 +32,7 @@ Test
 - SearchEngine 保持纯算法
 - NotificationConsumer 保持纯通知
 - StationManager 是唯一站点数据来源（Single Source of Truth）
-- EventManager 是唯一事件数据来源
+- EventManager 是唯一活动数据来源
 - HistoryConsumer 持有未落盘缓冲（pending）并负责记录判定与批量写穿（10 条 / 首条起算 5 分钟，按日批量追加）；HistoryManager 负责持久化；HistoryPage 日模式按日合并磁盘与 pending，月模式只读整月；Coordinator 只公开 HistoryConsumer，由页面直接订阅
 - HistoryManager 另维护派生的车站历史汇总 `summary.ndjson`（每个 `gcd` 的首次 / 最近成为最近车站时刻与用户坐标）；普通 flush 不更新汇总，只在月度归档成功与备份导入时写入；读取为累计基线 + 当前月日文件的 min/max 合并，汇总缺失或损坏时退化为当前月临时汇总且不写盘
 - Coordinator 只负责协调，不负责业务实现
@@ -55,7 +55,7 @@ Test
 | `lib/location_processor.dart` | GPS 流、采样策略、漂移过滤、SearchEngine 调用 |
 | `lib/search_engine.dart` | KD-Tree 最近车站搜索、距离与方位角计算 |
 | `lib/manager/station_manager.dart` | 车站 BIN 数据校验、加载、原子写入、按索引访问 |
-| `lib/manager/event_manager.dart` | 事件 NDJSON 数据校验、加载、原子写入、事件期间判定 |
+| `lib/manager/event_manager.dart` | 活动 NDJSON 数据校验、加载、原子写入、活动期间判定 |
 | `lib/manager/settings_manager.dart` | `SettingsManager` 模型与 SharedPreferences 持久化 |
 | `lib/manager/history_manager.dart` | 车站切换历史记录、日/月文件、月度归档、车站历史汇总、按日读取、备份与导入 |
 | `lib/service/info_import_service.dart` | `InfoImportService`、ZIP 导入解析与校验 |
@@ -122,7 +122,7 @@ lib/
 - **构造函数传参（位置参数 + `this.x` 直接赋值）**：
   - 对象生命周期内代表其依赖关系的值（如回调函数、管理器、设置、语言）
   - 判断标准不是「是否会变」，而是「变化的来源是否属于该对象所处的环境状态」；此类值变化后即代表「当前状态」、并被对象内部多处方法读取
-  - 例：`l10n`（系统语言变化）、`active`（前后台切换）、`settingsManager`（设置项保存）、`stationManager`（站点数据管理）、`eventManager`（事件数据管理）、`historyManager`（历史存储）均属此类，生命周期模式相同：HomePage 初始化产生初值 → 传入 → 运行期间由外部事件驱动变化 → 通知更新
+  - 例：`l10n`（系统语言变化）、`active`（前后台切换）、`settingsManager`（设置项保存）、`stationManager`（站点数据管理）、`eventManager`（活动数据管理）、`historyManager`（历史存储）均属此类，生命周期模式相同：HomePage 初始化产生初值 → 传入 → 运行期间由外部事件驱动变化 → 通知更新
   - 私有字段（下划线开头）不能使用命名参数（Dart 语言限制），故统一使用位置参数
 
 - **方法参数传参**：
@@ -208,7 +208,7 @@ BackgroundTask 包裹 HomePage（Android only）。
 - SearchEngine 是 LocationProcessor 的内部依赖。
 - SettingsManager 只通过两个只读视图对外：`processorSettingsManager`（`stationCount` / `locationInterval`）与 `historySettingsManager`（`historyEnabled` / `historyMergeView`）；LocationProcessor 与 HistoryConsumer 不持有 SettingsManager 本体。
 - StationManager 是共享 Repository；HomePage、LocationProcessor、SearchEngine、Coordinator、InfoImportService、InfoPage、LicenseListPage 均可依赖。
-- EventManager 是事件数据来源，独立于定位结果流；HomePage、Coordinator、InfoPage、LicenseListPage 可直接依赖。
+- EventManager 是活动数据来源，独立于定位结果流；HomePage、Coordinator、InfoPage、LicenseListPage 可直接依赖。
 - HistoryConsumer 持有 pending 缓冲并负责记录判定、开关补记与按日批量写穿；记录按自身 `epoch` 写入对应日文件，同一天的多条一次写入，成功后从 pending 移除。
 - NotificationConsumer / HistoryConsumer 是 Coordinator 的常驻定位结果消费者：接收广播 payload，各自持有私有状态并在 Coordinator 之外产生副作用；不读取 Coordinator 快照。
 - HistoryConsumer 在记录追加进 pending 时递增 `pendingRevision`；非活跃期间不递增，恢复 active 时递增一次让页面重取。历史页订阅 `pendingRevision` 做前台增量合并，并在恢复前台时整体重读磁盘以对齐后台已落盘部分。
@@ -216,7 +216,7 @@ BackgroundTask 包裹 HomePage（Android only）。
 - HistoryPage 由 HomePage 三点菜单直接打开并注入 `HistoryConsumer`、`HistoryManager`、`HistoryBackupService`、`StationManager`、已保存的 `historySettingsManager` 与 `historyMergeView` 写回回调，不依赖 Coordinator：日模式用 `readDayFile()` 只读所选日期并合并同日 pending，月模式用 `readMonth()` 一次加载整月；页面只判断 `mounted`。页面同时是 `WidgetsBindingObserver`：`resumed` 且当前显示的是今天或当月时重载可用月份与当前模式（后台 flush 已把记录写入磁盘并从 pending 移除）。
 - HistoryBackupService 由 HomePage 在 `initState` 创建并持有，不持有 HistoryManager；`createExport(HistoryManager)` / `import(HistoryManager, path)` 由调用方传入参数，不接触文件对话框。注入 HistoryPage；文件选择/保存由 HistoryPage 负责，进入 Service 的处理在页面关闭后继续。
 - HistoryArchiveService 由 HomePage 在 `initState` 创建并持有，不持有 Manager；`start(HistoryManager)` 由调用方传入，启动后扫描未归档往月并调用 `consolidateMonths()`；`busy` / `progress` / `last` 供 HomePage 展示与 Toast，取消由 play 触发。
-- Coordinator 通过 `changeEventData` 将事件期间判定注入 `StationCount.eventPeriod`。
+- Coordinator 通过 `changeEventData` 将活动期间判定注入 `StationCount.isEventPeriod`。
 - Coordinator 不负责 StationManager / EventManager / HistoryManager 的加载与写入实现；HistoryManager 的日文件追加由 HistoryConsumer 触发。
 - InfoImportService / SettingsSaveService / HistoryBackupService / HistoryArchiveService 不依赖 UI，不直接调用 Coordinator 或 Toast。
 - InfoPage / SettingsPage / LicenseListPage 只依赖其显示所需的管理器与 Service；HistoryPage 依赖 `HistoryConsumer`、HistoryManager、HistoryBackupService、StationManager、`HistorySettingsManager` 与 `historyMergeView` 写回回调。
@@ -268,7 +268,7 @@ BackgroundTask 包裹 HomePage（Android only）。
 
 可直接使用：
 
-- StationManager / EventManager（站点信息显示、站点与事件数据管理）
+- StationManager / EventManager（车站信息显示、车站与活动数据管理）
 - SettingsManager（站点显示数量、定位间隔、历史记录开关与 5 分钟分组）
 - HistoryManager / HistoryBackupService / HistoryArchiveService（过往历史读取、备份操作与启动归档）
 - Coordinator（直接注入历史页，提供当天记录与 pending）
@@ -290,7 +290,7 @@ BackgroundTask 包裹 HomePage（Android only）。
 - 协调业务流程
 - 创建 LocationProcessor / NotificationConsumer / HistoryConsumer，并注册两个常驻定位结果 handler
 - HistoryConsumer 以常驻 handler 注册，保证 pending 先于 active handler 更新
-- 注入事件期间判定到 `StationCount.eventPeriod`
+- 注入活动期间判定到 `StationCount.isEventPeriod`
 - 公开 `historyConsumer`，供 HomePage 在三点菜单中打开 HistoryPage
 - `init()` 只初始化通知，不预载历史；历史由页面按日 / 按月读盘并合并 pending
 - start()
@@ -449,10 +449,10 @@ BIN 布局（小端）：
 
 职责：
 
-- 事件数据校验（NDJSON header `v` / `fields`、数据行是 2 元素整数数组（epoch ms）、start ≤ end；加载与写入共用）
-- 事件数据加载（documents 优先；读取失败 / 无效回退空实例）
-- 事件数据写入（原子替换：临时文件 → 改名）
-- 事件期间判定（当前时间落在任一 period 内，含端点；毫秒精度）
+- 活动数据校验（NDJSON header `v` / `fields`、数据行是 2 元素整数数组（epoch ms）、start ≤ end；加载与写入共用）
+- 活动数据加载（documents 优先；读取失败 / 无效回退空实例）
+- 活动数据写入（原子替换：临时文件 → 改名）
+- 活动期间判定（当前时间落在任一 period 内，含端点；毫秒精度）
 
 schema：
 
@@ -462,12 +462,12 @@ schema：
 ```
 
 - 仅 header、无数据行是合法空集合；导入后清空 event。
-- 文件缺失 / 无效时视为不在事件期间。
+- 文件缺失 / 无效时视为不在活动期间。
 - 当前消费者：Coordinator、HomePage、InfoPage、LicenseListPage；`StationCount` 通过注入的判定器消费。
 
 必须：
 
-- 项目唯一事件数据来源
+- 项目唯一活动数据来源
 
 不得：
 
@@ -861,7 +861,7 @@ info page：
 
 - 结构：AppBar 标题（信息）+ 右上导入图标 → 许可证及车站信息框 → 更新提示框；无 X、无底部按钮栏
 - 许可证框：显示车站数 / 版本（`date`，存在修订时附 `pdate`；均为 `yyyyMMdd` 的 `int`）/ 大小 / 许可证入口，点击打开 `LicenseListPage`
-- 更新提示框：正文提示定期更新车站信息 / 事件信息数据，点击框体打开下载网站（`Common.uriInformation`）
+- 更新提示框：正文提示定期更新车站信息 / 活动信息数据，点击框体打开下载网站（`Common.uriInformation`）
 - 链接：点击经 `launchUrl(..., mode: LaunchMode.externalApplication)` 打开系统浏览器
 - 导入：右上导入图标先用 `file_picker` 选择 zip，再将路径传给 `InfoImportService.import(path)`；Service 完成解析、SHA-256 / 格式校验、写入与加载
 - 导入按钮以 `_picking` 守护选择阶段；订阅 `InfoImportService.busy`，`_picking` 或 busy 期间禁用导入图标
@@ -916,10 +916,10 @@ SearchEngine 不解析站名。
 - `SamplingMode`：staying（0 m/s，filter 4）/ walking（1 m/s，4）/ cycling（4 m/s，4）/ transit（8 m/s，16）
 - `Direction`：staying + 8 方向
 - `LocationInterval`：s1（1 s / 1024 ms）/ s3（3 s / 3072 ms）/ s5（5 s / 5120 ms）
-- `StationCount`：game（12 + 事件 2 + radar 4 + natsume 2）/ max（20）
+- `StationCount`：game（12 + 活动 2 + radar 4 + natsume 2）/ max（20）
 - `StationCountPart`：friend / event / radar / natsume
 
-`StationCount.count` 为动态值：`friend + (事件期间 ? event : 0) + radar + natsume`；`part(index)` 与 `label` 随事件期间变化。
+`StationCount.count` 为动态值：`friend + (活动期间 ? event : 0) + radar + natsume`；`part(index)` 与 `label` 随活动期间变化。
 
 ### Event Data
 
@@ -1032,8 +1032,8 @@ changeXxx 家族（外部事件驱动的状态更新）：
   - `Coordinator._stationManager`、`LocationProcessor._stationManager`、`_engine`（重建为 `SearchEngine(新 stationManager)`）在同一同步块内成对替换；流不中断、队列不清
   - Coordinator 调用 `LocationProcessor.changeData(...)` 完成换链
   - Dart 单线程保证换链不与在途 fix 交错；索引与站名成对换新；UI 列表与通知在下一个定位点（≤ 采样间隔）刷新
-- changeEventData：事件数据更新（导入）
-  - Coordinator 将 EventManager 的事件期间判定注入 `StationCount.eventPeriod`
+- changeEventData：活动数据更新（导入）
+  - Coordinator 将 EventManager 的活动期间判定注入 `StationCount.isEventPeriod`
   - 下一次定位 / UI 读取即时生效，无需换链
 
 共通语义：
@@ -1115,7 +1115,7 @@ Coordinator
 - 车站数据文件：`station_data_xyz.bin`（assets 与 documents 同名、路径不同）
   - assets：随应用发布的示例 / 过时数据
   - documents（私有目录）：真实数据，由 InfoImportService 写入
-- 事件数据文件：`event_data.ndjson`（documents）；缺失 / 无效时为空（无事件期间）
+- 活动数据文件：`event_data.ndjson`（documents）；缺失 / 无效时为空（无活动期间）
 - station 启动选源：只依据 documents 文件（含此前更新版本）的读取结果——读取成功则使用；读取异常 / 文件不存在回退 assets（示例 / 过时数据）；加载后校验失败（含 assets 数据损坏）回退空实例（静默回退策略）
 - event 启动加载：与 StationManager 初始化同阶段；documents 优先，读取失败 / 无效回退空实例（静默）
 - station 校验：尺寸 / 结构校验在加载后与写入前执行，复用同一 `validate`；按末尾 `v2` 标志区分 v1（20 字节尾）/ v2（22 字节尾 + gcd 区），两种格式均可加载与导入
