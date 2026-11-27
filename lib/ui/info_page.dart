@@ -145,20 +145,20 @@ class _InfoPageState extends ResetableState<InfoPage> {
                 l10n.infoAboutTitle,
                 style: const TextStyle(fontWeight: FontWeight.bold),
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 8),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: Text(
+                  l10n.infoAppVersion(Common.appVersion),
+                  style: TextStyle(color: Colors.grey.shade800, fontSize: 12.0),
+                ),
+              ),
+              const SizedBox(height: 2),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      l10n.infoAppVersion(Common.appVersion),
-                      style: TextStyle(
-                        color: Colors.grey.shade800,
-                        fontSize: 12.0,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
                     Text(
                       l10n.infoStationInfo,
                       style: TextStyle(
@@ -167,7 +167,7 @@ class _InfoPageState extends ResetableState<InfoPage> {
                       ),
                     ),
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 2),
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
                       child: Text(
                         '${l10n.infoStationCount(_stationManager.count)}'
                         '\n${l10n.infoStationVersion(_stationManager.date, _stationManager.pdate)}'
@@ -178,10 +178,17 @@ class _InfoPageState extends ResetableState<InfoPage> {
                         ),
                       ),
                     ),
-                    if (widget.settingsManager.stationCount ==
-                            StationCount.game &&
-                        _eventManager.eventPeriods.isNotEmpty) ...[
-                      const SizedBox(height: 2),
+                  ],
+                ),
+              ),
+              if (widget.settingsManager.stationCount == StationCount.game &&
+                  _eventManager.eventPeriods.isNotEmpty) ...[
+                const SizedBox(height: 2),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
                       Text(
                         l10n.infoEventInfo,
                         style: TextStyle(
@@ -190,7 +197,7 @@ class _InfoPageState extends ResetableState<InfoPage> {
                         ),
                       ),
                       Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 2),
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
                         child: Text(
                           [
                             l10n.infoEventCount(
@@ -208,49 +215,49 @@ class _InfoPageState extends ResetableState<InfoPage> {
                         ),
                       ),
                     ],
-                    const SizedBox(height: 8),
-                    GestureDetector(
-                      // behavior: HitTestBehavior.opaque,
-                      onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) =>
-                              LicenseListPage(_stationManager, _eventManager),
-                        ),
-                      ),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
-                        ),
-                        alignment: Alignment.centerLeft,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFDCECFF),
-                          border: Border.all(color: const Color(0xFF4080FF)),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              Icons.description,
-                              color: Color(0xFF4080FF),
-                            ),
-                            const SizedBox(width: 8),
-                            Flexible(
-                              child: Text(
-                                l10n.infoLicense,
-                                style: TextStyle(
-                                  color: Colors.grey.shade800,
-                                  fontSize: 12.0,
-                                ),
-                                softWrap: true,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                  ),
+                ),
+              ],
+              const SizedBox(height: 8),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 2),
+                child: GestureDetector(
+                  // behavior: HitTestBehavior.opaque,
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) =>
+                          LicenseListPage(_stationManager, _eventManager),
                     ),
-                  ],
+                  ),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    alignment: Alignment.centerLeft,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFDCECFF),
+                      border: Border.all(color: const Color(0xFF4080FF)),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.description, color: Color(0xFF4080FF)),
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: Text(
+                            l10n.infoLicense,
+                            style: TextStyle(
+                              color: Colors.grey.shade800,
+                              fontSize: 12.0,
+                            ),
+                            softWrap: true,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
               const SizedBox(height: 12),
@@ -261,66 +268,58 @@ class _InfoPageState extends ResetableState<InfoPage> {
               ),
               const SizedBox(height: 8),
               Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: Text(
+                  l10n.infoUpdateNotice,
+                  style: TextStyle(color: Colors.grey.shade800, fontSize: 12.0),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 2),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      l10n.infoUpdateNotice,
-                      style: TextStyle(
-                        color: Colors.grey.shade800,
-                        fontSize: 12.0,
-                      ),
+                child: GestureDetector(
+                  // behavior: HitTestBehavior.opaque,
+                  onTap: () => launchUrl(
+                    Common.uriInformation,
+                    mode: LaunchMode.externalApplication,
+                  ),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
                     ),
-                    const SizedBox(height: 8),
-                    GestureDetector(
-                      // behavior: HitTestBehavior.opaque,
-                      onTap: () => launchUrl(
-                        Common.uriInformation,
-                        mode: LaunchMode.externalApplication,
-                      ),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
-                        ),
-                        alignment: Alignment.centerLeft,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFDCECFF),
-                          border: Border.all(color: const Color(0xFF4080FF)),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              Icons.download,
-                              color: Color(0xFF4080FF),
+                    alignment: Alignment.centerLeft,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFDCECFF),
+                      border: Border.all(color: const Color(0xFF4080FF)),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.download, color: Color(0xFF4080FF)),
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: Text(
+                            l10n.infoUpdateDownload,
+                            style: TextStyle(
+                              color: Colors.grey.shade800,
+                              fontSize: 12.0,
                             ),
-                            const SizedBox(width: 8),
-                            Flexible(
-                              child: Text(
-                                l10n.infoUpdateDownload,
-                                style: TextStyle(
-                                  color: Colors.grey.shade800,
-                                  fontSize: 12.0,
-                                ),
-                                softWrap: true,
-                              ),
-                            ),
-                          ],
+                            softWrap: true,
+                          ),
                         ),
-                      ),
+                      ],
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      l10n.infoUpdateAfter,
-                      style: TextStyle(
-                        color: Colors.grey.shade800,
-                        fontSize: 12.0,
-                      ),
-                    ),
-                  ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: Text(
+                  l10n.infoUpdateAfter,
+                  style: TextStyle(color: Colors.grey.shade800, fontSize: 12.0),
                 ),
               ),
             ],
